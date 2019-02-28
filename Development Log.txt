@@ -1,0 +1,7 @@
+Develop log 19/7/2018:
+-	First table done.
+Develop log 21/7/2018:
+-	Simple character page done.
+Develop log 23/7/2018:
+-	Create new index page.
+-	Create new page for tabe
