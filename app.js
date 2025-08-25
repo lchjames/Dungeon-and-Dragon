@@ -363,4 +363,37 @@
   function byId(id) { return document.getElementById(id); }
   function val(id) { return byId(id).value || ''; }
   function setVal(id, v) { byId(id).value = v; }
+
+  // ===== Mobile table helper: 把 <td> 自動加上 data-label =====
+  (function () {
+    function labelize(tableSelector, labels) {
+      const tb = document.querySelector(tableSelector);
+      if (!tb) return;
+      // 給表格加上 .responsive
+      tb.classList.add('responsive');
+      const head = tb.querySelectorAll('thead th');
+      const cols = head.length ? Array.from(head).map(th => th.textContent.trim()) : labels || [];
+      tb.querySelectorAll('tbody tr').forEach(tr => {
+        tr.querySelectorAll('td').forEach((td, i) => {
+          td.setAttribute('data-label', cols[i] || (labels?.[i] ?? ''));
+        });
+      });
+    }
+
+    // 首次執行與每次內容渲染後執行
+    function applyMobileTables() {
+      labelize('#users-table', ['用戶名', '角色', '角色ID清單', '操作']);
+      labelize('#skill-table', ['類型', '名稱', '初始％', '職業＋', '合計％', '操作']);
+      labelize('#item-table', ['名稱', '說明', '數量', '攻擊', '防禦', '操作']);
+      labelize('#sf-table', ['名稱', '說明', '目標', '範圍', '距離', '加成1', '加成2', '加成3', 'MP', '操作']);
+    }
+    // 嘗試掛在全局以便其他流程呼叫
+    window.__applyMobileTables = applyMobileTables;
+
+    // 初次載入後跑一次（視頁面而定）
+    document.addEventListener('DOMContentLoaded', applyMobileTables);
+    // 若你在 renderCharacters()/openEditor()/renderSkills 等地方更新了表格，記得調用：
+    //   window.__applyMobileTables();
+  })();
+
 })();
