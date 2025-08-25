@@ -114,15 +114,169 @@
   });
 
   // Excel import (basic mapping for your sheets)
-  byId('import-excel').addEventListener('change', async e=>{
-    const f=e.target.files?.[0]; if(!f) return;
-    try{
-      const buf=await f.arrayBuffer();
-      // simple xlsx parser via SheetJS is not available offline; so we accept only JSON here in sandbox.
-      // In GitHub Pages,可用 https://cdn.jsdelivr.net/npm/xlsx 來做 client-side 讀取。
-      alert('此離線預覽無法解析 Excel。部署後請加上 SheetJS（README 有教學），或把檔案轉成 JSON 再匯入。');
-    } finally { e.target.value=''; }
-  });
+ // Excel import（使用 SheetJS 解析三個工作表）
+byId('import-excel').addEventListener('change', async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    // 讀檔與解析 workbook
+    const buf = await f.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+
+    // 小工具：把工作表變成 2D 陣列（每列都是一個陣列）
+    const toRows = (sheetName) => {
+      const ws = wb.Sheets[sheetName];
+      if (!ws) return [];
+      return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    };
+
+    // --- 1) 人物表(自動計算) -> 角色基本資料 ---
+    // 會掃描整張表，找出「探索者姓名 / 職業 / 陣營 / 年齡 / 性別 / EXP」的值（在同一列的下一格）
+    const charRows = toRows('人物表(自動計算)');
+    const pickValue = (labels) => {
+      // 到處找第一欄/任意欄出現 label 的列
+      for (const row of charRows) {
+        for (let c = 0; c < row.length; c++) {
+          const cell = String(row[c]).trim();
+          if (labels.includes(cell)) {
+            // 取右邊一格（如果沒有就取下一列第一格）
+            return row[c + 1] ?? '';
+          }
+        }
+      }
+      return '';
+    };
+    const char = {
+      name: String(pickValue(['探索者姓名', '姓名'])).trim(),
+      job: String(pickValue(['職業'])).trim(),
+      align: String(pickValue(['陣營'])).trim(),
+      age: Number(pickValue(['年齡'])) || 0,
+      gender: String(pickValue(['性別'])).trim(),
+      exp: Number(pickValue(['EXP', '經驗'])) || 0,
+      // Excel 內若沒有技能列表，就保持空陣列；你之後亦可擴充掃描
+      skills: []
+    };
+
+    // --- 2) 持有道具 -> 金錢 + 物品 ---
+    const itemsRows = toRows('持有道具');
+
+    // 2a: 金錢：尋找列首為「銅幣/銀幣/金幣」的行，右邊一格數值
+    const money = { cp: 0, sp: 0, gp: 0 };
+    for (const r of itemsRows) {
+      const k = String(r[0]).trim();
+      if (!k) continue;
+      if (k.includes('銅幣')) money.cp = Number(r[1]) || 0;
+      if (k.includes('銀幣')) money.sp = Number(r[1]) || 0;
+      if (k.includes('金幣')) money.gp = Number(r[1]) || 0;
+    }
+
+    // 2b: 物品清單：找到表頭列（含「物品名稱」「說明」「數量」「攻擊力」「防禦力」這些字）
+    const headerIdx = itemsRows.findIndex((row) => {
+      const line = row.map((x) => String(x)).join('|');
+      return (
+        /物品/.test(line) &&
+        (/名稱|名/.test(line)) &&
+        /說明/.test(line) &&
+        /數量/.test(line)
+      );
+    });
+    const items = [];
+    if (headerIdx >= 0) {
+      const header = itemsRows[headerIdx].map((s) => String(s).trim());
+      const col = (nameList) => {
+        // 回傳符合其中任一欄名的 index；找不到就 -1
+        for (const name of nameList) {
+          const i = header.findIndex((h) => h.includes(name));
+          if (i !== -1) return i;
+        }
+        return -1;
+      };
+      const cName = col(['物品名稱', '名稱', '名']);
+      const cDesc = col(['說明', '描述']);
+      const cQty  = col(['數量']);
+      const cAtk  = col(['攻擊力', '攻擊']);
+      const cDef  = col(['防禦力', '防禦']);
+
+      for (let r = headerIdx + 1; r < itemsRows.length; r++) {
+        const row = itemsRows[r];
+        const name = String(row[cName] ?? '').trim();
+        if (!name) continue; // 空行/結束
+
+        const it = {
+          name,
+          desc: String(row[cDesc] ?? '').trim(),
+          qty: Number(row[cQty] ?? 1) || 1,
+          atk: Number(row[cAtk] ?? 0) || 0,
+          def: Number(row[cDef] ?? 0) || 0
+        };
+        items.push(it);
+      }
+    }
+
+    // --- 3) 持有技能法術 -> spellskills ---
+    // 欄位：技能名稱 / 說明 / 目標 / 效應範圍 / 效應距離 / 加成1~3 / 消耗法力
+    const sfRows = toRows('持有技能法術');
+    let sfHeaderIdx = sfRows.findIndex((row) => {
+      const l = row.map((x) => String(x)).join('|');
+      return /技能名稱|名稱/.test(l) && /說明/.test(l);
+    });
+    const spellskills = [];
+    if (sfHeaderIdx === -1) sfHeaderIdx = 0; // 若沒有表頭，視第 0 列為資料起點
+
+    const headerSF = (sfRows[sfHeaderIdx] || []).map((s) => String(s).trim());
+    const colSF = (names) => {
+      for (const n of names) {
+        const i = headerSF.findIndex((h) => h.includes(n));
+        if (i !== -1) return i;
+      }
+      return -1;
+    };
+    const cN = colSF(['技能名稱', '名稱']);
+    const cD = colSF(['說明', '描述']);
+    const cT = colSF(['目標']);
+    const cA = colSF(['效應範圍', '範圍']);
+    const cR = colSF(['效應距離', '距離']);
+    const cB1 = colSF(['加成1', '加成一']);
+    const cB2 = colSF(['加成2', '加成二']);
+    const cB3 = colSF(['加成3', '加成三']);
+    const cMP = colSF(['消耗法力', 'MP', '法力']);
+
+    for (let r = sfHeaderIdx + 1; r < sfRows.length; r++) {
+      const row = sfRows[r];
+      const name = String(row[cN] ?? '').trim();
+      const desc = String(row[cD] ?? '').trim();
+      // 沒有名稱又沒有說明就略過
+      if (!name && !desc) continue;
+      spellskills.push({
+        name,
+        desc,
+        target: String(row[cT] ?? '').trim(),
+        area: String(row[cA] ?? '').trim(),
+        range: String(row[cR] ?? '').trim(),
+        b1: String(row[cB1] ?? '').trim(),
+        b2: String(row[cB2] ?? '').trim(),
+        b3: String(row[cB3] ?? '').trim(),
+        mp: String(row[cMP] ?? '').trim()
+      });
+    }
+
+    // --- 寫回本地資料庫並刷新畫面 ---
+    db.character = char;
+    db.money = money;
+    db.items = items;
+    db.spellskills = spellskills;
+
+    saveDB();
+    hydrate();
+    alert('Excel 匯入完成！');
+  } catch (err) {
+    console.error(err);
+    alert('匯入失敗：' + (err?.message || err));
+  } finally {
+    e.target.value = '';
+  }
+});
+
 
   // Save button (manual)
   byId('save').addEventListener('click', ()=>{ saveDB(); alert('已儲存'); });
