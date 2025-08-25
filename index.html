@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vault（Excel 同步版）</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="container row between center">
+    <a class="brand" href="#"><span aria-hidden="true">📘</span> Vault（Excel 同步）</a>
+    <nav>
+      <ul class="nav">
+        <li><a data-route href="#character">角色</a></li>
+        <li><a data-route href="#items">道具/金錢</a></li>
+        <li><a data-route href="#skills">技能/法術</a></li>
+        <li><a data-route href="#backup">備份/匯入</a></li>
+      </ul>
+    </nav>
+    <button id="theme-toggle" class="button ghost">🌓</button>
+  </div>
+</header>
+
+<main class="container">
+  <section id="page-character" class="page">
+    <h1>角色（依 Excel 結構）</h1>
+    <div class="form-grid">
+      <label>探索者姓名<input id="f-name" /></label>
+      <label>職業<input id="f-job" /></label>
+      <label>陣營<input id="f-align" /></label>
+      <label>年齡<input id="f-age" type="number" min="0" /></label>
+      <label>性別<input id="f-gender" /></label>
+      <label>EXP<input id="f-exp" type="number" min="0" /></label>
+    </div>
+
+    <h2>技能列表</h2>
+    <div class="row gap">
+      <input id="skill-type" class="input" placeholder="技能類型（如：溝通/操作…）" />
+      <input id="skill-name" class="input" placeholder="技能名稱" />
+      <input id="skill-base" class="input" type="number" placeholder="初始值（％）" />
+      <input id="skill-prof" class="input" type="number" placeholder="職業加成（＋）" />
+      <button id="skill-add" class="button">加入</button>
+    </div>
+    <table class="table" id="skill-table">
+      <thead><tr><th>技能類型</th><th>技能名稱</th><th>初始值（％）</th><th>職業（＋）</th><th>合計（％）</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="page-items" class="page hidden">
+    <h1>金錢</h1>
+    <div class="form-grid">
+      <label>銅幣<input id="money-cp" type="number" min="0" value="0" /></label>
+      <label>銀幣<input id="money-sp" type="number" min="0" value="0" /></label>
+      <label>金幣<input id="money-gp" type="number" min="0" value="0" /></label>
+    </div>
+    <h2>持有道具</h2>
+    <div class="row gap">
+      <input id="item-name" class="input" placeholder="物品名稱" />
+      <input id="item-desc" class="input" placeholder="說明" />
+      <input id="item-qty" class="input" type="number" min="1" value="1" placeholder="數量" />
+      <input id="item-atk" class="input" type="number" value="0" placeholder="攻擊力" />
+      <input id="item-def" class="input" type="number" value="0" placeholder="防禦力" />
+      <button id="item-add" class="button">加入</button>
+    </div>
+    <table class="table" id="item-table">
+      <thead><tr><th>物品名稱</th><th>說明</th><th>數量</th><th>攻擊力</th><th>防禦力</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="page-skills" class="page hidden">
+    <h1>持有技能 / 法術</h1>
+    <div class="row gap">
+      <input id="sf-name" class="input" placeholder="技能名稱" />
+      <input id="sf-desc" class="input" placeholder="說明" />
+      <input id="sf-target" class="input" placeholder="目標" />
+      <input id="sf-area" class="input" placeholder="效應範圍" />
+      <input id="sf-range" class="input" placeholder="效應距離" />
+      <input id="sf-b1" class="input" placeholder="加成1" />
+      <input id="sf-b2" class="input" placeholder="加成2" />
+      <input id="sf-b3" class="input" placeholder="加成3" />
+      <input id="sf-mp" class="input" placeholder="消耗法力" />
+      <button id="sf-add" class="button">加入</button>
+    </div>
+    <table class="table" id="sf-table">
+      <thead><tr><th>技能名稱</th><th>說明</th><th>目標</th><th>效應範圍</th><th>效應距離</th><th>加成1</th><th>加成2</th><th>加成3</th><th>消耗法力</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="page-backup" class="page hidden">
+    <h1>備份 / 匯入</h1>
+    <div class="row gap">
+      <button id="export-json" class="button primary">匯出 JSON</button>
+      <label class="file"><input id="import-file" type="file" accept="application/json" hidden /><span class="button">從 JSON 匯入</span></label>
+      <label class="file"><input id="import-excel" type="file" accept=".xlsx" hidden /><span class="button">從 Excel 匯入</span></label>
+      <button id="clear-all" class="button ghost">清除所有資料</button>
+    </div>
+    <p class="muted">此版本可讀 Excel，欄位對應以你嘅 Excel 為準。</p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container row between center">
+    <p>© <span id="year"></span> Vault Excel 同步版 • MIT</p>
+    <button id="demo-load" class="button ghost small">載入示例</button>
+    <button id="save" class="button small">儲存</button>
+  </div>
+</footer>
+
+<noscript><div class="noscript">此網站需要 JavaScript。</div></noscript>
+</body>
+</html>
