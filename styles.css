@@ -1,48 +1,130 @@
 body {
-    font-family: sans-serif;
+    font-family: ui-sans-serif, system-ui;
+    -webkit-font-smoothing: antialiased;
     background: #0a0f1e;
-    color: #eee
+    color: #E8EAF4;
+    min-height: 100dvh
+}
+
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 18px
+}
+
+.row {
+    display: flex;
+    gap: 12px
+}
+
+.row.between {
+    justify-content: space-between
+}
+
+.row.gap {
+    gap: 10px
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px
+}
+
+.site-header {
+    position: sticky;
+    top: 0;
+    background: rgba(10, 15, 30, .75);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, .07)
+}
+
+.brand {
+    text-decoration: none;
+    color: inherit;
+    font-weight: 800
+}
+
+.card {
+    background: rgba(17, 23, 53, .6);
+    border: 1px solid rgba(255, 255, 255, .07);
+    border-radius: 18px;
+    padding: 16px
+}
+
+.button {
+    border: none;
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: #9b6bff;
+    color: #fff;
+    cursor: pointer
+}
+
+.button.ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, .12)
+}
+
+.button.small {
+    padding: 6px 10px
+}
+
+.input,
+select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: #121a3a;
+    color: #fff
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 14px;
+    overflow: hidden
+}
+
+.table th,
+.table td {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08)
+}
+
+.table tr:last-child td {
+    border-bottom: none
+}
+
+.page {
+    margin: 18px 0
+}
+
+.page-header {
+    margin: 12px 0
+}
+
+.muted {
+    color: #A6B0CF
 }
 
 .hidden {
     display: none
 }
 
-.card {
-    background: #111735cc;
-    border-radius: 12px;
-    padding: 16px;
-    margin: 8px 0
-}
-
-.button {
-    padding: 8px 14px;
-    border-radius: 999px;
-    background: #9b6bff;
-    color: #fff;
-    border: none;
-    cursor: pointer
-}
-
-.input {
-    padding: 8px 12px;
-    border-radius: 999px;
-    border: 1px solid #333;
-    background: #222;
-    color: #fff
-}
-
 .status {
     margin-left: 8px;
-    color: #aaa
+    color: #A6B0CF
 }
 
 .status.ok {
-    color: #0f0
+    color: #22c55e
 }
 
 .status.err {
-    color: #f55
+    color: #ef4444
 }
 
 @media(max-width:640px) {
@@ -52,7 +134,6 @@ body {
 
     .button,
     .input {
-        width: 100%;
-        margin: 4px 0
+        min-height: 44px
     }
 }
