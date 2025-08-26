@@ -1,3 +1,4 @@
+/* Dark theme + mobile */
 body {
     font-family: ui-sans-serif, system-ui;
     -webkit-font-smoothing: antialiased;
@@ -19,6 +20,10 @@ body {
 
 .row.between {
     justify-content: space-between
+}
+
+.row.gap {
+    gap: 10px
 }
 
 .grid {
@@ -98,24 +103,9 @@ select {
     margin: 18px 0
 }
 
-/* 讓角色頁面的操作按鈕橫向排列 */
-.page-header .row.gap {
-    display: flex;
-    flex-wrap: wrap;
-    /* 小螢幕時自動換行 */
-    gap: 12px;
-    /* 按鈕之間的間距 */
-    align-items: center;
-    /* 垂直置中 */
+.page-header {
+    margin: 12px 0
 }
-
-.page-header .row.gap .button,
-.page-header .row.gap label.file {
-    display: inline-flex;
-    white-space: nowrap;
-    /* 避免字換行 */
-}
-
 
 .muted {
     color: #A6B0CF
@@ -136,6 +126,20 @@ select {
 
 .status.err {
     color: #ef4444
+}
+
+/* Horizontal controls in Characters page */
+.controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center
+}
+
+.controls-row .button,
+.controls-row label.file {
+    display: inline-flex;
+    white-space: nowrap
 }
 
 @media(max-width:640px) {
