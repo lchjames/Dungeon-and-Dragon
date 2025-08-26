@@ -1,7 +1,5 @@
-/* Dark theme + mobile */
 body {
     font-family: ui-sans-serif, system-ui;
-    -webkit-font-smoothing: antialiased;
     background: #0a0f1e;
     color: #E8EAF4;
     min-height: 100dvh
@@ -128,7 +126,6 @@ select {
     color: #ef4444
 }
 
-/* Horizontal controls in Characters page */
 .controls-row {
     display: flex;
     flex-wrap: wrap;

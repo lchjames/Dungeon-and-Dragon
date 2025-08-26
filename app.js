@@ -1,5 +1,5 @@
 (function () {
-  const DB_KEY = 'vault-v3.2.2'; let db = loadDB();
+  const DB_KEY = 'vault-v3.2.4'; let db = loadDB();
   function loadDB() { try { return JSON.parse(localStorage.getItem(DB_KEY)) || { characters: [] } } catch { return { characters: [] } } }
   function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
   function byId(id) { return document.getElementById(id); }
@@ -39,7 +39,6 @@
   }
 
   function bindAlways() {
-    // Login
     const btnLogin = byId('btn-login'), inputUser = byId('login-user'), inputPass = byId('login-pass');
     async function doLogin() {
       try {
@@ -60,7 +59,55 @@
     byId('add-character')?.addEventListener('click', () => openEditor(null));
     byId('char-search')?.addEventListener('input', render);
 
-    // Excel import: label-based + upsert
+    // === Util: merged-cell-safe getters ===
+    function getCell(ws, addr, { followMerged = true, scanRight = 0 } = {}) {
+      if (!ws) return '';
+      const val = ws[addr]?.v;
+      if (val !== undefined && String(val).trim() !== '') return String(val).trim();
+      if (followMerged && Array.isArray(ws['!merges'])) {
+        const A = XLSX.utils.decode_cell(addr);
+        for (const m of ws['!merges']) {
+          if (A.r >= m.s.r && A.r <= m.e.r && A.c >= m.s.c && A.c <= m.e.c) {
+            const master = XLSX.utils.encode_cell(m.s);
+            const mv = ws[master]?.v;
+            if (mv !== undefined && String(mv).trim() !== '') return String(mv).trim();
+          }
+        }
+      }
+      if (scanRight > 0) {
+        const A = XLSX.utils.decode_cell(addr);
+        for (let k = 1; k <= scanRight; k++) {
+          const right = XLSX.utils.encode_cell({ r: A.r, c: A.c + k });
+          const rv = ws[right]?.v;
+          if (rv !== undefined && String(rv).trim() !== '') return String(rv).trim();
+        }
+      }
+      return '';
+    }
+
+    function pickRightByLabel(ws, labels, scanRight = 10) {
+      if (!ws) return '';
+      const ref = ws['!ref']; if (!ref) return '';
+      const range = XLSX.utils.decode_range(ref);
+      const norm = s => String(s || '').replace(/[\s:：]/g, '').toUpperCase();
+      const targets = new Set(labels.map(norm));
+      for (let r = range.s.r; r <= Math.min(range.e.r, 600); r++) {
+        for (let c = range.s.c; c <= Math.min(range.e.c, 120); c++) {
+          const here = XLSX.utils.encode_cell({ r, c });
+          const v = ws[here]?.v; if (!v) continue;
+          if (targets.has(norm(v))) {
+            for (let k = 1; k <= scanRight; k++) {
+              const addr = XLSX.utils.encode_cell({ r, c: c + k });
+              const got = getCell(ws, addr, { followMerged: true, scanRight: 0 });
+              if (got) return got;
+            }
+          }
+        }
+      }
+      return '';
+    }
+
+    // Excel import handler: fixed cells first, fallback to label-search
     byId('excel-import')?.addEventListener('change', async e => {
       const file = e.target.files?.[0]; if (!file) return;
       const hud = byId('excel-status');
@@ -68,45 +115,33 @@
         hud.textContent = '載入中…';
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
-        const getSheet = (name) => wb.Sheets[name] || wb.Sheets[Object.keys(wb.Sheets).find(k => k.includes(name)) || ''];
-        function pickRight(ws, labels) {
-          if (!ws) return '';
-          const ref = ws['!ref']; if (!ref) return '';
-          const range = XLSX.utils.decode_range(ref);
-          for (let r = range.s.r; r <= Math.min(range.e.r, 400); r++) {
-            for (let c = range.s.c; c <= Math.min(range.e.c, 80); c++) {
-              const addr = XLSX.utils.encode_cell({ r, c });
-              const v = String((ws[addr]?.v ?? '')).trim();
-              if (!v) continue;
-              if (labels.includes(v)) {
-                const right = XLSX.utils.encode_cell({ r, c: c + 1 });
-                const val = String((ws[right]?.v ?? '')).trim();
-                if (val) return val;
-              }
-            }
-          }
-          return '';
-        }
-        const wsChar = getSheet('人物表') || getSheet('人物表(自動計算)') || wb.Sheets[wb.SheetNames[0]];
-        const name = pickRight(wsChar, ['探索者姓名', '姓名', '角色名', '名稱']);
-        const job = pickRight(wsChar, ['職業', 'Job']);
-        if (!name) throw new Error('找不到姓名（請確認表內「探索者姓名」右側有資料）');
+        const wsChar = wb.Sheets['人物表(自動計算)'] || wb.Sheets['人物表'] || wb.Sheets[wb.SheetNames[0]];
 
-        const idx = (db.characters || []).findIndex(c => (c.name || '').trim().toLowerCase() === name.toLowerCase());
+        const name = getCell(wsChar, 'I2', { followMerged: true, scanRight: 10 }) || pickRightByLabel(wsChar, ['探索者姓名', '姓名', '角色名', '名稱'], 10);
+        const job = getCell(wsChar, 'I3', { followMerged: true, scanRight: 10 }) || pickRightByLabel(wsChar, ['職業', 'Job'], 10);
+        const align = getCell(wsChar, 'I4', { followMerged: true, scanRight: 10 });
+        const age = getCell(wsChar, 'I5', { followMerged: true, scanRight: 10 });
+        const gender = getCell(wsChar, 'I6', { followMerged: true, scanRight: 10 });
+        const exp = getCell(wsChar, 'I7', { followMerged: true, scanRight: 10 });
+
+        if (!name) throw new Error('找不到姓名（I2 或 標籤右側皆為空）');
+
+        const idx = (db.characters || []).findIndex(c => (c.name || '').trim().toLowerCase() === String(name).toLowerCase());
+        const base = { name: String(name), job: String(job || ''), align: String(align || ''), age: Number(age || 0) || 0, gender: String(gender || ''), exp: Number(exp || 0) || 0 };
         if (idx >= 0) {
           const id = db.characters[idx].id;
-          db.characters[idx] = { ...db.characters[idx], id, name, job };
-          hud.textContent = '更新完成：' + name;
+          db.characters[idx] = { ...db.characters[idx], id, ...base };
+          hud.textContent = '更新完成：' + base.name;
         } else {
-          db.characters.push({ id: 'C_' + Math.random().toString(36).slice(2, 8), name, job });
-          hud.textContent = '新增完成：' + name;
+          db.characters.push({ id: 'C_' + Math.random().toString(36).slice(2, 8), ...base });
+          hud.textContent = '新增完成：' + base.name;
         }
         saveDB(); render();
       } catch (err) {
         hud.textContent = '錯誤：' + (err?.message || err);
       } finally {
         e.target.value = '';
-        setTimeout(() => { if (hud.textContent.startsWith('新增') || hud.textContent.startsWith('更新')) hud.textContent = ''; }, 3000);
+        setTimeout(() => { if (/^新增完成|^更新完成/.test(hud.textContent)) hud.textContent = ''; }, 3000);
       }
     });
 

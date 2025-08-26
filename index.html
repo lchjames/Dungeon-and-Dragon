@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vault v3.2.2</title>
+  <title>Vault v3.2.4</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script defer src="auth.js"></script>
@@ -31,7 +31,6 @@
   </header>
 
   <main class="container">
-    <!-- Login -->
     <section id="page-login" class="page">
       <div class="card">
         <h1>登入</h1>
@@ -43,7 +42,6 @@
       </div>
     </section>
 
-    <!-- Users -->
     <section id="page-users" class="page hidden">
       <h1>用戶管理（管理員）</h1>
       <div class="card">
@@ -70,7 +68,6 @@
       </table>
     </section>
 
-    <!-- Characters -->
     <section id="page-characters" class="page hidden">
       <div class="page-header row between center">
         <h1>角色</h1>
@@ -88,7 +85,6 @@
       <div id="characters-grid" class="grid"></div>
     </section>
 
-    <!-- Backup -->
     <section id="page-backup" class="page hidden">
       <h1>備份/匯入</h1>
       <div class="row gap">
@@ -105,7 +101,6 @@
     </div>
   </footer>
 
-  <!-- Character Editor Dialog -->
   <dialog id="char-dialog" class="dialog">
     <form id="char-form" method="dialog">
       <header class="row between center">
@@ -138,10 +133,6 @@
       <p class="muted"><span data-job></span></p>
     </article>
   </template>
-
-  <noscript>
-    <div class="noscript">此網站需要 JavaScript。</div>
-  </noscript>
 </body>
 
 </html>
