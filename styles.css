@@ -1,6 +1,5 @@
-/* ========== Theme tokens ========== */
+/* Theme tokens */
 :root {
-    /* 玻璃感深色主題 */
     --bg: #0a0f1e;
     --layer: color-mix(in oklab, #0a0f1e 72%, #111735);
     --card: rgba(17, 23, 53, .6);
@@ -9,12 +8,9 @@
     --muted: #A6B0CF;
     --border: rgba(255, 255, 255, .07);
     --accent: #9b6bff;
-    /* 紫色主色 */
     --accent-2: #6ae1ff;
-    /* 輔色高光 */
     --ok: #22c55e;
     --err: #ef4444;
-
     --radius-xl: 22px;
     --radius-lg: 16px;
     --radius-md: 12px;
@@ -22,11 +18,10 @@
     --shadow-2: 0 20px 45px rgba(2, 6, 23, .45);
 }
 
-/* 亮色可選（保留） */
-[data-theme="light"] {
+[data-theme=light] {
     --bg: #f6f7fb;
-    --layer: #ffffff;
-    --card: #ffffff;
+    --layer: #fff;
+    --card: #fff;
     --surface: #ffffffcc;
     --fg: #0f172a;
     --muted: #556085;
@@ -35,15 +30,14 @@
     --shadow-2: 0 30px 60px rgba(2, 6, 23, .10);
 }
 
-/* ========== Base ========== */
 * {
-    box-sizing: border-box;
+    box-sizing: border-box
 }
 
 html,
 body {
     margin: 0;
-    padding: 0;
+    padding: 0
 }
 
 body {
@@ -60,40 +54,39 @@ body {
 .container {
     max-width: 1100px;
     margin: 0 auto;
-    padding: 0 18px;
+    padding: 0 18px
 }
 
 .row {
     display: flex;
-    gap: 12px;
+    gap: 12px
 }
 
 .row.center {
-    align-items: center;
+    align-items: center
 }
 
 .row.between {
-    justify-content: space-between;
+    justify-content: space-between
 }
 
 .row.gap {
-    gap: 10px;
+    gap: 10px
 }
 
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 16px;
+    gap: 16px
 }
 
-/* ========== Header / Nav ========== */
 .site-header {
     position: sticky;
     top: 0;
     z-index: 10;
     backdrop-filter: saturate(120%) blur(10px);
     background: color-mix(in oklab, var(--bg) 80%, transparent);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border)
 }
 
 .brand {
@@ -103,7 +96,7 @@ body {
     letter-spacing: .3px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 8px
 }
 
 .nav {
@@ -111,7 +104,7 @@ body {
     padding: 0;
     margin: 0;
     display: flex;
-    gap: 18px;
+    gap: 18px
 }
 
 .nav a {
@@ -120,11 +113,11 @@ body {
     font-weight: 600;
     letter-spacing: .2px;
     padding: 10px 0;
-    position: relative;
+    position: relative
 }
 
 .nav a:hover {
-    color: var(--fg);
+    color: var(--fg)
 }
 
 .nav a::after {
@@ -137,24 +130,23 @@ body {
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
     transform: scaleX(0);
     transform-origin: left;
-    transition: .25s ease;
+    transition: .25s ease
 }
 
 .nav a:hover::after {
-    transform: scaleX(1);
+    transform: scaleX(1)
 }
 
-/* ========== Cards & Surfaces ========== */
 .card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     padding: 18px;
-    box-shadow: var(--shadow-1);
+    box-shadow: var(--shadow-1)
 }
 
 .page-header {
-    margin: 16px 0 12px;
+    margin: 16px 0 12px
 }
 
 .badge {
@@ -162,10 +154,9 @@ body {
     border-radius: 999px;
     padding: 2px 10px;
     color: var(--muted);
-    background: color-mix(in oklab, var(--surface) 70%, transparent);
+    background: color-mix(in oklab, var(--surface) 70%, transparent)
 }
 
-/* ========== Buttons ========== */
 .button {
     appearance: none;
     border: none;
@@ -180,46 +171,44 @@ body {
     color: var(--fg);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-1);
-    transition: transform .08s ease, box-shadow .2s ease, background .2s ease;
+    transition: transform .08s ease, box-shadow .2s ease, background .2s ease
 }
 
 .button:hover {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-2);
+    box-shadow: var(--shadow-2)
 }
 
 .button:active {
-    transform: translateY(0);
+    transform: translateY(0)
 }
 
 .button.small {
     padding: 8px 12px;
-    font-size: 14px;
+    font-size: 14px
 }
 
 .button.ghost {
-    background: transparent;
+    background: transparent
 }
 
 .button.primary {
     background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 50%, var(--accent-2)));
     border-color: transparent;
-    color: white;
+    color: white
 }
 
-/* ========== Inputs ========== */
 .input,
 select,
 textarea {
     width: 100%;
     padding: 12px 14px;
     border-radius: 999px;
-    /* 膠囊 */
     border: 1px solid var(--border);
     background: color-mix(in oklab, var(--surface) 65%, transparent);
     color: var(--fg);
     outline: none;
-    transition: box-shadow .2s ease, border-color .2s ease, background .2s ease;
+    transition: box-shadow .2s ease, border-color .2s ease, background .2s ease
 }
 
 .input:focus,
@@ -227,23 +216,22 @@ select:focus,
 textarea:focus {
     border-color: color-mix(in oklab, var(--accent) 60%, white);
     box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
-    background: color-mix(in oklab, var(--surface) 80%, transparent);
+    background: color-mix(in oklab, var(--surface) 80%, transparent)
 }
 
 label {
     display: grid;
     gap: 8px;
     font-size: 13px;
-    color: var(--muted);
+    color: var(--muted)
 }
 
 .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
+    gap: 12px
 }
 
-/* ========== Tables ========== */
 .table {
     width: 100%;
     border-collapse: collapse;
@@ -251,27 +239,26 @@ label {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: var(--shadow-1);
+    box-shadow: var(--shadow-1)
 }
 
 .table th,
 .table td {
     padding: 12px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border)
 }
 
 .table thead th {
     text-align: left;
     color: var(--muted);
     font-weight: 700;
-    background: color-mix(in oklab, var(--surface) 80%, transparent);
+    background: color-mix(in oklab, var(--surface) 80%, transparent)
 }
 
 .table tr:last-child td {
-    border-bottom: none;
+    border-bottom: none
 }
 
-/* ========== Dialog ========== */
 dialog.dialog {
     width: min(1100px, 96vw);
     background: color-mix(in oklab, var(--surface) 85%, transparent);
@@ -279,42 +266,39 @@ dialog.dialog {
     border-radius: var(--radius-xl);
     color: var(--fg);
     box-shadow: var(--shadow-2);
-    padding: 14px 16px 18px;
+    padding: 14px 16px 18px
 }
 
 dialog::backdrop {
-    background: rgba(0, 0, 0, .45);
+    background: rgba(0, 0, 0, .45)
 }
 
-/* ========== Footer ========== */
 .site-footer {
     border-top: 1px solid var(--border);
     padding: 16px 0;
     margin-top: 28px;
-    background: color-mix(in oklab, var(--bg) 80%, transparent);
+    background: color-mix(in oklab, var(--bg) 80%, transparent)
 }
 
-/* ========== Utilities ========== */
 .hidden {
-    display: none !important;
+    display: none !important
 }
 
 .muted {
-    color: var(--muted);
+    color: var(--muted)
 }
 
-.file input[type="file"] {
-    display: none;
+.file input[type=file] {
+    display: none
 }
 
-/* Excel 匯入狀態 HUD（v2） */
 .status {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     margin-left: 8px;
     font-size: 14px;
-    color: var(--muted);
+    color: var(--muted)
 }
 
 .status .spinner {
@@ -323,65 +307,61 @@ dialog::backdrop {
     border-radius: 50%;
     border: 2px solid var(--border);
     border-top-color: var(--accent);
-    animation: spin .8s linear infinite;
+    animation: spin .8s linear infinite
 }
 
 .status.ok {
-    color: var(--ok);
+    color: var(--ok)
 }
 
 .status.err {
-    color: var(--err);
+    color: var(--err)
 }
 
 @keyframes spin {
     to {
-        transform: rotate(360deg);
+        transform: rotate(360deg)
     }
 }
 
-/* ===== Mobile-first tweaks ===== */
-@media (max-width: 640px) {
+/* Mobile tweaks */
+@media (max-width:640px) {
 
     html,
     body {
-        font-size: 16px;
+        font-size: 16px
     }
 
-    /* 便於閱讀 */
     .container {
-        padding: 0 12px;
+        padding: 0 12px
     }
 
     .row.gap {
-        gap: 8px;
+        gap: 8px
     }
 
     .grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr
     }
 
-    /* 卡片單欄 */
     .page-header {
-        margin: 12px 0 8px;
+        margin: 12px 0 8px
     }
 
-    /* 導航：變成可左右滑動的「膠囊選單」 */
     .nav {
         gap: 12px;
         overflow-x: auto;
         padding-bottom: 6px;
-        -webkit-overflow-scrolling: touch;
+        -webkit-overflow-scrolling: touch
     }
 
     .nav::-webkit-scrollbar {
-        display: none;
+        display: none
     }
 
-    /* 按鈕與輸入：更大更易按 */
     .button {
         min-height: 44px;
-        padding: 12px 14px;
+        padding: 12px 14px
     }
 
     .input,
@@ -389,30 +369,27 @@ dialog::backdrop {
     textarea {
         min-height: 44px;
         padding: 12px 14px;
-        border-radius: 14px;
+        border-radius: 14px
     }
 
-    /* 卡片：收窄留白、維持陰影 */
     .card {
         padding: 14px;
-        border-radius: 18px;
+        border-radius: 18px
     }
 
-    /* 對話框：手機全屏 + 內部可滾動 + 底部固定操作列 */
     dialog.dialog {
         width: 100vw;
         height: 100dvh;
         max-width: 100vw;
         margin: 0;
         border-radius: 0;
-        padding: 10px 12px 80px;
-        /* 底部留空給 footer */
+        padding: 10px 12px 80px
     }
 
     dialog.dialog form {
         height: 100%;
         display: flex;
-        flex-direction: column;
+        flex-direction: column
     }
 
     dialog.dialog form>header {
@@ -420,14 +397,7 @@ dialog::backdrop {
         top: 0;
         background: inherit;
         padding: 6px 0 10px;
-        z-index: 2;
-    }
-
-    dialog.dialog form>.form-grid,
-    dialog.dialog form>h3,
-    dialog.dialog form>.row,
-    dialog.dialog form>table {
-        margin-bottom: 10px;
+        z-index: 2
     }
 
     dialog.dialog form>footer {
@@ -441,24 +411,22 @@ dialog::backdrop {
         gap: 10px;
         padding: 10px 12px;
         border-top: 1px solid var(--border);
-        background: color-mix(in oklab, var(--surface) 92%, transparent);
+        background: color-mix(in oklab, var(--surface) 92%, transparent)
     }
 
-    /* 表單網格：單欄直排 */
     .form-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr
     }
 
-    /* 表格：手機卡片化（加 .responsive 類名即可套用） */
     .table.responsive {
         border: none;
         border-radius: 0;
         background: transparent;
-        box-shadow: none;
+        box-shadow: none
     }
 
     .table.responsive thead {
-        display: none;
+        display: none
     }
 
     .table.responsive tr {
@@ -467,39 +435,37 @@ dialog::backdrop {
         background: color-mix(in oklab, var(--surface) 80%, transparent);
         border: 1px solid var(--border);
         border-radius: 14px;
-        overflow: hidden;
+        overflow: hidden
     }
 
     .table.responsive td {
         display: grid;
         grid-template-columns: 40% 1fr;
         gap: 8px;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid var(--border)
     }
 
     .table.responsive td:last-child {
-        border-bottom: none;
+        border-bottom: none
     }
 
     .table.responsive td::before {
         content: attr(data-label);
         color: var(--muted);
         padding-right: 10px;
-        text-align: right;
+        text-align: right
     }
 
-    /* Excel 匯入狀態位置：在手機上換行到下一排 */
     #excel-status {
         display: block;
-        margin: 8px 0 0 0;
+        margin: 8px 0 0 0
     }
 }
 
-/* iOS 安全區 */
-@supports (padding: max(0px)) {
+@supports (padding:max(0px)) {
 
     .site-footer,
     dialog.dialog form>footer {
-        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        padding-bottom: max(10px, env(safe-area-inset-bottom))
     }
 }

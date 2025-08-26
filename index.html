@@ -24,8 +24,8 @@
       </nav>
       <div class="row gap">
         <span id="whoami" class="muted"></span>
-        <button id="logout" class="button ghost small">登出</button>
-        <button id="theme-toggle" class="button ghost">🌓</button>
+        <button id="logout" class="button ghost small" type="button">登出</button>
+        <button id="theme-toggle" class="button ghost" type="button">🌓</button>
       </div>
     </div>
   </header>
@@ -37,8 +37,8 @@
         <h1>登入</h1>
         <p class="muted">首次使用：輸入 <code>admin</code> 和你要設定的密碼即可初始化。</p>
         <div class="form-grid">
-          <label>用戶名<input id="login-user" /></label>
-          <label>密碼<input id="login-pass" type="password" /></label>
+          <label>用戶名<input id="login-user" class="input" /></label>
+          <label>密碼<input id="login-pass" class="input" type="password" /></label>
         </div>
         <button id="btn-login" class="button primary" type="button">登入</button>
       </div>
@@ -51,11 +51,11 @@
         <div class="row gap">
           <input id="u-name" class="input" placeholder="用戶名（唯一）" />
           <input id="u-pass" class="input" type="password" placeholder="密碼" />
-          <select id="u-role">
+          <select id="u-role" class="input">
             <option value="player">玩家</option>
             <option value="admin">管理員</option>
           </select>
-          <button id="u-add" class="button primary">新增/重設</button>
+          <button id="u-add" class="button primary" type="button">新增/重設</button>
         </div>
       </div>
       <table class="table" id="users-table">
@@ -64,7 +64,7 @@
             <th>用戶名</th>
             <th>角色</th>
             <th>角色ID清單</th>
-            <th></th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -77,16 +77,12 @@
         <h1>角色</h1>
         <div class="row gap">
           <input id="char-search" class="input" placeholder="搜尋名稱/職業…" />
-          <button id="add-character" class="button" data-admin-only>新增角色</button>
-          <label class="file" data-admin-only>
-            <input id="excel-import" type="file" accept=".xlsx" hidden />
-            <span class="button">從 Excel 匯入（建立/更新）</span>
-          </label>
-          <!-- ✅ 這行就是新增的狀態提示區 -->
+          <button id="add-character" class="button" data-admin-only type="button">新增角色</button>
+          <label class="file" data-admin-only><input id="excel-import" type="file" accept=".xlsx" hidden /><span
+              class="button">從 Excel 匯入（建立/更新）</span></label>
           <span id="excel-status" class="status" aria-live="polite"></span>
         </div>
       </div>
-
       <p class="muted" id="player-hint" hidden>（你只會看到被指派給你的角色）</p>
       <div id="characters-grid" class="grid"></div>
     </section>
@@ -95,7 +91,7 @@
     <section id="page-backup" class="page hidden">
       <h1>備份/匯入</h1>
       <div class="row gap">
-        <button id="export-json" class="button primary">匯出全部資料</button>
+        <button id="export-json" class="button primary" type="button">匯出全部資料</button>
         <label class="file"><input id="import-json" type="file" accept="application/json" hidden /><span
             class="button">從 JSON 匯入</span></label>
       </div>
@@ -108,7 +104,7 @@
     </div>
   </footer>
 
-  <!-- Character Editor Dialog (Excel-like form) -->
+  <!-- Character Editor Dialog -->
   <dialog id="char-dialog" class="dialog">
     <form id="char-form" method="dialog">
       <header class="row between center">
@@ -116,11 +112,11 @@
         <button class="button ghost" value="cancel">✖</button>
       </header>
       <div class="form-grid">
-        <label>角色ID<input name="id" readonly /></label>
-        <label>探索者姓名<input name="name" required /></label>
-        <label>職業<input name="job" /></label>
+        <label>角色ID<input name="id" class="input" readonly /></label>
+        <label>探索者姓名<input name="name" class="input" required /></label>
+        <label>職業<input name="job" class="input" /></label>
         <label>陣營
-          <select name="align">
+          <select name="align" class="input">
             <option value="">（未設定）</option>
             <option value="LG">守序善良</option>
             <option value="NG">中立善良</option>
@@ -133,9 +129,9 @@
             <option value="CE">混沌邪惡</option>
           </select>
         </label>
-        <label>年齡<input name="age" type="number" min="0" /></label>
-        <label>性別<input name="gender" /></label>
-        <label>EXP<input name="exp" type="number" min="0" /></label>
+        <label>年齡<input name="age" class="input" type="number" min="0" /></label>
+        <label>性別<input name="gender" class="input" /></label>
+        <label>EXP<input name="exp" class="input" type="number" min="0" /></label>
       </div>
 
       <h3>技能列表</h3>
@@ -144,7 +140,7 @@
         <input id="skill-name" class="input" placeholder="技能名稱" />
         <input id="skill-base" class="input" type="number" placeholder="初始值％" />
         <input id="skill-prof" class="input" type="number" placeholder="職業＋" />
-        <button id="skill-add" class="button small">加入</button>
+        <button id="skill-add" class="button small" type="button">加入</button>
       </div>
       <table class="table" id="skill-table">
         <thead>
@@ -154,7 +150,7 @@
             <th>初始％</th>
             <th>職業＋</th>
             <th>合計％</th>
-            <th></th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -162,9 +158,9 @@
 
       <h3>金錢</h3>
       <div class="form-grid">
-        <label>銅幣<input name="cp" type="number" min="0" /></label>
-        <label>銀幣<input name="sp" type="number" min="0" /></label>
-        <label>金幣<input name="gp" type="number" min="0" /></label>
+        <label>銅幣<input name="cp" class="input" type="number" min="0" /></label>
+        <label>銀幣<input name="sp" class="input" type="number" min="0" /></label>
+        <label>金幣<input name="gp" class="input" type="number" min="0" /></label>
       </div>
 
       <h3>持有道具</h3>
@@ -174,7 +170,7 @@
         <input id="item-qty" class="input" type="number" min="1" value="1" placeholder="數量" />
         <input id="item-atk" class="input" type="number" value="0" placeholder="攻擊力" />
         <input id="item-def" class="input" type="number" value="0" placeholder="防禦力" />
-        <button id="item-add" class="button small">加入</button>
+        <button id="item-add" class="button small" type="button">加入</button>
       </div>
       <table class="table" id="item-table">
         <thead>
@@ -184,7 +180,7 @@
             <th>數量</th>
             <th>攻擊</th>
             <th>防禦</th>
-            <th></th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -201,7 +197,7 @@
         <input id="sf-b2" class="input" placeholder="加成2" />
         <input id="sf-b3" class="input" placeholder="加成3" />
         <input id="sf-mp" class="input" placeholder="消耗法力" />
-        <button id="sf-add" class="button small">加入</button>
+        <button id="sf-add" class="button small" type="button">加入</button>
       </div>
       <table class="table" id="sf-table">
         <thead>
@@ -215,7 +211,7 @@
             <th>加成2</th>
             <th>加成3</th>
             <th>MP</th>
-            <th></th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -237,7 +233,7 @@
         <h3><span data-name></span> <small class="muted">ID:<span data-id></span></small></h3>
         <div class="row gap">
           <span class="badge" data-align></span>
-          <button class="button small" data-edit>編輯</button>
+          <button class="button small" data-edit type="button">編輯</button>
         </div>
       </header>
       <p class="muted"><span data-job></span> • Lv.<span data-level></span> • <span data-gender></span></p>
