@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vault v3.2.7</title>
+  <title>Vault v3.2.7a</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script defer src="app.js"></script>
@@ -23,11 +23,9 @@
         </ul>
       </nav>
       <div class="row gap">
-        <label class="file"><input id="excel-import" type="file" accept=".xlsx" hidden /><span class="button">從 Excel
-            匯入</span></label>
+        <!-- 留下「匯入分享包」與主題切換在 header -->
         <label class="file"><input id="pkg-import" type="file" accept="application/json" hidden /><span
             class="button">匯入分享包</span></label>
-        <span id="excel-status" class="status" aria-live="polite"></span>
         <button id="theme-toggle" class="button ghost" type="button">🌓</button>
       </div>
     </div>
@@ -41,6 +39,12 @@
         <div class="row gap controls-row">
           <input id="char-search" class="input" placeholder="搜尋名稱/職業…" />
           <button id="add-character" class="button" type="button">新增角色</button>
+          <!-- 移回：Excel 匯入 + 狀態顯示 -->
+          <label class="file">
+            <input id="excel-import" type="file" accept=".xlsx" hidden />
+            <span class="button">從 Excel 匯入</span>
+          </label>
+          <span id="excel-status" class="status" aria-live="polite"></span>
         </div>
       </div>
       <div id="characters-grid" class="grid"></div>
@@ -171,7 +175,7 @@
       </header>
       <div class="form-grid">
         <label>角色ID<input name="id" class="input" readonly /></label>
-        <label>探索者姓名<input name="name" class="input" required /></label>
+        <label>探索者姓名<input name="name" class="input" /></label>
         <label>職業<input name="job" class="input" /></label>
       </div>
       <footer class="row between center">

@@ -1,5 +1,5 @@
 (function () {
-  const DB_KEY = 'vault-v3.2.7'; let db = loadDB();
+  const DB_KEY = 'vault-v3.2.7a'; let db = loadDB();
   function loadDB() { try { return JSON.parse(localStorage.getItem(DB_KEY)) || { characters: [] } } catch { return { characters: [] } } }
   function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
   const $ = id => document.getElementById(id);
@@ -43,6 +43,10 @@
     };
     f.onsubmit = (e) => {
       e.preventDefault();
+      // 若是按「取消」或右上角✖，直接關閉，不做驗證
+      if (e.submitter && e.submitter.value === 'cancel') { dlg.close(); return; }
+      // 儲存時才檢查名字
+      if (!f.name.value.trim()) { alert('請輸入角色姓名'); return; }
       c = { id: f.id.value, name: f.name.value, job: f.job.value, items: c.items || [], skills: c.skills || [] };
       const i = (db.characters || []).findIndex(x => x.id === c.id);
       if (i >= 0) db.characters[i] = c; else db.characters.push(c);
