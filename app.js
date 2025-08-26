@@ -1,5 +1,5 @@
 (function () {
-  const DB_KEY = 'vault-v3.2.4'; let db = loadDB();
+  const DB_KEY = 'vault-v3.2.5'; let db = loadDB();
   function loadDB() { try { return JSON.parse(localStorage.getItem(DB_KEY)) || { characters: [] } } catch { return { characters: [] } } }
   function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
   function byId(id) { return document.getElementById(id); }
@@ -14,6 +14,10 @@
         node.querySelector('[data-name]').textContent = c.name || '';
         node.querySelector('[data-id]').textContent = c.id || '';
         node.querySelector('[data-job]').textContent = c.job || '';
+        const itemsSummary = (c.items || []).slice(0, 3).map(x => `${x.name}${x.qty ? ` x${x.qty}` : ''}`).join('、');
+        const skillsSummary = (c.skills || []).slice(0, 3).map(x => `${x.proficient ? '★' : ''}${x.name}`).join('、');
+        node.querySelector('[data-items]').textContent = itemsSummary ? `道具：${itemsSummary}${(c.items || []).length > 3 ? '…' : ''}` : '';
+        node.querySelector('[data-skills]').textContent = skillsSummary ? `技能：${skillsSummary}${(c.skills || []).length > 3 ? '…' : ''}` : '';
         node.querySelector('[data-edit]').onclick = () => openEditor(c.id);
         grid.appendChild(node);
       });
@@ -30,7 +34,7 @@
     };
     f.onsubmit = (e) => {
       e.preventDefault();
-      c = { id: f.id.value, name: f.name.value, job: f.job.value };
+      c = { id: f.id.value, name: f.name.value, job: f.job.value, items: c.items || [], skills: c.skills || [] };
       const i = (db.characters || []).findIndex(x => x.id === c.id);
       if (i >= 0) db.characters[i] = c; else db.characters.push(c);
       saveDB(); dlg.close(); render();
@@ -84,12 +88,11 @@
       }
       return '';
     }
-
     function pickRightByLabel(ws, labels, scanRight = 10) {
       if (!ws) return '';
       const ref = ws['!ref']; if (!ref) return '';
       const range = XLSX.utils.decode_range(ref);
-      const norm = s => String(s || '').replace(/[\s:：]/g, '').toUpperCase();
+      const norm = s => String(s || '').replace(/[\\s:：]/g, '').toUpperCase();
       const targets = new Set(labels.map(norm));
       for (let r = range.s.r; r <= Math.min(range.e.r, 600); r++) {
         for (let c = range.s.c; c <= Math.min(range.e.c, 120); c++) {
@@ -106,8 +109,9 @@
       }
       return '';
     }
+    function norm(s) { return String(s == null ? '' : s).trim(); }
 
-    // Excel import handler: fixed cells first, fallback to label-search
+    // === Excel import handler: full import ===
     byId('excel-import')?.addEventListener('change', async e => {
       const file = e.target.files?.[0]; if (!file) return;
       const hud = byId('excel-status');
@@ -115,33 +119,48 @@
         hud.textContent = '載入中…';
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
-        const wsChar = wb.Sheets['人物表(自動計算)'] || wb.Sheets['人物表'] || wb.Sheets[wb.SheetNames[0]];
 
+        // 人物主表
+        const wsChar = wb.Sheets['人物表(自動計算)'] || wb.Sheets['人物表'] || wb.Sheets[wb.SheetNames[0]];
         const name = getCell(wsChar, 'I2', { followMerged: true, scanRight: 10 }) || pickRightByLabel(wsChar, ['探索者姓名', '姓名', '角色名', '名稱'], 10);
         const job = getCell(wsChar, 'I3', { followMerged: true, scanRight: 10 }) || pickRightByLabel(wsChar, ['職業', 'Job'], 10);
         const align = getCell(wsChar, 'I4', { followMerged: true, scanRight: 10 });
         const age = getCell(wsChar, 'I5', { followMerged: true, scanRight: 10 });
         const gender = getCell(wsChar, 'I6', { followMerged: true, scanRight: 10 });
         const exp = getCell(wsChar, 'I7', { followMerged: true, scanRight: 10 });
-
         if (!name) throw new Error('找不到姓名（I2 或 標籤右側皆為空）');
 
-        const idx = (db.characters || []).findIndex(c => (c.name || '').trim().toLowerCase() === String(name).toLowerCase());
-        const base = { name: String(name), job: String(job || ''), align: String(align || ''), age: Number(age || 0) || 0, gender: String(gender || ''), exp: Number(exp || 0) || 0 };
-        if (idx >= 0) {
-          const id = db.characters[idx].id;
-          db.characters[idx] = { ...db.characters[idx], id, ...base };
-          hud.textContent = '更新完成：' + base.name;
-        } else {
-          db.characters.push({ id: 'C_' + Math.random().toString(36).slice(2, 8), ...base });
-          hud.textContent = '新增完成：' + base.name;
+        // 道具表
+        const wsItems = wb.Sheets['持有道具'] || wb.Sheets['道具'] || null;
+        let items = [];
+        if (wsItems) {
+          const range = XLSX.utils.decode_range(wsItems['!ref']);
+          // 讀第一列作為表頭
+          const headers = [];
+          for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r: range.s.r, c });
+            headers.push(norm(getCell(wsItems, addr, { followMerged: true })));
+          }
+          const nameIdx = headers.findIndex(h => /名稱|物品|道具|Name/i.test(h));
+          const qtyIdx = headers.findIndex(h => /數量|Qty|数量/i.test(h));
+          const wIdx = headers.findIndex(h => /重量|重|Weight/i.test(h));
+          const pIdx = headers.findIndex(h => /價格|價錢|Price|GP/i.test(h));
+          // 從第二列開始讀
+          for (let r = range.s.r + 1; r <= range.e.r; r++) {
+            const get = (idx) => idx >= 0 ? norm(getCell(wsItems, XLSX.utils.encode_cell({ r, c: range.s.c + idx }), { followMerged: true })) : '';
+            const n = get(nameIdx);
+            const q = get(qtyIdx);
+            const w = get(wIdx);
+            const p = get(pIdx);
+            if (!n && !q && !w && !p):
+              pass
+          }
         }
-        saveDB(); render();
+
       } catch (err) {
         hud.textContent = '錯誤：' + (err?.message || err);
       } finally {
         e.target.value = '';
-        setTimeout(() => { if (/^新增完成|^更新完成/.test(hud.textContent)) hud.textContent = ''; }, 3000);
       }
     });
 

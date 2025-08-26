@@ -109,6 +109,11 @@ select {
     color: #A6B0CF
 }
 
+.muted.tiny {
+    font-size: .9rem;
+    color: #9aa3c7
+}
+
 .hidden {
     display: none
 }
@@ -148,4 +153,76 @@ select {
     .input {
         min-height: 44px
     }
+}
+
+/* Dialog improvements */
+dialog.dialog {
+    width: min(920px, 96vw);
+    max-height: min(90vh, 900px);
+    border: none;
+    border-radius: 18px;
+    padding: 0;
+    overflow: hidden;
+    background: #0f1631;
+    color: #E8EAF4;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .6)
+}
+
+dialog::backdrop {
+    background: rgba(0, 0, 0, .65);
+    backdrop-filter: blur(2px)
+}
+
+.dialog form {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: min(90vh, 900px)
+}
+
+.dialog header,
+.dialog footer {
+    position: sticky;
+    z-index: 1;
+    background: rgba(255, 255, 255, .03);
+    padding: 12px 16px
+}
+
+.dialog header {
+    top: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .06)
+}
+
+.dialog footer {
+    bottom: 0;
+    border-top: 1px solid rgba(255, 255, 255, .06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center
+}
+
+.dialog .form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 16px;
+    overflow: auto;
+    flex: 1
+}
+
+@media(min-width:900px) {
+    .dialog .form-grid {
+        grid-template-columns: 1fr 1fr
+    }
+
+    .dialog .form-grid>label {
+        min-width: 0
+    }
+}
+
+.input,
+select,
+textarea {
+    min-width: 0;
+    box-sizing: border-box
 }
