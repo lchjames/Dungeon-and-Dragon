@@ -1,140 +1,132 @@
 <!doctype html>
 <html lang="zh-HK">
-
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vault v3.2.5</title>
+  <title>Vault v3.2.6</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <script defer src="auth.js"></script>
   <script defer src="app.js"></script>
 </head>
-
 <body>
-  <header class="site-header">
-    <div class="container row between center">
-      <a class="brand" href="#"><span aria-hidden="true">🎲</span> Vault</a>
-      <nav>
-        <ul class="nav">
-          <li data-admin-only><a data-route href="#users">用戶</a></li>
-          <li><a data-route href="#characters">角色</a></li>
-          <li><a data-route href="#backup">備份/匯入</a></li>
-        </ul>
-      </nav>
+<header class="site-header">
+  <div class="container row between center">
+    <a class="brand" href="#"><span aria-hidden="true">🎲</span> Vault</a>
+    <nav>
+      <ul class="nav">
+        <li><a data-route href="#characters">角色</a></li>
+        <li><a data-route href="#share">分享包</a></li>
+        <li><a data-route href="#backup">備份/匯入</a></li>
+      </ul>
+    </nav>
+    <div class="row gap">
+      <button id="theme-toggle" class="button ghost" type="button">🌓</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <!-- Welcome / entry -->
+  <section id="page-welcome" class="page">
+    <div class="card">
+      <h1>選擇操作</h1>
+      <p class="muted">這個版本不需要登入。房主可先用 Excel 匯入→建立分享包；玩家用「匯入分享包」即可只看到自己的角色。</p>
       <div class="row gap">
-        <span id="whoami" class="muted"></span>
-        <button id="logout" class="button ghost small" type="button">登出</button>
-        <button id="theme-toggle" class="button ghost" type="button">🌓</button>
+        <label class="file"><input id="excel-import" type="file" accept=".xlsx" hidden /><span class="button">從 Excel 匯入</span></label>
+        <label class="file"><input id="pkg-import" type="file" accept="application/json" hidden /><span class="button">匯入分享包</span></label>
+        <span id="excel-status" class="status" aria-live="polite"></span>
       </div>
     </div>
-  </header>
+  </section>
 
-  <main class="container">
-    <section id="page-login" class="page">
-      <div class="card">
-        <h1>登入</h1>
-        <div class="form-grid">
-          <label>用戶名<input id="login-user" class="input" /></label>
-          <label>密碼<input id="login-pass" type="password" class="input" /></label>
-        </div>
-        <button id="btn-login" class="button primary" type="button">登入</button>
+  <!-- Characters -->
+  <section id="page-characters" class="page hidden">
+    <div class="page-header row between center">
+      <h1>角色</h1>
+      <div class="row gap controls-row">
+        <input id="char-search" class="input" placeholder="搜尋名稱/職業…" />
+        <button id="add-character" class="button" type="button">新增角色</button>
       </div>
-    </section>
-
-    <section id="page-users" class="page hidden">
-      <h1>用戶管理（管理員）</h1>
-      <div class="card">
-        <div class="row gap">
-          <input id="u-name" class="input" placeholder="用戶名（唯一）" />
-          <input id="u-pass" class="input" type="password" placeholder="密碼" />
-          <select id="u-role" class="input">
-            <option value="player">玩家</option>
-            <option value="admin">管理員</option>
-          </select>
-          <button id="u-add" class="button primary" type="button">新增/重設</button>
-        </div>
-      </div>
-      <table class="table responsive" id="users-table">
-        <thead>
-          <tr>
-            <th>用戶名</th>
-            <th>角色</th>
-            <th>角色ID清單</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section id="page-characters" class="page hidden">
-      <div class="page-header row between center">
-        <h1>角色</h1>
-        <div class="row gap controls-row">
-          <input id="char-search" class="input" placeholder="搜尋名稱/職業…" />
-          <button id="add-character" class="button" data-admin-only type="button">新增角色</button>
-          <label class="file" data-admin-only>
-            <input id="excel-import" type="file" accept=".xlsx" hidden />
-            <span class="button">從 Excel 匯入</span>
-          </label>
-          <span id="excel-status" class="status" aria-live="polite"></span>
-        </div>
-      </div>
-      <p class="muted" id="player-hint" hidden>（你只會看到被指派給你的角色）</p>
-      <div id="characters-grid" class="grid"></div>
-    </section>
-
-    <section id="page-backup" class="page hidden">
-      <h1>備份/匯入</h1>
-      <div class="row gap">
-        <button id="export-json" class="button primary" type="button">匯出全部資料</button>
-        <label class="file"><input id="import-json" type="file" accept="application/json" hidden /><span
-            class="button">從 JSON 匯入</span></label>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="container row between center">
-      <p>© <span id="year"></span> Vault • MIT</p>
     </div>
-  </footer>
+    <div id="characters-grid" class="grid"></div>
+  </section>
 
-  <dialog id="char-dialog" class="dialog">
-    <form id="char-form" method="dialog">
-      <header class="row between center">
-        <h2 id="char-title">編輯角色</h2>
-        <button class="button ghost" value="cancel" type="submit">✖</button>
-      </header>
-      <div class="form-grid">
-        <label>角色ID<input name="id" class="input" readonly /></label>
-        <label>探索者姓名<input name="name" class="input" required /></label>
-        <label>職業<input name="job" class="input" /></label>
+  <!-- Share packages -->
+  <section id="page-share" class="page hidden">
+    <h1>分享包（加密）</h1>
+    <div class="card">
+      <h3>建立分享包（房主）</h3>
+      <p class="muted tiny">選擇要分享的角色 → 設定密碼 → 下載 .json。把檔案放到 repo 的 <code>p/</code> 目錄，給玩家連結：<code>#p=檔名.json</code></p>
+      <div id="share-characters" class="list"></div>
+      <div class="row gap">
+        <button id="share-select-all" class="button small" type="button">全選</button>
+        <button id="share-unselect-all" class="button small" type="button">全不選</button>
       </div>
-      <footer class="row between center">
-        <div class="row gap">
-          <button class="button" value="cancel" type="submit">取消</button>
-          <button id="delete-character" class="button ghost" type="button">刪除</button>
-        </div>
-        <button class="button primary" value="default" type="submit">儲存</button>
-      </footer>
-    </form>
-  </dialog>
+      <div class="row gap">
+        <input id="share-pass" class="input" type="password" placeholder="設定密碼（AES-GCM）"/>
+        <button id="share-make" class="button primary" type="button">下載加密包</button>
+      </div>
+    </div>
 
-  <template id="tpl-card">
-    <article class="card">
-      <header class="row between center">
-        <h3><span data-name></span> <small class="muted">ID:<span data-id></span></small></h3>
-        <div class="row gap">
-          <button class="button small" data-edit type="button">編輯</button>
-        </div>
-      </header>
-      <p class="muted"><span data-job></span></p>
-      <p class="muted tiny" data-items></p>
-      <p class="muted tiny" data-skills></p>
-    </article>
-  </template>
+    <div class="card">
+      <h3>匯入分享包（玩家）</h3>
+      <div class="row gap">
+        <label class="file"><input id="pkg-import-2" type="file" accept="application/json" hidden /><span class="button">選擇分享包檔</span></label>
+        <input id="pkg-pass" class="input" type="password" placeholder="輸入密碼"/>
+        <button id="pkg-open" class="button" type="button">解密匯入</button>
+      </div>
+      <p class="muted tiny">亦可直接用連結： <code>#p=檔名.json</code>（檔案需放在 repo 的 <code>p/</code> 目錄）</p>
+    </div>
+  </section>
+
+  <!-- Backup -->
+  <section id="page-backup" class="page hidden">
+    <h1>備份/匯出</h1>
+    <div class="row gap">
+      <button id="export-json" class="button primary" type="button">匯出全部資料</button>
+      <label class="file"><input id="import-json" type="file" accept="application/json" hidden /><span class="button">從 JSON 匯入</span></label>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container row between center">
+    <p>© <span id="year"></span> Vault • MIT</p>
+  </div>
+</footer>
+
+<!-- Character Editor Dialog -->
+<dialog id="char-dialog" class="dialog">
+  <form id="char-form" method="dialog">
+    <header class="row between center">
+      <h2 id="char-title">編輯角色</h2>
+      <button class="button ghost" value="cancel" type="submit">✖</button>
+    </header>
+    <div class="form-grid">
+      <label>角色ID<input name="id" class="input" readonly /></label>
+      <label>探索者姓名<input name="name" class="input" required /></label>
+      <label>職業<input name="job" class="input" /></label>
+    </div>
+    <footer class="row between center">
+      <div class="row gap">
+        <button class="button" value="cancel" type="submit">取消</button>
+        <button id="delete-character" class="button ghost" type="button">刪除</button>
+      </div>
+      <button class="button primary" value="default" type="submit">儲存</button>
+    </footer>
+  </form>
+</dialog>
+
+<template id="tpl-card">
+  <article class="card">
+    <header class="row between center">
+      <h3><span data-name></span> <small class="muted">ID:<span data-id></span></small></h3>
+      <div class="row gap">
+        <button class="button small" data-edit type="button">編輯</button>
+      </div>
+    </header>
+    <p class="muted"><span data-job></span></p>
+  </article>
+</template>
 </body>
-
 </html>
