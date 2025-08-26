@@ -21,10 +21,6 @@ body {
     justify-content: space-between
 }
 
-.row.gap {
-    gap: 10px
-}
-
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -102,9 +98,24 @@ select {
     margin: 18px 0
 }
 
-.page-header {
-    margin: 12px 0
+/* 讓角色頁面的操作按鈕橫向排列 */
+.page-header .row.gap {
+    display: flex;
+    flex-wrap: wrap;
+    /* 小螢幕時自動換行 */
+    gap: 12px;
+    /* 按鈕之間的間距 */
+    align-items: center;
+    /* 垂直置中 */
 }
+
+.page-header .row.gap .button,
+.page-header .row.gap label.file {
+    display: inline-flex;
+    white-space: nowrap;
+    /* 避免字換行 */
+}
+
 
 .muted {
     color: #A6B0CF
