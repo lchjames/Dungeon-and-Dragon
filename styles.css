@@ -1,471 +1,58 @@
-/* Theme tokens */
-:root {
-    --bg: #0a0f1e;
-    --layer: color-mix(in oklab, #0a0f1e 72%, #111735);
-    --card: rgba(17, 23, 53, .6);
-    --surface: rgba(20, 28, 66, .65);
-    --fg: #E8EAF4;
-    --muted: #A6B0CF;
-    --border: rgba(255, 255, 255, .07);
-    --accent: #9b6bff;
-    --accent-2: #6ae1ff;
-    --ok: #22c55e;
-    --err: #ef4444;
-    --radius-xl: 22px;
-    --radius-lg: 16px;
-    --radius-md: 12px;
-    --shadow-1: 0 8px 24px rgba(0, 0, 0, .35);
-    --shadow-2: 0 20px 45px rgba(2, 6, 23, .45);
-}
-
-[data-theme=light] {
-    --bg: #f6f7fb;
-    --layer: #fff;
-    --card: #fff;
-    --surface: #ffffffcc;
-    --fg: #0f172a;
-    --muted: #556085;
-    --border: rgba(15, 23, 42, .12);
-    --shadow-1: 0 10px 25px rgba(2, 6, 23, .08);
-    --shadow-2: 0 30px 60px rgba(2, 6, 23, .10);
-}
-
-* {
-    box-sizing: border-box
-}
-
-html,
 body {
-    margin: 0;
-    padding: 0
-}
-
-body {
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans TC', 'PingFang HK', 'Microsoft JhengHei', Arial, Helvetica, sans-serif;
-    color: var(--fg);
-    background:
-        radial-gradient(900px 420px at 10% -10%, color-mix(in oklab, var(--accent) 24%, transparent) 0%, transparent 55%),
-        radial-gradient(900px 420px at 90% -10%, color-mix(in oklab, var(--accent-2) 24%, transparent) 0%, transparent 55%),
-        var(--bg);
-    min-height: 100dvh;
-    line-height: 1.6;
-}
-
-.container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 18px
-}
-
-.row {
-    display: flex;
-    gap: 12px
-}
-
-.row.center {
-    align-items: center
-}
-
-.row.between {
-    justify-content: space-between
-}
-
-.row.gap {
-    gap: 10px
-}
-
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 16px
-}
-
-.site-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    backdrop-filter: saturate(120%) blur(10px);
-    background: color-mix(in oklab, var(--bg) 80%, transparent);
-    border-bottom: 1px solid var(--border)
-}
-
-.brand {
-    text-decoration: none;
-    color: var(--fg);
-    font-weight: 800;
-    letter-spacing: .3px;
-    display: flex;
-    align-items: center;
-    gap: 8px
-}
-
-.nav {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    gap: 18px
-}
-
-.nav a {
-    color: var(--muted);
-    text-decoration: none;
-    font-weight: 600;
-    letter-spacing: .2px;
-    padding: 10px 0;
-    position: relative
-}
-
-.nav a:hover {
-    color: var(--fg)
-}
-
-.nav a::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -8px;
-    height: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent-2));
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: .25s ease
-}
-
-.nav a:hover::after {
-    transform: scaleX(1)
-}
-
-.card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    padding: 18px;
-    box-shadow: var(--shadow-1)
-}
-
-.page-header {
-    margin: 16px 0 12px
-}
-
-.badge {
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 2px 10px;
-    color: var(--muted);
-    background: color-mix(in oklab, var(--surface) 70%, transparent)
-}
-
-.button {
-    appearance: none;
-    border: none;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 16px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 60%, transparent), color-mix(in oklab, #000 12%, transparent));
-    color: var(--fg);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-1);
-    transition: transform .08s ease, box-shadow .2s ease, background .2s ease
-}
-
-.button:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-2)
-}
-
-.button:active {
-    transform: translateY(0)
-}
-
-.button.small {
-    padding: 8px 12px;
-    font-size: 14px
-}
-
-.button.ghost {
-    background: transparent
-}
-
-.button.primary {
-    background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 50%, var(--accent-2)));
-    border-color: transparent;
-    color: white
-}
-
-.input,
-select,
-textarea {
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: color-mix(in oklab, var(--surface) 65%, transparent);
-    color: var(--fg);
-    outline: none;
-    transition: box-shadow .2s ease, border-color .2s ease, background .2s ease
-}
-
-.input:focus,
-select:focus,
-textarea:focus {
-    border-color: color-mix(in oklab, var(--accent) 60%, white);
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
-    background: color-mix(in oklab, var(--surface) 80%, transparent)
-}
-
-label {
-    display: grid;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--muted)
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px
-}
-
-.table {
-    width: 100%;
-    border-collapse: collapse;
-    background: color-mix(in oklab, var(--surface) 70%, transparent);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-1)
-}
-
-.table th,
-.table td {
-    padding: 12px;
-    border-bottom: 1px solid var(--border)
-}
-
-.table thead th {
-    text-align: left;
-    color: var(--muted);
-    font-weight: 700;
-    background: color-mix(in oklab, var(--surface) 80%, transparent)
-}
-
-.table tr:last-child td {
-    border-bottom: none
-}
-
-dialog.dialog {
-    width: min(1100px, 96vw);
-    background: color-mix(in oklab, var(--surface) 85%, transparent);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    color: var(--fg);
-    box-shadow: var(--shadow-2);
-    padding: 14px 16px 18px
-}
-
-dialog::backdrop {
-    background: rgba(0, 0, 0, .45)
-}
-
-.site-footer {
-    border-top: 1px solid var(--border);
-    padding: 16px 0;
-    margin-top: 28px;
-    background: color-mix(in oklab, var(--bg) 80%, transparent)
+    font-family: sans-serif;
+    background: #0a0f1e;
+    color: #eee
 }
 
 .hidden {
-    display: none !important
-}
-
-.muted {
-    color: var(--muted)
-}
-
-.file input[type=file] {
     display: none
 }
 
-.status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 8px;
-    font-size: 14px;
-    color: var(--muted)
+.card {
+    background: #111735cc;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 8px 0
 }
 
-.status .spinner {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    animation: spin .8s linear infinite
+.button {
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #9b6bff;
+    color: #fff;
+    border: none;
+    cursor: pointer
+}
+
+.input {
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid #333;
+    background: #222;
+    color: #fff
+}
+
+.status {
+    margin-left: 8px;
+    color: #aaa
 }
 
 .status.ok {
-    color: var(--ok)
+    color: #0f0
 }
 
 .status.err {
-    color: var(--err)
+    color: #f55
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg)
-    }
-}
-
-/* Mobile tweaks */
-@media (max-width:640px) {
-
-    html,
-    body {
-        font-size: 16px
-    }
-
-    .container {
-        padding: 0 12px
-    }
-
-    .row.gap {
-        gap: 8px
-    }
-
+@media(max-width:640px) {
     .grid {
         grid-template-columns: 1fr
     }
 
-    .page-header {
-        margin: 12px 0 8px
-    }
-
-    .nav {
-        gap: 12px;
-        overflow-x: auto;
-        padding-bottom: 6px;
-        -webkit-overflow-scrolling: touch
-    }
-
-    .nav::-webkit-scrollbar {
-        display: none
-    }
-
-    .button {
-        min-height: 44px;
-        padding: 12px 14px
-    }
-
-    .input,
-    select,
-    textarea {
-        min-height: 44px;
-        padding: 12px 14px;
-        border-radius: 14px
-    }
-
-    .card {
-        padding: 14px;
-        border-radius: 18px
-    }
-
-    dialog.dialog {
-        width: 100vw;
-        height: 100dvh;
-        max-width: 100vw;
-        margin: 0;
-        border-radius: 0;
-        padding: 10px 12px 80px
-    }
-
-    dialog.dialog form {
-        height: 100%;
-        display: flex;
-        flex-direction: column
-    }
-
-    dialog.dialog form>header {
-        position: sticky;
-        top: 0;
-        background: inherit;
-        padding: 6px 0 10px;
-        z-index: 2
-    }
-
-    dialog.dialog form>footer {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 12px;
-        border-top: 1px solid var(--border);
-        background: color-mix(in oklab, var(--surface) 92%, transparent)
-    }
-
-    .form-grid {
-        grid-template-columns: 1fr
-    }
-
-    .table.responsive {
-        border: none;
-        border-radius: 0;
-        background: transparent;
-        box-shadow: none
-    }
-
-    .table.responsive thead {
-        display: none
-    }
-
-    .table.responsive tr {
-        display: block;
-        margin: 10px 0;
-        background: color-mix(in oklab, var(--surface) 80%, transparent);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        overflow: hidden
-    }
-
-    .table.responsive td {
-        display: grid;
-        grid-template-columns: 40% 1fr;
-        gap: 8px;
-        border-bottom: 1px solid var(--border)
-    }
-
-    .table.responsive td:last-child {
-        border-bottom: none
-    }
-
-    .table.responsive td::before {
-        content: attr(data-label);
-        color: var(--muted);
-        padding-right: 10px;
-        text-align: right
-    }
-
-    #excel-status {
-        display: block;
-        margin: 8px 0 0 0
-    }
-}
-
-@supports (padding:max(0px)) {
-
-    .site-footer,
-    dialog.dialog form>footer {
-        padding-bottom: max(10px, env(safe-area-inset-bottom))
+    .button,
+    .input {
+        width: 100%;
+        margin: 4px 0
     }
 }

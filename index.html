@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vault（登入＋Excel 角色表）</title>
+  <title>Vault v3</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script defer src="auth.js"></script>
@@ -13,236 +13,56 @@
 
 <body>
   <header class="site-header">
-    <div class="container row between center">
-      <a class="brand" href="#"><span aria-hidden="true">🎲</span> Vault</a>
-      <nav>
-        <ul class="nav">
-          <li data-admin-only><a data-route href="#users">用戶</a></li>
-          <li><a data-route href="#characters">角色</a></li>
-          <li><a data-route href="#backup">備份/匯入</a></li>
-        </ul>
-      </nav>
-      <div class="row gap">
-        <span id="whoami" class="muted"></span>
-        <button id="logout" class="button ghost small" type="button">登出</button>
-        <button id="theme-toggle" class="button ghost" type="button">🌓</button>
-      </div>
-    </div>
+    <div class="container row between center"><a class="brand" href="#">🎲 Vault</a></div>
   </header>
-
   <main class="container">
-    <!-- Login -->
     <section id="page-login" class="page">
       <div class="card">
         <h1>登入</h1>
-        <p class="muted">首次使用：輸入 <code>admin</code> 和你要設定的密碼即可初始化。</p>
         <div class="form-grid">
           <label>用戶名<input id="login-user" class="input" /></label>
-          <label>密碼<input id="login-pass" class="input" type="password" /></label>
+          <label>密碼<input id="login-pass" type="password" class="input" /></label>
         </div>
         <button id="btn-login" class="button primary" type="button">登入</button>
       </div>
     </section>
-
-    <!-- Users -->
-    <section id="page-users" class="page hidden">
-      <h1>用戶管理（管理員）</h1>
-      <div class="card">
-        <div class="row gap">
-          <input id="u-name" class="input" placeholder="用戶名（唯一）" />
-          <input id="u-pass" class="input" type="password" placeholder="密碼" />
-          <select id="u-role" class="input">
-            <option value="player">玩家</option>
-            <option value="admin">管理員</option>
-          </select>
-          <button id="u-add" class="button primary" type="button">新增/重設</button>
-        </div>
-      </div>
-      <table class="table" id="users-table">
-        <thead>
-          <tr>
-            <th>用戶名</th>
-            <th>角色</th>
-            <th>角色ID清單</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <!-- Characters -->
     <section id="page-characters" class="page hidden">
       <div class="page-header row between center">
         <h1>角色</h1>
         <div class="row gap">
           <input id="char-search" class="input" placeholder="搜尋名稱/職業…" />
           <button id="add-character" class="button" data-admin-only type="button">新增角色</button>
-          <label class="file" data-admin-only><input id="excel-import" type="file" accept=".xlsx" hidden /><span
-              class="button">從 Excel 匯入（建立/更新）</span></label>
+          <label class="file" data-admin-only><input id="excel-import" type="file" accept=".xlsx" hidden />
+            <span class="button">從 Excel 匯入</span></label>
           <span id="excel-status" class="status" aria-live="polite"></span>
         </div>
       </div>
-      <p class="muted" id="player-hint" hidden>（你只會看到被指派給你的角色）</p>
       <div id="characters-grid" class="grid"></div>
     </section>
-
-    <!-- Backup -->
-    <section id="page-backup" class="page hidden">
-      <h1>備份/匯入</h1>
-      <div class="row gap">
-        <button id="export-json" class="button primary" type="button">匯出全部資料</button>
-        <label class="file"><input id="import-json" type="file" accept="application/json" hidden /><span
-            class="button">從 JSON 匯入</span></label>
-      </div>
-    </section>
   </main>
-
   <footer class="site-footer">
-    <div class="container row between center">
-      <p>© <span id="year"></span> Vault • MIT</p>
-    </div>
+    <div class="container">© Vault v3</div>
   </footer>
-
-  <!-- Character Editor Dialog -->
   <dialog id="char-dialog" class="dialog">
     <form id="char-form" method="dialog">
       <header class="row between center">
         <h2 id="char-title">編輯角色</h2>
-        <button class="button ghost" value="cancel">✖</button>
       </header>
-      <div class="form-grid">
-        <label>角色ID<input name="id" class="input" readonly /></label>
-        <label>探索者姓名<input name="name" class="input" required /></label>
-        <label>職業<input name="job" class="input" /></label>
-        <label>陣營
-          <select name="align" class="input">
-            <option value="">（未設定）</option>
-            <option value="LG">守序善良</option>
-            <option value="NG">中立善良</option>
-            <option value="CG">混沌善良</option>
-            <option value="LN">守序中立</option>
-            <option value="N">絕對中立</option>
-            <option value="CN">混沌中立</option>
-            <option value="LE">守序邪惡</option>
-            <option value="NE">中立邪惡</option>
-            <option value="CE">混沌邪惡</option>
-          </select>
-        </label>
-        <label>年齡<input name="age" class="input" type="number" min="0" /></label>
-        <label>性別<input name="gender" class="input" /></label>
-        <label>EXP<input name="exp" class="input" type="number" min="0" /></label>
-      </div>
-
-      <h3>技能列表</h3>
-      <div class="row gap">
-        <input id="skill-type" class="input" placeholder="技能類型" />
-        <input id="skill-name" class="input" placeholder="技能名稱" />
-        <input id="skill-base" class="input" type="number" placeholder="初始值％" />
-        <input id="skill-prof" class="input" type="number" placeholder="職業＋" />
-        <button id="skill-add" class="button small" type="button">加入</button>
-      </div>
-      <table class="table" id="skill-table">
-        <thead>
-          <tr>
-            <th>類型</th>
-            <th>名稱</th>
-            <th>初始％</th>
-            <th>職業＋</th>
-            <th>合計％</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <h3>金錢</h3>
-      <div class="form-grid">
-        <label>銅幣<input name="cp" class="input" type="number" min="0" /></label>
-        <label>銀幣<input name="sp" class="input" type="number" min="0" /></label>
-        <label>金幣<input name="gp" class="input" type="number" min="0" /></label>
-      </div>
-
-      <h3>持有道具</h3>
-      <div class="row gap">
-        <input id="item-name" class="input" placeholder="物品名稱" />
-        <input id="item-desc" class="input" placeholder="說明" />
-        <input id="item-qty" class="input" type="number" min="1" value="1" placeholder="數量" />
-        <input id="item-atk" class="input" type="number" value="0" placeholder="攻擊力" />
-        <input id="item-def" class="input" type="number" value="0" placeholder="防禦力" />
-        <button id="item-add" class="button small" type="button">加入</button>
-      </div>
-      <table class="table" id="item-table">
-        <thead>
-          <tr>
-            <th>名稱</th>
-            <th>說明</th>
-            <th>數量</th>
-            <th>攻擊</th>
-            <th>防禦</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <h3>持有技能/法術</h3>
-      <div class="row gap">
-        <input id="sf-name" class="input" placeholder="名稱" />
-        <input id="sf-desc" class="input" placeholder="說明" />
-        <input id="sf-target" class="input" placeholder="目標" />
-        <input id="sf-area" class="input" placeholder="範圍" />
-        <input id="sf-range" class="input" placeholder="距離" />
-        <input id="sf-b1" class="input" placeholder="加成1" />
-        <input id="sf-b2" class="input" placeholder="加成2" />
-        <input id="sf-b3" class="input" placeholder="加成3" />
-        <input id="sf-mp" class="input" placeholder="消耗法力" />
-        <button id="sf-add" class="button small" type="button">加入</button>
-      </div>
-      <table class="table" id="sf-table">
-        <thead>
-          <tr>
-            <th>名稱</th>
-            <th>說明</th>
-            <th>目標</th>
-            <th>範圍</th>
-            <th>距離</th>
-            <th>加成1</th>
-            <th>加成2</th>
-            <th>加成3</th>
-            <th>MP</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <footer class="row between center">
-        <div class="row gap">
-          <button class="button" value="cancel">取消</button>
-          <button id="delete-character" class="button ghost" type="button">刪除</button>
-        </div>
-        <button class="button primary" value="default">儲存</button>
+      <label>角色ID<input name="id" class="input" /></label>
+      <label>姓名<input name="name" class="input" /></label>
+      <label>職業<input name="job" class="input" /></label>
+      <footer><button class="button" value="cancel" type="submit">取消</button>
+        <button id="delete-character" class="button ghost" type="button">刪除</button>
+        <button class="button primary" value="default" type="submit">儲存</button>
       </footer>
     </form>
   </dialog>
-
   <template id="tpl-card">
     <article class="card">
-      <header class="row between center">
-        <h3><span data-name></span> <small class="muted">ID:<span data-id></span></small></h3>
-        <div class="row gap">
-          <span class="badge" data-align></span>
-          <button class="button small" data-edit type="button">編輯</button>
-        </div>
-      </header>
-      <p class="muted"><span data-job></span> • Lv.<span data-level></span> • <span data-gender></span></p>
+      <h3><span data-name></span> <small>ID:<span data-id></span></small></h3>
+      <p><span data-job></span></p><button data-edit class="button small" type="button">編輯</button>
     </article>
   </template>
-
-  <noscript>
-    <div class="noscript">此網站需要 JavaScript。</div>
-  </noscript>
 </body>
 
 </html>
