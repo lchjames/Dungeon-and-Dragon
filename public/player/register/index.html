@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Create a D&D Campaign Hub player account">
-  <title>Create Player Account · D&D Campaign Hub</title>
+  <meta name="description" content="Create a D&D Campaign Hub player access profile">
+  <title>New Player · D&D Campaign Hub</title>
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/auth.css">
   <script type="module" src="/assets/auth.js"></script>
@@ -13,41 +13,37 @@
   <main class="auth-shell">
     <a class="auth-brand" href="/">
       <span class="brand-dot">P</span>
-      <span class="auth-brand-copy"><strong>D&D Campaign Hub</strong><small>New Player Account</small></span>
+      <span class="auth-brand-copy"><strong>D&D Campaign Hub</strong><small>New Player</small></span>
     </a>
 
     <section class="auth-card">
       <p class="eyebrow">NEW PLAYER</p>
-      <h1>建立玩家帳戶</h1>
-      <p class="lede compact">帳戶建立後會自動登入。之後每次進入 Player Workspace 都需要有效登入 Session。</p>
+      <h1>建立玩家</h1>
+      <p class="lede compact">建立一個 User 同 4 位數 Key。GM 之後可以將角色直接綁定到呢個 User。</p>
 
-      <form class="auth-form" data-auth-form autocomplete="on">
+      <form class="auth-form" data-auth-form autocomplete="off">
         <label class="field">
-          <span>顯示名稱</span>
-          <input class="input" name="displayName" type="text" autocomplete="name" maxlength="50" required autofocus placeholder="例如 James">
+          <span>User</span>
+          <input class="input" name="user" type="text" maxlength="32" required autofocus placeholder="例如 James">
+          <small class="auth-help">1–32 字元；呢個名稱會用作日後進入角色。</small>
         </label>
         <label class="field">
-          <span>使用者名稱</span>
-          <input class="input" name="username" type="text" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]{3,32}" required placeholder="例如 james.lau">
-          <small class="auth-help">3–32 字元；英文字母、數字、. _ -</small>
+          <span>4-digit Key</span>
+          <input class="input" name="key" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required placeholder="••••">
+          <small class="auth-help">只接受 4 位數字，例如 4821。</small>
         </label>
         <label class="field">
-          <span>密碼</span>
-          <input class="input" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
-          <small class="auth-help">最少 12 個字元；建議使用一段容易記但夠長嘅 passphrase。</small>
+          <span>確認 Key</span>
+          <input class="input" name="confirmKey" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required placeholder="••••">
         </label>
-        <label class="field">
-          <span>確認密碼</span>
-          <input class="input" name="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
-        </label>
-        <button class="button button-full" type="submit">建立帳戶</button>
+        <button class="button button-full" type="submit">建立玩家</button>
       </form>
 
       <div class="auth-status" data-auth-status hidden role="status" aria-live="polite"></div>
-      <p class="auth-footer">已經有帳戶？ <a href="/player/login/">登入</a></p>
+      <p class="auth-footer">已經有 User？ <a href="/player/login/">輸入 User + Key</a></p>
       <div class="auth-security">
-        <strong>密碼處理</strong>
-        <span>密碼會喺伺服器以隨機 salt 經 PBKDF2-HMAC-SHA-256 雜湊，資料庫唔保存明文密碼。</span>
+        <strong>Key 保護</strong>
+        <span>4 位數 Key 只會以受保護嘅雜湊值保存；連續輸入錯誤會暫時鎖定。</span>
       </div>
     </section>
   </main>
