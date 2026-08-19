@@ -12,7 +12,9 @@
   ],
   "d1_databases": [
     {
-      "binding": "DB"
+      "binding": "DB",
+      "database_name": "dnd-db",
+      "database_id": "7a9abf7b-5f87-4295-89b1-8187e991b782"
     }
   ],
   "assets": {
