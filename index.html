@@ -1,20 +1,22 @@
 <!doctype html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vault v3.2.7a</title>
+  <meta name="description" content="D&D Character Vault — 角色、道具、技能、Excel 匯入、備份及加密分享包管理工具。" />
+  <base href="/">
+  <title>D&D Character Vault</title>
+  <link rel="canonical" href="https://dungeon-and-dragon.lchjames.com/" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script defer src="app.js"></script>
-  <base href="./">
 </head>
 
 <body>
   <header class="site-header">
     <div class="container row between center">
-      <a class="brand" href="#"><span aria-hidden="true">🎲</span> Vault</a>
+      <a class="brand" href="#characters"><span aria-hidden="true">🎲</span> D&D Vault</a>
       <nav>
         <ul class="nav">
           <li><a data-route href="#characters">角色</a></li>
@@ -23,7 +25,6 @@
         </ul>
       </nav>
       <div class="row gap">
-        <!-- 留下「匯入分享包」與主題切換在 header -->
         <label class="file"><input id="pkg-import" type="file" accept="application/json" hidden /><span
             class="button">匯入分享包</span></label>
         <button id="theme-toggle" class="button ghost" type="button">🌓</button>
@@ -32,14 +33,12 @@
   </header>
 
   <main class="container">
-    <!-- Characters -->
     <section id="page-characters" class="page">
       <div class="page-header row between center">
         <h1>角色</h1>
         <div class="row gap controls-row">
           <input id="char-search" class="input" placeholder="搜尋名稱/職業…" />
           <button id="add-character" class="button" type="button">新增角色</button>
-          <!-- 移回：Excel 匯入 + 狀態顯示 -->
           <label class="file">
             <input id="excel-import" type="file" accept=".xlsx" hidden />
             <span class="button">從 Excel 匯入</span>
@@ -50,7 +49,6 @@
       <div id="characters-grid" class="grid"></div>
     </section>
 
-    <!-- Character Detail -->
     <section id="page-detail" class="page hidden">
       <div class="row between center">
         <div>
@@ -119,13 +117,12 @@
       </div>
     </section>
 
-    <!-- Share packages -->
     <section id="page-share" class="page hidden">
       <h1>分享包（加密）</h1>
       <div class="card">
         <h3>建立分享包（房主）</h3>
-        <p class="muted tiny">勾選要分享的角色 → 設定密碼 → 下載 .json。若要用連結分享，把檔案放到 repo 的 <code>p/</code>
-          目錄，連結使用：<code>#p=檔名.json</code></p>
+        <p class="muted tiny">勾選要分享的角色 → 設定密碼 → 下載 .json。若要用連結分享，把檔案加入此 repo 的 <code>/p/</code>
+          目錄並部署；正式連結格式：<code>https://dungeon-and-dragon.lchjames.com/#p=檔名.json</code></p>
         <div id="share-characters" class="list"></div>
         <div class="row gap">
           <button id="share-select-all" class="button small" type="button">全選</button>
@@ -145,11 +142,10 @@
           <input id="pkg-pass" class="input" type="password" placeholder="輸入密碼" />
           <button id="pkg-open" class="button" type="button">解密匯入</button>
         </div>
-        <p class="muted tiny">或直接用連結： <code>#p=檔名.json</code>（檔案需放在 repo 的 <code>p/</code> 目錄）</p>
+        <p class="muted tiny">或直接使用正式網站連結：<code>https://dungeon-and-dragon.lchjames.com/#p=檔名.json</code></p>
       </div>
     </section>
 
-    <!-- Backup -->
     <section id="page-backup" class="page hidden">
       <h1>備份/匯入</h1>
       <div class="row gap">
@@ -162,11 +158,10 @@
 
   <footer class="site-footer">
     <div class="container row between center">
-      <p>© <span id="year"></span> Vault • MIT</p>
+      <p>© <span id="year"></span> D&D Character Vault • Cloudflare Pages</p>
     </div>
   </footer>
 
-  <!-- Character Editor Dialog -->
   <dialog id="char-dialog" class="dialog">
     <form id="char-form" method="dialog">
       <header class="row between center">

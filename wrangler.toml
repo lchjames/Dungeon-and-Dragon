@@ -1,0 +1,5 @@
+name = "dungeon-and-dragon"
+pages_build_output_dir = "."
+
+[vars]
+APP_ORIGIN = "https://dungeon-and-dragon.lchjames.com"

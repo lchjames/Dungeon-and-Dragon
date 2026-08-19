@@ -1,8 +1,58 @@
-# Vault v3.2.7a（UI 小修）
-- **Excel 匯入** 按鈕移回「角色」頁（與「新增角色」同列），並在旁顯示匯入狀態。
-- **編輯角色對話框**：移除 name 的 `required`；取消/✖ 可直接關閉；只有按「儲存」時才檢查「姓名必填」。
-- 其餘同 v3.2.7：角色詳情頁、Excel 全欄位 + 道具/技能匯入（合併格容錯、同名 upsert）、分享包（AES-GCM）、備份/匯入、手機友好、主題切換。
+# D&D Character Vault
 
-## 使用
-- 進入「角色」頁，右上控制列可看到「從 Excel 匯入」按鈕與狀態。
-- 在編輯視窗可按取消/✖ 直接關閉；按儲存時若未輸入姓名會提示。
+Production repository for the D&D project.
+
+**Production URL:** `https://dungeon-and-dragon.lchjames.com`
+
+This repository is the single main codebase for future development and commits. The older `Dungeon-and-Dragon-PHP` repository is retained only as a historical reference for legacy PHP/MySQL/Python logic.
+
+## Current application
+
+The current site is a client-side static web application:
+
+- Character management and detail view
+- Excel character import
+- Items and skills import/display
+- JSON backup and restore
+- AES-GCM encrypted character share packages
+- Mobile-friendly layout and theme toggle
+- Browser `localStorage` persistence
+
+No application server is required for the current version.
+
+## Cloudflare Pages deployment
+
+The repository is designed to deploy directly from the repository root.
+
+Recommended Cloudflare Pages settings:
+
+- Git repository: `lchjames/Dungeon-and-Dragon`
+- Production branch: `main`
+- Framework preset: `None`
+- Build command: leave empty
+- Build output directory: `.`
+- Root directory: repository root
+
+After the first deployment, add the custom domain:
+
+`dungeon-and-dragon.lchjames.com`
+
+The site uses root-relative hosting (`<base href="/">`) so production assets and `/p/` share packages resolve from the custom-domain root.
+
+## Share package links
+
+Encrypted share packages intended for URL sharing should be committed under:
+
+`/p/<filename>.json`
+
+The public link format is:
+
+`https://dungeon-and-dragon.lchjames.com/#p=<filename>.json`
+
+## Cloudflare configuration
+
+`wrangler.toml` documents the Cloudflare Pages project and static output directory. `_headers` adds baseline security headers without blocking the SheetJS CDN currently used for Excel imports.
+
+## Data model note
+
+Character data currently lives in the user's browser via `localStorage` (`vault-v3.2.7a`). Deploying a new site version does not itself create a server-side database or synchronize data across devices.
