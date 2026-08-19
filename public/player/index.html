@@ -12,27 +12,101 @@
   <header class="topbar">
     <a class="topbar-brand" href="/"><span class="brand-dot">P</span><span><strong>D&D Campaign Hub</strong><small>Player Workspace</small></span></a>
     <div class="topbar-actions">
-      <span class="tag"><strong id="player-user-name">Player</strong><span id="player-username" class="hidden"></span></span>
+      <span class="tag"><strong id="player-user-name">Player</strong></span>
       <button id="theme-toggle" class="icon-button" type="button" aria-label="Toggle theme">☀️</button>
       <button id="logout-button" class="button button-ghost" type="button">Lock</button>
       <a class="button button-ghost" href="/">Exit</a>
     </div>
   </header>
+
   <main class="workspace">
-    <section class="workspace-hero"><div><p class="eyebrow">PLAYER</p><h1 id="campaign-name">D&D Campaign</h1><p class="lede compact">你已經用 User + 4 位數 Key 開啟角色。呢度只會顯示綁定到你 User 嘅角色。</p></div></section>
-    <section id="auth-loading" class="panel"><div class="empty-state"><div class="empty-icon">◌</div><h3>正在載入角色…</h3><p>Loading your linked characters from the database.</p></div></section>
+    <section class="workspace-hero">
+      <div>
+        <p class="eyebrow">PLAYER</p>
+        <h1 id="campaign-name">D&D Campaign</h1>
+        <p class="lede compact">角色直接屬於你的 User。你可以自行建立角色，所有角色資料都儲存在 D1。</p>
+      </div>
+    </section>
+
+    <section id="auth-loading" class="panel">
+      <div class="empty-state"><div class="empty-icon">◌</div><h3>正在載入角色…</h3><p>Loading your characters from the database.</p></div>
+    </section>
+
     <section id="player-content" class="hidden">
-      <div class="section-heading"><div><p class="eyebrow">YOUR CHARACTERS</p><h2 id="player-heading">Characters</h2></div></div>
+      <div class="section-heading">
+        <div><p class="eyebrow">YOUR CHARACTERS</p><h2 id="player-heading">Characters</h2></div>
+        <button id="new-character" class="button" type="button">+ New Character</button>
+      </div>
+
       <div id="character-list" class="character-grid"></div>
+
       <section id="character-detail" class="character-sheet hidden">
-        <div class="character-banner"><div id="character-avatar" class="character-avatar">D20</div><div class="character-banner-copy"><div class="row-inline"><span id="character-status" class="status-pill">Active</span><span id="character-level" class="muted">Level 1</span></div><h2 id="character-name">Character</h2><p id="character-role" class="muted">No role</p></div><div class="character-banner-actions"><button id="export-character" class="button button-ghost" type="button">Export character</button><button id="close-character" class="button button-ghost" type="button">Close</button></div></div>
-        <nav class="tabbar" aria-label="Character sections"><button class="tab active" type="button" data-tab="overview">Overview</button><button class="tab" type="button" data-tab="inventory">Inventory</button><button class="tab" type="button" data-tab="abilities">Abilities</button><button class="tab" type="button" data-tab="notes">Notes</button></nav>
-        <div id="tab-overview" class="tab-panel"><div class="split-grid"><section class="panel"><div class="panel-heading"><h3>Attributes</h3><span class="muted">Read only</span></div><div id="attribute-grid" class="stat-grid"></div></section><section class="panel"><div class="panel-heading"><h3>Resources</h3><span class="muted">Current values editable</span></div><div id="resource-list" class="resource-list"></div></section></div><section class="panel"><div class="panel-heading"><h3>Summary</h3></div><p id="character-summary" class="prose muted">No summary.</p></section></div>
+        <div class="character-banner">
+          <div id="character-avatar" class="character-avatar">D20</div>
+          <div class="character-banner-copy">
+            <div class="row-inline"><span id="character-status" class="status-pill">Active</span><span id="character-level" class="muted">Level 1</span></div>
+            <h2 id="character-name">Character</h2>
+            <p id="character-role" class="muted">No role</p>
+          </div>
+          <div class="character-banner-actions">
+            <button id="export-character" class="button button-ghost" type="button">Export character</button>
+            <button id="close-character" class="button button-ghost" type="button">Close</button>
+          </div>
+        </div>
+
+        <nav class="tabbar" aria-label="Character sections">
+          <button class="tab active" type="button" data-tab="overview">Overview</button>
+          <button class="tab" type="button" data-tab="inventory">Inventory</button>
+          <button class="tab" type="button" data-tab="abilities">Abilities</button>
+          <button class="tab" type="button" data-tab="notes">Notes</button>
+        </nav>
+
+        <div id="tab-overview" class="tab-panel">
+          <div class="split-grid">
+            <section class="panel"><div class="panel-heading"><h3>Attributes</h3><span class="muted">Read only</span></div><div id="attribute-grid" class="stat-grid"></div></section>
+            <section class="panel"><div class="panel-heading"><h3>Resources</h3><span class="muted">Current values editable</span></div><div id="resource-list" class="resource-list"></div></section>
+          </div>
+          <section class="panel"><div class="panel-heading"><h3>Summary</h3></div><p id="character-summary" class="prose muted">No summary.</p></section>
+        </div>
+
         <div id="tab-inventory" class="tab-panel hidden"><section class="panel"><div class="panel-heading"><h3>Inventory</h3><span class="muted">Quantity can be updated by the player</span></div><div id="inventory-list" class="stack-list"></div></section></div>
         <div id="tab-abilities" class="tab-panel hidden"><section class="panel"><div class="panel-heading"><h3>Abilities</h3></div><div id="ability-list" class="stack-list"></div></section></div>
         <div id="tab-notes" class="tab-panel hidden"><section class="panel"><div class="panel-heading"><h3>Player Notes</h3><span class="muted">Saved to D1</span></div><textarea id="character-notes" class="textarea notes-area" placeholder="Session notes, plans, reminders…"></textarea><div class="form-actions"><button id="save-notes" class="button" type="button">Save notes</button></div></section></div>
       </section>
     </section>
   </main>
+
+  <dialog id="character-create-dialog" class="dialog">
+    <form id="character-create-form">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">NEW CHARACTER</p><h2>建立角色</h2></div>
+        <button id="close-character-create" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <p class="muted">角色會直接綁定到目前登入嘅 User，唔需要 GM 再分配。</p>
+      <div class="form-grid">
+        <label class="field">
+          <span>Character Name</span>
+          <input class="input" name="name" maxlength="80" required autofocus placeholder="例如 Silver Wolf">
+        </label>
+        <label class="field">
+          <span>Role</span>
+          <input class="input" name="role" maxlength="80" placeholder="例如 Frontline / Support">
+        </label>
+        <label class="field">
+          <span>Level</span>
+          <input class="input" name="level" type="number" min="0" max="999" step="1" value="1">
+        </label>
+      </div>
+      <label class="field">
+        <span>Summary</span>
+        <textarea class="textarea" name="summary" rows="4" maxlength="2000" placeholder="簡單角色概念，可留空。"></textarea>
+      </label>
+      <div id="character-create-status" class="auth-status" hidden role="status" aria-live="polite"></div>
+      <div class="form-actions dialog-actions">
+        <button id="cancel-character-create" class="button button-ghost" type="button">Cancel</button>
+        <button id="submit-character-create" class="button" type="submit">Create Character</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>
