@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="D&D Campaign Hub player login">
-  <title>Player Login · D&D Campaign Hub</title>
+  <meta name="description" content="D&D Campaign Hub player character access">
+  <title>Player Access · D&D Campaign Hub</title>
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/auth.css">
   <script type="module" src="/assets/auth.js"></script>
@@ -13,31 +13,31 @@
   <main class="auth-shell">
     <a class="auth-brand" href="/">
       <span class="brand-dot">P</span>
-      <span class="auth-brand-copy"><strong>D&D Campaign Hub</strong><small>Player Account</small></span>
+      <span class="auth-brand-copy"><strong>D&D Campaign Hub</strong><small>Player Access</small></span>
     </a>
 
     <section class="auth-card">
-      <p class="eyebrow">PLAYER LOGIN</p>
-      <h1>登入玩家帳戶</h1>
-      <p class="lede compact">輸入使用者名稱同密碼。登入成功後先可以進入 Player Workspace。</p>
+      <p class="eyebrow">PLAYER ACCESS</p>
+      <h1>開啟你的角色</h1>
+      <p class="lede compact">輸入 User 同 4 位數 Key，就可以查看綁定到你嘅角色。</p>
 
-      <form class="auth-form" data-auth-form autocomplete="on">
+      <form class="auth-form" data-auth-form autocomplete="off">
         <label class="field">
-          <span>使用者名稱</span>
-          <input class="input" name="username" type="text" autocomplete="username" minlength="3" maxlength="32" required autofocus>
+          <span>User</span>
+          <input class="input" name="user" type="text" maxlength="32" required autofocus placeholder="例如 James">
         </label>
         <label class="field">
-          <span>密碼</span>
-          <input class="input" name="password" type="password" autocomplete="current-password" maxlength="128" required>
+          <span>4-digit Key</span>
+          <input class="input" name="key" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required placeholder="••••">
         </label>
-        <button class="button button-full" type="submit">登入</button>
+        <button class="button button-full" type="submit">開啟角色</button>
       </form>
 
       <div class="auth-status" data-auth-status hidden role="status" aria-live="polite"></div>
-      <p class="auth-footer">未有帳戶？ <a href="/player/register/">建立新玩家帳戶</a></p>
+      <p class="auth-footer">未有 User？ <a href="/player/register/">建立玩家</a></p>
       <div class="auth-security">
-        <strong>帳戶保護</strong>
-        <span>Session 使用 Secure + HttpOnly cookie；密碼唔會儲存在瀏覽器。</span>
+        <strong>簡單存取</strong>
+        <span>User 會連結到角色；Key 只用嚟確認係你本人。</span>
       </div>
     </section>
   </main>
