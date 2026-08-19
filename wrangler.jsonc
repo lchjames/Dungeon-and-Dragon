@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "dungeon-and-dragon",
+  "name": "dnd",
   "main": "./src/worker.js",
   "compatibility_date": "2026-08-20",
   "workers_dev": true,
