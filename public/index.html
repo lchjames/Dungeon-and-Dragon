@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="D&D Campaign Hub — separate Player and GM workspaces.">
+  <title>D&D Campaign Hub</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body class="landing-body">
+  <main class="landing-shell">
+    <section class="landing-hero">
+      <div class="brand-mark">D20</div>
+      <p class="eyebrow">D&D CAMPAIGN HUB</p>
+      <h1>Choose your workspace.</h1>
+      <p class="lede">玩家只處理自己的角色；GM 管理玩家、角色、遊戲資料與工具。兩個工作區已完全分離。</p>
+    </section>
+
+    <section class="role-grid" aria-label="Workspace selection">
+      <a class="role-card role-player" href="/player/">
+        <span class="role-kicker">PLAYER</span>
+        <h2>玩家頁面</h2>
+        <p>查看已分配角色、管理資源、物品與筆記。沒有 GM 管理功能。</p>
+        <span class="role-cta">Enter Player →</span>
+      </a>
+
+      <a class="role-card role-gm" href="/gm/">
+        <span class="role-kicker">GAME MASTER</span>
+        <h2>GM 控制台</h2>
+        <p>建立玩家與角色、管理角色資料、資產、備份，以及遊戲工具。</p>
+        <span class="role-cta">Enter GM →</span>
+      </a>
+    </section>
+
+    <p class="landing-note">Current build uses local browser storage. Account authentication and Cloudflare D1 can be added on top of this structure without changing the Player/GM page split.</p>
+  </main>
+</body>
+</html>
