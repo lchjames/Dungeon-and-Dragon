@@ -7,12 +7,12 @@
 </head>
 <body class="landing-body">
   <main class="landing-shell">
-    <section class="landing-hero"><div class="brand-mark">D20</div><p class="eyebrow">D&D CAMPAIGN HUB</p><h1>Choose your workspace.</h1><p class="lede">Player 帳戶與角色資料已使用 Cloudflare D1；GM 工作區會喺下一階段接入同一個資料庫及 GM 權限系統。</p></section>
+    <section class="landing-hero"><div class="brand-mark">D20</div><p class="eyebrow">D&D CAMPAIGN HUB</p><h1>Choose your workspace.</h1><p class="lede">Player 同角色資料使用 Cloudflare D1；玩家只需要 User + 4 位數 Key 就可以開啟綁定角色。</p></section>
     <section class="role-grid" aria-label="Workspace selection">
-      <a class="role-card role-player" href="/player/"><span class="role-kicker">PLAYER</span><h2>玩家頁面</h2><p>密碼登入後查看分配角色，資源、物品數量與筆記直接寫入 D1。</p><span class="role-cta">Enter Player →</span></a>
+      <a class="role-card role-player" href="/player/"><span class="role-kicker">PLAYER</span><h2>玩家頁面</h2><p>輸入 User 同 4-digit Key，查看綁定角色；資源、物品數量與筆記直接寫入 D1。</p><span class="role-cta">Open Player →</span></a>
       <a class="role-card role-gm" href="/gm/"><span class="role-kicker">GAME MASTER</span><h2>GM 控制台</h2><p>GM backend/auth 正在下一階段改成同一個 D1 source of truth。</p><span class="role-cta">Enter GM →</span></a>
     </section>
-    <p class="landing-note">Player campaign data is no longer stored in browser localStorage.</p>
+    <p class="landing-note">Player campaign data is stored in D1, not browser localStorage.</p>
   </main>
 </body>
 </html>
