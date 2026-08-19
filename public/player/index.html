@@ -12,15 +12,15 @@
   <header class="topbar">
     <a class="topbar-brand" href="/"><span class="brand-dot">P</span><span><strong>D&D Campaign Hub</strong><small>Player Workspace</small></span></a>
     <div class="topbar-actions">
-      <span class="tag"><strong id="player-user-name">Player</strong>&nbsp;<span id="player-username" class="muted"></span></span>
+      <span class="tag"><strong id="player-user-name">Player</strong><span id="player-username" class="hidden"></span></span>
       <button id="theme-toggle" class="icon-button" type="button" aria-label="Toggle theme">☀️</button>
-      <button id="logout-button" class="button button-ghost" type="button">Logout</button>
+      <button id="logout-button" class="button button-ghost" type="button">Lock</button>
       <a class="button button-ghost" href="/">Exit</a>
     </div>
   </header>
   <main class="workspace">
-    <section class="workspace-hero"><div><p class="eyebrow">PLAYER</p><h1 id="campaign-name">D&D Campaign</h1><p class="lede compact">帳戶、角色、資源、物品、能力與筆記均由 Cloudflare D1 儲存。此頁只會讀取登入帳戶獲分配嘅角色。</p></div></section>
-    <section id="auth-loading" class="panel"><div class="empty-state"><div class="empty-icon">◌</div><h3>正在載入帳戶資料…</h3><p>Loading protected data from D1.</p></div></section>
+    <section class="workspace-hero"><div><p class="eyebrow">PLAYER</p><h1 id="campaign-name">D&D Campaign</h1><p class="lede compact">你已經用 User + 4 位數 Key 開啟角色。呢度只會顯示綁定到你 User 嘅角色。</p></div></section>
+    <section id="auth-loading" class="panel"><div class="empty-state"><div class="empty-icon">◌</div><h3>正在載入角色…</h3><p>Loading your linked characters from the database.</p></div></section>
     <section id="player-content" class="hidden">
       <div class="section-heading"><div><p class="eyebrow">YOUR CHARACTERS</p><h2 id="player-heading">Characters</h2></div></div>
       <div id="character-list" class="character-grid"></div>
