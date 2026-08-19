@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="D&D Campaign Hub player login">
+  <title>Player Login · D&D Campaign Hub</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/auth.css">
+  <script type="module" src="/assets/auth.js"></script>
+</head>
+<body class="auth-body" data-auth-page="login">
+  <main class="auth-shell">
+    <a class="auth-brand" href="/">
+      <span class="brand-dot">P</span>
+      <span class="auth-brand-copy"><strong>D&D Campaign Hub</strong><small>Player Account</small></span>
+    </a>
+
+    <section class="auth-card">
+      <p class="eyebrow">PLAYER LOGIN</p>
+      <h1>登入玩家帳戶</h1>
+      <p class="lede compact">輸入使用者名稱同密碼。登入成功後先可以進入 Player Workspace。</p>
+
+      <form class="auth-form" data-auth-form autocomplete="on">
+        <label class="field">
+          <span>使用者名稱</span>
+          <input class="input" name="username" type="text" autocomplete="username" minlength="3" maxlength="32" required autofocus>
+        </label>
+        <label class="field">
+          <span>密碼</span>
+          <input class="input" name="password" type="password" autocomplete="current-password" maxlength="128" required>
+        </label>
+        <button class="button button-full" type="submit">登入</button>
+      </form>
+
+      <div class="auth-status" data-auth-status hidden role="status" aria-live="polite"></div>
+      <p class="auth-footer">未有帳戶？ <a href="/player/register/">建立新玩家帳戶</a></p>
+      <div class="auth-security">
+        <strong>帳戶保護</strong>
+        <span>Session 使用 Secure + HttpOnly cookie；密碼唔會儲存在瀏覽器。</span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

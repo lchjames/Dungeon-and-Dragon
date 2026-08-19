@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Create a D&D Campaign Hub player account">
+  <title>Create Player Account · D&D Campaign Hub</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/auth.css">
+  <script type="module" src="/assets/auth.js"></script>
+</head>
+<body class="auth-body" data-auth-page="register">
+  <main class="auth-shell">
+    <a class="auth-brand" href="/">
+      <span class="brand-dot">P</span>
+      <span class="auth-brand-copy"><strong>D&D Campaign Hub</strong><small>New Player Account</small></span>
+    </a>
+
+    <section class="auth-card">
+      <p class="eyebrow">NEW PLAYER</p>
+      <h1>建立玩家帳戶</h1>
+      <p class="lede compact">帳戶建立後會自動登入。之後每次進入 Player Workspace 都需要有效登入 Session。</p>
+
+      <form class="auth-form" data-auth-form autocomplete="on">
+        <label class="field">
+          <span>顯示名稱</span>
+          <input class="input" name="displayName" type="text" autocomplete="name" maxlength="50" required autofocus placeholder="例如 James">
+        </label>
+        <label class="field">
+          <span>使用者名稱</span>
+          <input class="input" name="username" type="text" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]{3,32}" required placeholder="例如 james.lau">
+          <small class="auth-help">3–32 字元；英文字母、數字、. _ -</small>
+        </label>
+        <label class="field">
+          <span>密碼</span>
+          <input class="input" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+          <small class="auth-help">最少 12 個字元；建議使用一段容易記但夠長嘅 passphrase。</small>
+        </label>
+        <label class="field">
+          <span>確認密碼</span>
+          <input class="input" name="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        </label>
+        <button class="button button-full" type="submit">建立帳戶</button>
+      </form>
+
+      <div class="auth-status" data-auth-status hidden role="status" aria-live="polite"></div>
+      <p class="auth-footer">已經有帳戶？ <a href="/player/login/">登入</a></p>
+      <div class="auth-security">
+        <strong>密碼處理</strong>
+        <span>密碼會喺伺服器以隨機 salt 經 PBKDF2-HMAC-SHA-256 雜湊，資料庫唔保存明文密碼。</span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

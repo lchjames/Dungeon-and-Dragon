@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dungeon-and-dragon",
+  "main": "./src/worker.js",
   "compatibility_date": "2026-08-20",
   "workers_dev": true,
   "routes": [
@@ -9,8 +10,19 @@
       "custom_domain": true
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB"
+    }
+  ],
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/player",
+      "/player/*"
+    ],
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash"
   }

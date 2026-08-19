@@ -2,19 +2,55 @@
 
 Production repository for `https://dungeon-and-dragon.lchjames.com`.
 
-This is the rebuilt v5 application. The previous mixed Vault/PHP/Python UI has been removed from the working tree. Git history is retained for rollback and reference.
-
-## v5 architecture
-
-The website now has three explicit entry points:
+## Current architecture
 
 - `/` — workspace selector
-- `/player/` — Player-only workspace
-- `/gm/` — GM management workspace
+- `/player/` — password-protected Player workspace
+- `/player/login/` — Player login
+- `/player/register/` — new Player account creation
+- `/gm/` — GM workspace (GM authentication is a later phase)
 
-Player and GM are no longer different tabs inside one application screen.
+## Player authentication
 
-### Core entities
+Player accounts are stored server-side in Cloudflare D1.
+
+Current auth flow:
+
+1. Register with display name, username and password.
+2. Password is salted and hashed in the Worker with PBKDF2-HMAC-SHA-256.
+3. A random session token is issued as a `Secure`, `HttpOnly`, `SameSite=Lax` cookie.
+4. Only the SHA-256 hash of the session token is stored in D1.
+5. `/player/` is protected by Worker middleware and redirects unauthenticated requests to `/player/login/`.
+6. Five consecutive failed password attempts temporarily lock the account for 15 minutes.
+7. Sessions expire after seven days.
+
+The password policy is 12–128 characters. Passwords are never stored in localStorage or returned to the browser after submission.
+
+## D1
+
+`wrangler.jsonc` declares a draft D1 binding named `DB`. Modern Wrangler versions can automatically provision the D1 database during `wrangler deploy` when the binding has no resource ID.
+
+The Worker lazily creates the `users` and `sessions` tables on the first authentication request. A reference copy of the schema is stored in `schema/0001_auth.sql`.
+
+## Player / Character bridge
+
+Authentication is now server-side, but the v5 campaign/character model is still browser-local (`dnd-platform-v5`). On login, the Player workspace creates or updates a local Player record whose ID equals the authenticated D1 user ID. This keeps the current character UI working while preparing the model for the next phase, where characters and assignments will move to D1.
+
+Therefore, password protection currently protects access to the Player workspace and establishes a real user identity; campaign data is not yet synchronized between browsers/devices.
+
+## Cloudflare deployment
+
+The app uses Cloudflare Workers + Static Assets:
+
+- Worker entry: `src/worker.js`
+- Static assets: `./public`
+- D1 binding: `DB`
+- Custom domain: `dungeon-and-dragon.lchjames.com`
+- Deploy command: `npx wrangler deploy`
+
+`assets.run_worker_first` is enabled for `/api/*` and `/player*` so authentication can run before protected Player assets are served.
+
+## Data model
 
 `Player`
 - id
@@ -37,76 +73,5 @@ Player and GM are no longer different tabs inside one application screen.
 - inventory[]
 - abilities[]
 - notes
-
-This keeps the character model system-agnostic. STR/DEX/etc. are no longer hard-coded database columns; they can be represented as flexible attributes.
-
-## Current capabilities
-
-### Player workspace
-- Select player identity (temporary until authentication is added)
-- See only characters assigned to that player
-- Character overview
-- Read attributes
-- Update current resource values
-- View and update inventory quantity
-- View abilities
-- Update character notes
-- Export an individual character
-
-### GM workspace
-- Dashboard
-- Player CRUD
-- Character CRUD and assignment
-- Flexible character attributes
-- Flexible resources (current/max)
-- Inventory
-- Abilities
-- Character status and portrait
-- Lightweight media asset library
-- Element classifier migrated from the legacy NLP experiment
-- Maze generator migrated from the legacy Python experiments
-- Campaign settings
-- Full JSON backup / restore
-- Local data reset
-
-## Data migration
-
-v5 stores browser data under:
-
-`dnd-platform-v5`
-
-On first load, if no v5 data exists, it attempts to migrate from:
-
-1. `dnd-vault-v4`
-2. `vault-v3.2.7a`
-
-The old browser keys are not deleted.
-
-## Storage limitation
-
-The current rebuild intentionally keeps persistence client-side while the information architecture is stabilised. Player selection is therefore not authentication, and data does not sync between browsers/devices.
-
-The new Player → Character model is designed so Cloudflare D1 and real authentication can be introduced later without merging the Player and GM interfaces again.
-
-## Cloudflare deployment
-
-The repository uses Cloudflare Workers Static Assets.
-
-`wrangler.jsonc`:
-- Worker: `dungeon-and-dragon`
-- Assets: `./public`
-- Production custom domain: `dungeon-and-dragon.lchjames.com`
-- HTML handling: automatic trailing slash
-- 404 handling: nearest `404.html`
-
-Deploy command:
-
-```bash
-npx wrangler deploy
-```
-
-No Worker JavaScript entry point is required for this static build.
-
-## Repository policy
 
 All future production development is done in this repository. `lchjames/Dungeon-and-Dragon-PHP` remains historical reference only.
