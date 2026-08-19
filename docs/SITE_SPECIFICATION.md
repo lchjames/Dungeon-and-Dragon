@@ -1,60 +1,38 @@
 # D&D Campaign Hub — Site & Character System Specification
 
 > Status: **Canonical design document**  
-> Purpose: This document is the source of truth for future website, database, Player, GM, character-creation, and character-sheet development.  
+> Purpose: Source of truth for future website, database, Player, GM, character-creation and character-sheet development.  
 > Production site: `https://dungeon-and-dragon.lchjames.com/`
 
 ---
 
-# 1. Product Goal
+# 1. Product Direction
 
-D&D Campaign Hub is a lightweight web-based TRPG character and campaign management system.
+D&D Campaign Hub is a lightweight web-based TRPG character and campaign management system intended to support multiple genres, including fantasy, science fiction, modern, horror and custom settings.
 
-The platform is divided into two clearly separated experiences:
+The web version is **not** a direct digital copy of the old offline CoC-style spreadsheet. The spreadsheet is the design reference, but setting-specific systems should be removed or generalized.
 
-- **Player side** — players create a User, unlock it with a 4-digit Key, create and manage their own characters, and use their character sheets during play.
-- **GM side** — the GM views and manages all campaign data, characters, users, game content and campaign-level settings.
+The platform has two separated experiences:
 
-Cloudflare D1 is the authoritative database. Browser localStorage must **not** be used for authoritative User, Character, Inventory, Ability, Resource, Notes, or campaign data.
+- **Player side** — create a User, unlock it with a 4-digit Key, create and manage owned characters, and use character sheets during play.
+- **GM side** — view/manage campaign data, Users, Characters, game content, balance rules and administrative settings.
+
+Cloudflare D1 is the authoritative database. Browser localStorage must not contain authoritative User, Character, Skill, Inventory, Resource or campaign data.
 
 ---
 
-# 2. Core Architecture Rules
+# 2. Identity and Ownership
 
-## 2.1 Source of Truth
+## 2.1 Player Identity
 
-Authoritative data lives in Cloudflare D1.
+A Player uses:
 
-Browser storage may only be used for non-authoritative UI preferences such as:
-
-- theme
-- last-opened tab
-- temporary unsaved form state
-- display preferences
-
-Browser storage must not be used as the canonical copy of:
-
-- Users
-- Keys
-- Sessions
-- Characters
-- Attributes
-- Resources
-- Inventory
-- Abilities
-- Character Notes
-- Campaign settings
-
-## 2.2 Identity Model
-
-A Player identity is intentionally simple:
-
-- **User** — a player-facing name, e.g. `swolf`
+- **User** — player-facing name, e.g. `swolf`
 - **Key** — exactly four numeric digits, e.g. `4821`
 
-The player does not need an email address, traditional username, or long password.
+No email or traditional password is required.
 
-The User is linked to one or more Characters.
+One User may own multiple Characters:
 
 ```text
 User: swolf
@@ -63,23 +41,21 @@ User: swolf
 └── Character C
 ```
 
-## 2.3 Character Ownership
+## 2.2 Character Ownership
 
-Every Character has an owner:
+Every Character has:
 
 ```text
 characters.owner_user_id -> users.id
 ```
 
-When a Player creates a Character, the Worker obtains the authenticated User ID from the current Session and writes that ID into `owner_user_id`.
+When a Player creates a Character, the Worker reads the authenticated User ID from the server-side Session and writes it into `owner_user_id`.
 
-The client must never be allowed to choose or submit another User's `owner_user_id`.
+The browser must never be able to choose another User ID as the owner.
 
 ---
 
-# 3. Public Site Structure
-
-Recommended permanent routing structure:
+# 3. Site Structure
 
 ```text
 /
@@ -92,993 +68,686 @@ Recommended permanent routing structure:
     └── GM Workspace
 ```
 
-## 3.1 Landing Page `/`
-
-Purpose:
-
-- explain the two available workspaces
-- provide Player and GM entry points
-
-Primary actions:
-
-- **Player** → `/player/`
-- **Game Master** → `/gm/`
-
-The landing page should remain simple. It should not contain character-management controls.
+The Player and GM interfaces should remain functionally and visually separate.
 
 ---
 
-# 4. Player Authentication / Access
+# 4. Character System Philosophy
 
-## 4.1 New User
+The old spreadsheet is used as the structural base, but the web system should be genre-neutral.
 
-A new Player creates:
+## Keep
 
-| Field | Required | Validation |
+- Character identity/background
+- Core physical/mental attributes
+- Randomized character generation
+- Balanced character generation
+- HP / MP-style resources
+- Generic skills
+- Combat/attacks
+- Inventory
+- Notes
+- Character growth through learned skills
+
+## Remove from the core system
+
+- Cthulhu Mythos / 克蘇魯神話
+- All fixed language families and language tables
+- CoC-specific empty skill slots
+- Occupation-skill point budget system
+- Interest-skill point budget system
+- Spreadsheet-only helper/modifier fields
+- Duplicate manually stored derived values when they can be calculated
+
+## Optional / campaign-defined rather than core
+
+- SAN / Sanity
+- Stress
+- Mana / MP
+- Energy
+- Corruption
+- Reputation
+- any setting-specific resource
+
+This allows a fantasy campaign, science-fiction campaign or horror campaign to use the same Character model without changing the database schema.
+
+---
+
+# 5. Character Identity
+
+Character creation begins with identity information.
+
+| Field | Required | Notes |
 |---|---:|---|
-| User | Yes | 1–32 visible characters |
-| 4-digit Key | Yes | exactly `0000–9999` |
-| Confirm Key | Yes | must match Key |
+| Character Name | Yes | Main display name |
+| Owner User | Automatic | Taken from authenticated Session |
+| Occupation / Role | No | Free text; represents current profession/archetype |
+| Age | No | Character background |
+| Gender | No | Free/selectable value |
+| Education / School | No | Background, separate from EDU stat |
+| Birthplace | No | Background |
+| Residence | No | Background |
+| Era / Setting | No | May later become Campaign-controlled |
+| Portrait | No | Character image |
+| Summary / Background | No | Short character description |
+
+`Player Name / PL` from the spreadsheet is removed because the authenticated User already identifies the owner.
+
+---
+
+# 6. Core Character Attributes
+
+The following eight attributes are retained from the old character table because they form a useful genre-neutral base.
+
+| Code | Name | Meaning | Initial Roll |
+|---|---|---|---|
+| STR | Strength / 力量 | Raw physical strength | 3D6 |
+| DEX | Dexterity / 敏捷 | Coordination, speed, reaction | 3D6 |
+| CON | Constitution / 體質 | Health, stamina, endurance | 3D6 |
+| APP | Appearance / 外貌 | Presence and physical impression | 3D6 |
+| POW | Power / 意志 | Mental force, resolve, supernatural potential | 3D6 |
+| INT | Intelligence / 智力 | Reasoning and problem solving | 2D6 + 6 |
+| SIZ | Size / 體型 | Physical size/build | 2D6 + 6 |
+| EDU | Education / 教育 | General learned knowledge and education | 3D6 + 3 |
+
+These values are first-class Character attributes in the UI.
+
+The D1 design may still store them in an extensible attribute table so new attributes can be added later without schema changes.
+
+---
+
+# 7. Random Character Generation
+
+## 7.1 Core Rule
+
+Character attributes are **fully randomized**.
+
+The Player does not roll a pool and manually assign the best values to preferred attributes.
 
 Example:
 
 ```text
-User: swolf
-Key: 4821
+STR -> roll 3D6 -> 11
+DEX -> roll 3D6 -> 15
+CON -> roll 3D6 -> 9
+APP -> roll 3D6 -> 12
+POW -> roll 3D6 -> 10
+INT -> roll 2D6+6 -> 14
+SIZ -> roll 2D6+6 -> 13
+EDU -> roll 3D6+3 -> 16
 ```
 
-## 4.2 Login
+Each result belongs directly to the attribute that generated it.
 
-Player enters only:
+## 7.2 Balance Protection
+
+Pure random rolls can produce characters that are far stronger or weaker than the intended starting range. The server therefore applies a total-stat acceptance band.
+
+Initial proposed rule:
 
 ```text
-User
-4-digit Key
+Primary Total = STR + DEX + CON + APP + POW + INT + SIZ + EDU
 ```
 
-After successful verification, the server creates an authenticated Session.
+Expected average using the above dice is approximately:
 
-## 4.3 Key Protection
+```text
+92 total points
+```
 
-The 4-digit Key is a PIN-style access code, not a traditional password.
+Initial recommended accepted range:
 
-Security requirements:
+```text
+84 <= Primary Total <= 100
+```
 
-- never store the Key in plaintext
-- store only a salted server-side hash
-- Session token stored as a secure HttpOnly cookie
-- repeated failed Key attempts must trigger temporary lockout
-- current policy: 5 failed attempts → 15-minute lock
-- authentication errors should not unnecessarily expose internal account details
+If the generated total is outside this range, the **entire attribute set is automatically rerolled by the server** until a valid set is generated.
 
-## 4.4 Player Session
+This preserves meaningful strengths and weaknesses while preventing extreme starting characters.
 
-Recommended current policy:
+The accepted range must later be stored as a GM/Campaign setting so it can be adjusted without changing code.
 
-- Session lifetime: 7 days
-- cookie: `Secure`
-- cookie: `HttpOnly`
-- cookie: `SameSite=Lax`
+## 7.3 No Reroll Farming
 
-A Player can manually use **Lock** to end the current Session.
+The Player must not be able to repeatedly reroll a valid result until a near-maximum set appears.
+
+Recommended flow:
+
+```text
+Create Character
+      ↓
+Roll Attributes
+      ↓
+Server generates one balanced valid set
+      ↓
+Result becomes locked for this creation
+```
+
+A GM may have an administrative reset/re-roll function if required.
+
+## 7.4 Extreme Individual Stats
+
+A balanced total does not mean every stat should be average.
+
+Example:
+
+```text
+STR 6
+DEX 17
+CON 10
+...
+```
+
+is valid if the overall total is within the accepted range.
+
+Characters should be allowed to have genuine strengths and weaknesses.
 
 ---
 
-# 5. Player Workspace
+# 8. Derived Values
 
-The Player Workspace is character-focused, not database-focused.
+The old spreadsheet contained several CoC-derived values. They should not all remain mandatory.
 
-Main layout:
+## 8.1 Core Derived Values
+
+### Maximum HP
+
+Initial formula:
 
 ```text
-Player Workspace
-│
-├── My Characters
-│   ├── + New Character
-│   └── Character Cards
-│
-└── Character Sheet
-    ├── Overview
-    ├── Attributes
-    ├── Resources
-    ├── Inventory
-    ├── Abilities
-    └── Notes
+Max HP = ceil((CON + SIZ) / 2)
 ```
 
-The Player should never need to see:
+### Maximum MP / Energy
 
-- internal database IDs
-- `owner_user_id`
-- raw JSON database structures
-- SQL/database controls
-- GM-only system settings
+Initial default formula:
+
+```text
+Max MP = POW
+```
+
+MP is a generic default resource and may be renamed/disabled by a Campaign.
+
+### Damage Bonus
+
+Damage Bonus should be automatically derived from STR + SIZ using the legacy table or a future configurable ruleset.
+
+It should not require manual entry.
+
+## 8.2 Removed as Mandatory Core Stats
+
+The following old CoC-style fields are **not mandatory Character Status fields**:
+
+- IDEA
+- KNOW
+- SAN
+- Cthulhu Mythos
+
+Reasons:
+
+- IDEA duplicates concepts already represented by INT.
+- KNOW strongly overlaps EDU.
+- SAN is useful only for some campaign types and should instead be an optional Resource.
+- Cthulhu Mythos is setting-specific and is completely removed from the core system.
+
+## 8.3 Luck
+
+`LUCK` is genre-neutral enough to remain a candidate global derived stat, but its final formula/status is still open for confirmation.
+
+Possible initial rule:
+
+```text
+LUCK = POW × 5
+```
+
+Do not hard-code LUCK into irreversible database design until finalized.
 
 ---
 
-# 6. Character Creation
+# 9. Resources / Character Status
 
-Character creation is performed by the Player.
+Resources represent values that change during play.
 
-GM approval is **not required** to create a basic Character.
-
-## 6.1 Character Creation Flow
+Core recommended resources:
 
 ```text
-Player logged in
-      ↓
-+ New Character
-      ↓
-Character Creation Form
-      ↓
-POST /api/player/characters
-      ↓
-Server reads Session User ID
-      ↓
-Character saved to D1
-      ↓
-owner_user_id = current User ID
-      ↓
-Open newly created Character
+HP
+Current / Max
+
+MP (optional/default)
+Current / Max
 ```
 
-## 6.2 Character Creation — Stage 1: Identity
+Campaigns may add additional resources:
 
-Initial form should contain:
+```text
+SAN
+Stress
+Energy
+Shield
+Corruption
+Stamina
+Rage
+Faith
+etc.
+```
 
-| Field | Type | Required | Default | Player Editable |
-|---|---|---:|---|---:|
-| Character Name | text | Yes | — | Yes |
-| Role / Class | text | No | blank | Yes |
-| Level | integer | No | 1 | Yes |
-| Age | number/text | No | blank | Yes |
-| Gender | text/select | No | blank | Yes |
-| Alignment | text/select | No | blank | Yes |
-| Occupation / Background | text | No | blank | Yes |
-| Summary | textarea | No | blank | Yes |
-| Portrait | image/reference | No | blank | Yes |
+Generic resource model:
 
-`Role / Class` should remain flexible rather than tied permanently to one RPG system.
+```text
+Resource
+├── id
+├── character_id
+├── key
+├── label
+├── current_value
+├── max_value
+├── description
+└── sort_order
+```
+
+The spreadsheet field `SAN Increase/Decrease` is removed. Web applications should update the current Resource value directly.
+
+---
+
+# 10. Skill System
+
+The old spreadsheet skill list is intentionally **not** copied in full.
+
+The new model contains:
+
+1. a small set of universal starting skills;
+2. unique skills acquired later through study, training, experience, events, items or campaign systems.
+
+## 10.1 Initial Universal Skills
+
+Recommended first-pass base list:
+
+### Awareness
+
+- Perception / 觀察
+- Investigation / 調查
+- Insight / 洞察
+
+### Physical
+
+- Athletics / 運動
+- Acrobatics / 靈巧
+- Stealth / 潛行
+- Survival / 生存
+
+### Social
+
+- Persuasion / 說服
+- Deception / 欺瞞
+- Intimidation / 威嚇
+
+### Practical
+
+- First Aid / 急救
+- Craft & Repair / 製作與修理
+
+### Combat
+
+- Melee / 近戰
+- Ranged / 遠程
+- Dodge / 閃避
+
+This list should stay deliberately small.
+
+## 10.2 Skills Removed from Default Creation
+
+Do not include fixed specialist lists such as:
+
+- individual sciences
+- archaeology
+- accounting
+- law
+- photography
+- specific vehicle skills
+- specific weapon families
+- Cthulhu Mythos
+- language families
+- ancient languages
+- region-specific languages
+
+These can become learned/custom skills if a campaign requires them.
+
+## 10.3 Learned / Unique Skills
+
+Characters can gain new skills after creation.
 
 Examples:
 
-- Fighter
-- Investigator
-- Mage
-- Intelligence Broker
-- Tank
-- Support
-- Custom role
-
-## 6.3 Character Creation — Stage 2: Core Attributes
-
-The website should support the following classic attribute set.
-
-### Primary Attributes
-
-| Code | Name | Chinese | Purpose | Type | Default Editable |
-|---|---|---|---|---|---:|
-| **STR** | Strength | 力量 | Physical power, lifting, melee force | number | Yes |
-| **DEX** | Dexterity | 敏捷 | Agility, reactions, coordination, speed | number | Yes |
-| **CON** | Constitution | 體質 | Toughness, stamina, physical endurance | number | Yes |
-| **APP** | Appearance | 外貌 | Appearance, charisma-like physical/social impression | number | Yes |
-| **POW** | Power | 意志 / 精神力 | Willpower, mental strength, supernatural resistance | number | Yes |
-| **INT** | Intelligence | 智力 | Reasoning, learning, problem solving | number | Yes |
-| **SIZ** | Size | 體型 | Physical size and mass | number | Yes |
-| **EDU** | Education | 教育 | Formal knowledge, education and learned knowledge | number | Yes |
-
-> Note: the standard field is **DEX**, not `DEV`.
-
-### Derived / Secondary Attributes
-
-| Code | Name | Chinese | Suggested Rule | Type | Editable |
-|---|---|---|---|---|---:|
-| **SAN** | Sanity | 理智 | default `POW × 5` | number | Current value may change |
-| **IDEA** | Idea | 靈感 | default `INT × 5` | number | Usually derived |
-| **LUCK** | Luck | 幸運 | default `POW × 5` | number | Usually derived / may vary by ruleset |
-| **KNOW** | Knowledge | 知識 | default `EDU × 5` | number | Usually derived |
-
-These formulas are defaults based on the legacy system and must be configurable later if the campaign uses another ruleset.
-
-## 6.4 Flexible Attribute System
-
-Although the standard Character Builder shows the fields above, the database architecture must remain flexible.
-
-Attributes should be stored as records rather than permanent hard-coded columns.
-
-Example:
-
-```json
-{
-  "key": "STR",
-  "label": "Strength",
-  "value": 12,
-  "description": "Physical power"
-}
-```
-
-Custom campaign attributes must also be possible:
-
 ```text
-靈力       25
-污染值      4
-精神抗性   B+
-信仰       12
-機械同步率 87%
+Plasma Rifle Handling
+Starship Navigation
+Alchemy
+Rune Engraving
+Necromancy
+Cybernetic Repair
+Dragon Riding
+Quantum Physics
+Sword Saint Technique
+Ancient Imperial History
 ```
 
-This allows the platform to support D&D, CoC-style games, custom systems, sci-fi, wuxia, cultivation or other TRPG systems without redesigning the database.
-
----
-
-# 7. Character Status / Character Sheet Data
-
-The term **Character Status** refers to the complete current state displayed on the Character Sheet.
-
-It should be divided into clear groups.
-
-## 7.1 Identity Status
-
-```text
-Character Name
-Owner User
-Role / Class
-Level
-Age
-Gender
-Alignment
-Occupation / Background
-Status
-Portrait
-Summary
-```
-
-### Character lifecycle `status`
-
-Recommended values:
-
-| Status | Meaning |
-|---|---|
-| `active` | currently playable |
-| `inactive` | temporarily not in active play |
-| `retired` | retired / archived character |
-| `dead` | character is dead |
-| `npc` | optional NPC classification |
-
-Player-created Characters should default to:
-
-```text
-active
-```
-
-## 7.2 Primary Attribute Status
-
-```text
-STR — Strength
-DEX — Dexterity
-CON — Constitution
-APP — Appearance
-POW — Power
-INT — Intelligence
-SIZ — Size
-EDU — Education
-```
-
-## 7.3 Secondary / Derived Status
-
-```text
-SAN  — Sanity
-IDEA — Idea
-LUCK — Luck
-KNOW — Knowledge
-```
-
-## 7.4 Resources
-
-Resources are values with a current and optional maximum value.
-
-Recommended standard resources:
-
-| Resource | Current | Max | Description |
-|---|---:|---:|---|
-| HP | editable | configured | Hit Points / Health |
-| MP | editable | configured | Mana / Magic / Energy |
-| SP | editable | configured | Stamina / Special resource |
-| SAN | editable | configured | Current Sanity if campaign uses it |
-
-Resource system must allow custom entries.
-
-Example:
-
-```text
-HP       18 / 24
-MP       32 / 40
-Stamina   7 / 10
-Rage       2 / 5
-Ammo      17 / 30
-```
-
-## 7.5 Inventory
-
-Each Inventory entry should support:
-
-| Field | Type |
-|---|---|
-| Item Name | text |
-| Quantity | number |
-| Category | text/select |
-| Description / Notes | text |
-| Weight | optional number |
-| Equipped | boolean |
-| Consumable | boolean |
-
-Suggested categories:
-
-```text
-Weapon
-Armor
-Consumable
-Tool
-Quest Item
-Material
-Currency
-Miscellaneous
-```
-
-## 7.6 Abilities / Skills
-
-Each Ability should support:
-
-| Field | Type |
-|---|---|
-| Name | text |
-| Type | text/select |
-| Rank / Level | optional text/number |
-| Value / Modifier | optional text/number |
-| Proficient | boolean |
-| Description | textarea |
-| Cooldown | optional text |
-| Cost | optional text |
-| Tags | optional list |
-
-Suggested ability types:
+Generic learned skill model:
 
 ```text
 Skill
-Spell
-Feat
-Trait
-Passive
-Active
-Reaction
-Technique
-Knowledge
-Custom
+├── id
+├── character_id
+├── name
+├── category
+├── value / level
+├── description
+├── source
+├── learned_at
+└── sort_order
 ```
 
-## 7.7 Notes
+`source` may describe why the Character has the skill:
 
-Character Notes should support Player-written session information such as:
+```text
+Training
+Teacher
+Book
+Quest
+Background
+Item
+Ability
+Campaign Event
+```
 
-- current objectives
-- clues
-- NPC relationships
-- plans
-- reminders
-- session notes
+## 10.4 Skill Growth Model
 
-Notes are stored in D1.
+The old spreadsheet split:
+
+```text
+Initial + Occupation + Interest + Growth = Total
+```
+
+This structure is removed from the default web system.
+
+Recommended simpler model:
+
+```text
+Base Value + Training/Growth = Current Value
+```
+
+or, if a future ruleset uses ranks:
+
+```text
+Skill Rank / Level
+```
+
+The exact numerical progression system should be finalized separately before implementing long-term skill advancement.
 
 ---
 
-# 8. Character Sheet Editing Permissions
+# 11. Language System
 
-Initial permission model:
+The old spreadsheet language system is completely removed from the default web Character Sheet.
 
-| Character Data | Player | GM |
-|---|---:|---:|
-| Create Character | Yes | Yes |
-| Character Name | Yes | Yes |
-| Role / Class | Yes | Yes |
-| Level | Yes | Yes |
-| Age / Gender / Alignment / Background | Yes | Yes |
-| Summary | Yes | Yes |
-| Portrait | Yes | Yes |
-| STR / DEX / CON / APP / POW / INT / SIZ / EDU | Yes | Yes |
-| SAN / IDEA / LUCK / KNOW | Yes / derived | Yes |
-| Resource Current Value | Yes | Yes |
-| Resource Maximum | Yes during creation/edit | Yes |
-| Inventory | Yes | Yes |
-| Abilities | Yes | Yes |
-| Notes | Yes | Yes |
-| Character Owner | No | Yes |
-| Delete / Archive Character | Yes for own character | Yes |
-| Campaign-wide settings | No | Yes |
+Do not create default fields for:
 
-This permission model may later be tightened by a campaign setting, but the default design is **Player owns and builds their own Character**.
+- Asian languages
+- European languages
+- African languages
+- ancient Asian languages
+- ancient European languages
+- ancient African languages
 
----
-
-# 9. Recommended Character Builder UX
-
-The creation process should not present one giant form.
-
-Recommended wizard:
-
-```text
-Step 1 — Identity
-   Name / Role / Level / Background / Portrait
-
-Step 2 — Attributes
-   STR DEX CON APP POW INT SIZ EDU
-
-Step 3 — Derived Values
-   SAN IDEA LUCK KNOW
-   [Auto Calculate]
-
-Step 4 — Resources
-   HP / MP / SP / custom resources
-
-Step 5 — Abilities
-   skills / spells / traits
-
-Step 6 — Inventory
-   starting equipment
-
-Step 7 — Review
-   confirm character
-
-Create Character
-```
-
-The Player should be able to skip optional steps and return later.
-
-A Character may therefore exist in a partially completed state.
-
-Recommended future field:
-
-```text
-profile_completion
-```
-
-or calculate completion dynamically rather than storing it.
-
----
-
-# 10. Character Detail Page
-
-Recommended tabs:
-
-```text
-Overview
-Attributes
-Resources
-Inventory
-Abilities
-Notes
-```
-
-## Overview
-
-Show at a glance:
-
-- Portrait
-- Name
-- Role / Class
-- Level
-- Status
-- HP / important resources
-- Summary
-- major attributes
-
-## Attributes
-
-Show:
-
-```text
-STR DEX CON APP
-POW INT SIZ EDU
-SAN IDEA LUCK KNOW
-+ custom attributes
-```
-
-## Resources
-
-Interactive current-value controls.
+If language becomes mechanically relevant in a specific Campaign, it can be represented as a learned/custom Skill.
 
 Example:
 
 ```text
-HP
-[-] 18 / 24 [+]
+Learned Skill: Elvish
+Learned Skill: Martian Trade Cant
 ```
 
-## Inventory
-
-List or card view with quantity and equipped state.
-
-## Abilities
-
-Grouped by ability type.
-
-## Notes
-
-Large editable notes area with database-backed save.
+There is no dedicated global language subsystem in the initial web version.
 
 ---
 
-# 11. GM Workspace
+# 12. Combat / Attacks
 
-GM is an administrator of the campaign, not the mandatory creator of Player Characters.
-
-Recommended GM sections:
+Attacks should remain separate from Inventory.
 
 ```text
-Dashboard
-Users
-Characters
-Campaign
-Game Data
-Assets
-Tools
-Settings
+Attack
+├── id
+├── character_id
+├── name
+├── linked_skill_id (optional)
+├── hit_value / calculation
+├── damage_formula
+├── attacks_per_round
+├── notes
+└── source_item_id (optional)
 ```
 
-## 11.1 Dashboard
-
-Show summary:
+Examples:
 
 ```text
-Users
-Characters
-Active Characters
-Campaign Name
-Recent Changes
+Unarmed Strike
+Skill: Melee
+Damage: 1D3 + DB
+
+Laser Rifle
+Skill: Plasma Rifle Handling
+Damage: campaign-defined
 ```
 
-## 11.2 Users
-
-GM should be able to:
-
-- view User list
-- view characters owned by each User
-- disable/reactivate User
-- reset/change a User Key if necessary
-- transfer Character ownership
-
-GM should never see the original plaintext Key.
-
-## 11.3 Characters
-
-GM should be able to:
-
-- view all characters
-- search by Character / User / Role / Status
-- open full Character Sheet
-- edit character data
-- archive/delete Character
-- change owner
-
-## 11.4 Campaign
-
-Future campaign settings may include:
-
-- Campaign name
-- ruleset/template
-- default attributes
-- derived-value formulas
-- default resources
-- default starting abilities
-- default starting inventory
+A weapon Item may link to an Attack without being the same database entity.
 
 ---
 
-# 12. D1 Data Model
+# 13. Inventory
 
-Current / target conceptual structure:
+Inventory replaces the spreadsheet's large free-text item area.
+
+```text
+Inventory Item
+├── id
+├── character_id
+├── name
+├── quantity
+├── description / notes
+├── category
+└── optional metadata
+```
+
+Players may gain and lose items during play.
+
+---
+
+# 14. Character Creation Flow
+
+Recommended Character Builder:
+
+```text
+Step 1 — Identity
+  Name
+  Occupation / Role
+  Age / Gender
+  Background information
+
+Step 2 — Random Attributes
+  Server rolls STR / DEX / CON / APP / POW / INT / SIZ / EDU
+  Server applies total-stat balance gate
+  Player receives one accepted randomized set
+
+Step 3 — Derived Status
+  HP
+  optional MP
+  Damage Bonus
+  campaign-defined resources
+
+Step 4 — Base Skills
+  Show universal starting skills
+  No large specialist skill catalogue
+
+Step 5 — Review
+  Confirm Character
+  Save to D1
+```
+
+Creation should be fast. Deep specialization is expected to happen during play, not during initial character creation.
+
+---
+
+# 15. Character Sheet Layout
+
+Recommended Player-facing layout:
+
+```text
+CHARACTER
+────────────────────────
+Name
+Occupation / Role
+Age / Gender
+Background
+Portrait
+
+CORE ATTRIBUTES
+────────────────────────
+STR   DEX   CON   APP
+POW   INT   SIZ   EDU
+
+STATUS
+────────────────────────
+HP        Current / Max
+MP        Current / Max      [if enabled]
+Custom campaign resources
+Damage Bonus
+LUCK                         [if finalized]
+
+BASE SKILLS
+────────────────────────
+Perception
+Investigation
+Insight
+Athletics
+Acrobatics
+Stealth
+Survival
+Persuasion
+Deception
+Intimidation
+First Aid
+Craft & Repair
+Melee
+Ranged
+Dodge
+
+LEARNED SKILLS
+────────────────────────
+Skills gained during play
++ future learning system
+
+COMBAT
+────────────────────────
+Attacks / Weapons
+
+INVENTORY
+────────────────────────
+Items / Quantity / Notes
+
+NOTES
+────────────────────────
+Player notes
+```
+
+---
+
+# 16. Player Permissions
+
+Player can:
+
+- create their own Character
+- view owned Characters
+- update permitted character background fields
+- update current Resource values
+- manage permitted Inventory data
+- view/use base Skills
+- acquire/manage learned Skills through future learning rules
+- update notes
+
+Player cannot:
+
+- create a Character for another User
+- change `owner_user_id`
+- view another User's Character through API manipulation
+- bypass server-side creation/balance rules
+- directly change protected GM/campaign data
+
+---
+
+# 17. GM Responsibilities
+
+The GM is **not** required to create or assign ordinary Player Characters.
+
+GM functions should instead focus on:
+
+- view all Users
+- view all Characters
+- edit/fix Characters when necessary
+- reset/re-roll attributes administratively
+- configure character-generation balance band
+- configure campaign Resources
+- create game content
+- manage learned-skill rules/content
+- manage campaign/global settings
+- archive/delete Characters where appropriate
+
+---
+
+# 18. Database Principles
+
+Cloudflare D1 is the authoritative source of truth.
+
+Core logical entities:
 
 ```text
 users
-  └── sessions
-
-users
-  └── characters
-        ├── character_attributes
-        ├── character_resources
-        ├── character_inventory
-        └── character_abilities
-
+sessions
+characters
+character_attributes
+character_resources
+character_skills
+character_inventory
+character_attacks
 settings
 ```
 
-## 12.1 `users`
-
-Purpose: Player identity and Key verification.
-
-Core logical fields:
-
-```text
-id
-user_name / internal lookup value
-display_name
-key_hash
-key_salt
-role
-status
-failed_attempts
-locked_until
-created_at
-updated_at
-```
-
-Some existing physical column names may retain legacy naming for compatibility. Future migrations may rename them when appropriate.
-
-## 12.2 `characters`
-
-Target logical fields:
-
-```text
-id
-owner_user_id
-name
-role
-level
-age
-gender
-alignment
-background
-status
-template
-portrait_url
-summary
-notes
-created_at
-updated_at
-```
-
-## 12.3 `character_attributes`
-
-```text
-id
-character_id
-sort_order
-key
-label
-value
-description
-```
-
-Examples:
-
-```text
-STR / Strength / 12
-DEX / Dexterity / 15
-POW / Power / 14
-SAN / Sanity / 70
-```
-
-## 12.4 `character_resources`
-
-```text
-id
-character_id
-sort_order
-key
-label
-current_value
-max_value
-description
-```
-
-## 12.5 `character_inventory`
-
-Current core fields:
-
-```text
-id
-character_id
-sort_order
-name
-qty
-notes
-```
-
-Future extension:
-
-```text
-category
-weight
-equipped
-consumable
-```
-
-## 12.6 `character_abilities`
-
-Current core fields:
-
-```text
-id
-character_id
-sort_order
-name
-type
-description
-proficient
-```
-
-Future extension:
-
-```text
-rank
-value
-cost
-cooldown
-tags
-```
+The design should prefer extensible child tables rather than adding a new database column for every future genre-specific stat.
 
 ---
 
-# 13. API Design
+# 19. Immediate Development Priorities
 
-## Authentication
-
-```text
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/logout
-GET  /api/auth/me
-```
-
-Preferred public payload design:
-
-### Register
-
-```json
-{
-  "user": "swolf",
-  "key": "4821"
-}
-```
-
-### Login
-
-```json
-{
-  "user": "swolf",
-  "key": "4821"
-}
-```
-
-Internal lookup representation must be generated by the Worker, not by client-side JavaScript.
-
-## Player Character APIs
-
-```text
-GET    /api/player/bootstrap
-POST   /api/player/characters
-GET    /api/player/characters/:characterId
-PATCH  /api/player/characters/:characterId
-DELETE /api/player/characters/:characterId   (future / archive preferred)
-```
-
-Nested data:
-
-```text
-POST/PATCH/DELETE attributes
-POST/PATCH/DELETE resources
-POST/PATCH/DELETE inventory
-POST/PATCH/DELETE abilities
-PATCH notes
-```
-
-Every Player endpoint must verify:
-
-```text
-character.owner_user_id == authenticated User ID
-```
-
-before returning or mutating character data.
+1. Replace current simple Character dialog with Character Builder.
+2. Implement server-side balanced random generation for the 8 core attributes.
+3. Add HP / MP / Damage Bonus calculation.
+4. Replace current generic abilities model with Base Skills + Learned Skills.
+5. Remove all Cthulhu Mythos and language-specific assumptions.
+6. Move GM workspace fully to the same D1 source of truth.
+7. Build long-term learned-skill progression after the base Character system is stable.
 
 ---
 
-# 14. Character Templates / Rulesets
+# 20. Open Design Decisions
 
-The database should remain generic, but the UI may provide templates.
+The following should be confirmed before the corresponding feature is hard-coded:
 
-Recommended template concept:
+1. Whether `LUCK` remains a universal derived stat.
+2. Exact initial formulas/base values for each universal Skill.
+3. Whether MP is enabled by default or only by Campaign.
+4. Exact Damage Bonus table/ruleset for the first production version.
+5. Whether the initial balance band remains `84–100` or is adjusted after playtesting.
+6. Whether Era/Setting belongs to individual Characters or is inherited from Campaign.
 
-```text
-Generic
-Classic / Legacy
-D&D-style
-Custom Campaign
-```
-
-For the current legacy-derived default, the Character Builder should automatically offer:
-
-```text
-STR
-DEX
-CON
-APP
-POW
-INT
-SIZ
-EDU
-SAN
-IDEA
-LUCK
-KNOW
-```
-
-A campaign template can later change which fields appear without changing the database schema.
-
----
-
-# 15. Data Validation Guidelines
-
-Recommended initial validation:
-
-| Field | Rule |
-|---|---|
-| User | 1–32 chars |
-| Key | exactly 4 numeric digits |
-| Character Name | 1–80 chars |
-| Role | 0–80 chars |
-| Level | integer, 0–999 |
-| Summary | max 2,000 chars |
-| Notes | max 20,000 chars |
-| Attribute label | max 80 chars |
-| Attribute key | max 32 chars |
-| Attribute value | flexible string/number representation |
-| Resource values | finite numeric values |
-| Item quantity | number >= 0 |
-
-Exact limits may be adjusted later, but validation must exist on the Worker/server side rather than only in browser JavaScript.
-
----
-
-# 16. Error Handling
-
-User-facing errors should be specific enough to be useful but should not expose database internals.
-
-Examples:
-
-```text
-User already exists.
-User or Key is incorrect.
-Character not found.
-You do not have permission to access this Character.
-Character name is required.
-Unable to save changes. Please retry.
-```
-
-Server logs should retain technical error details.
-
-A health endpoint may be retained:
-
-```text
-GET /api/health
-```
-
-for verifying Worker ↔ D1 connectivity.
-
----
-
-# 17. Development Principles
-
-Future implementation should follow these rules:
-
-1. **Update this specification before or together with major behavioural changes.**
-2. D1 is the authoritative source of truth.
-3. Player and GM interfaces remain separate.
-4. Player owns and creates their own Characters by default.
-5. GM has global administrative visibility but is not required for normal Player Character creation.
-6. Ownership and permissions are enforced server-side.
-7. Character attributes remain flexible; do not hard-code the database to one RPG system.
-8. Standard Character UI should still provide STR, DEX, CON, APP, POW, INT, SIZ, EDU, SAN, IDEA, LUCK and KNOW by default.
-9. Never expose plaintext Keys.
-10. Never rely on client-side checks for authorization.
-11. Avoid storing authoritative campaign data in localStorage.
-12. Prefer archive/retire workflows over destructive deletion where history matters.
-
----
-
-# 18. Recommended Next Development Order
-
-## Phase A — Complete Player Character Builder
-
-1. Expand `characters` metadata fields.
-2. Build multi-step Character Creation wizard.
-3. Add default STR / DEX / CON / APP / POW / INT / SIZ / EDU fields.
-4. Add derived SAN / IDEA / LUCK / KNOW calculation.
-5. Add Resource creation/editing.
-6. Add Inventory CRUD.
-7. Add Ability CRUD.
-8. Add Character edit / archive controls.
-9. Add portrait support.
-
-## Phase B — GM D1 Migration
-
-1. GM authentication.
-2. GM Dashboard from D1.
-3. User management.
-4. All-Character management.
-5. Character ownership transfer.
-6. Campaign configuration.
-
-## Phase C — Ruleset / Template System
-
-1. Character templates.
-2. configurable default attributes.
-3. configurable derived formulas.
-4. configurable default resources.
-5. custom campaign game data.
-
-## Phase D — Advanced Features
-
-Possible future additions:
-
-- dice roller
-- character history / audit log
-- session history
-- conditions / buffs / debuffs
-- combat tracker
-- shared party inventory
-- campaign handouts
-- media/R2 storage
-- GM-created item/ability library
-- character import/export
-- mobile-focused character sheet
-
----
-
-# 19. Current Canonical Character Status Summary
-
-For quick reference, a normal Character should eventually be able to contain:
-
-```text
-IDENTITY
-Name
-User / Owner
-Role / Class
-Level
-Age
-Gender
-Alignment
-Occupation / Background
-Status
-Portrait
-Summary
-
-PRIMARY ATTRIBUTES
-STR — Strength
-DEX — Dexterity
-CON — Constitution
-APP — Appearance
-POW — Power
-INT — Intelligence
-SIZ — Size
-EDU — Education
-
-SECONDARY / DERIVED
-SAN  — Sanity
-IDEA — Idea
-LUCK — Luck
-KNOW — Knowledge
-
-RESOURCES
-HP
-MP
-SP
-SAN (current/max when applicable)
-Custom Resources
-
-CHARACTER CONTENT
-Inventory
-Abilities / Skills / Spells / Traits
-Notes
-Custom Attributes
-```
-
-This list is the default product specification, not a limitation. Custom campaigns may add or remove attributes while retaining the same underlying Character architecture.
+Until confirmed, these should remain configurable or non-destructive in the data model.
