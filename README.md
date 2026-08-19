@@ -4,55 +4,78 @@ Production repository for the D&D project.
 
 **Production URL:** `https://dungeon-and-dragon.lchjames.com`
 
-This repository is the single main codebase for future development and commits. The older `Dungeon-and-Dragon-PHP` repository is retained only as a historical reference for legacy PHP/MySQL/Python logic.
+This repository is the single main codebase for future development and commits. `lchjames/Dungeon-and-Dragon-PHP` is retained only as a historical reference; its useful features have been migrated into this web application.
 
 ## Current application
 
-The current site is a client-side static web application:
+The current release combines the modern Vault with the legacy PHP/Python project:
 
-- Character management and detail view
-- Excel character import
-- Items and skills import/display
-- JSON backup and restore
+- Character creation, editing, deletion and detail view
+- Player name (PL) + character name (PC) lookup
+- GM management table for all characters
+- Legacy character statistics: STR, DEX, CON, APP, POW, INT, SIZ, EDU
+- Derived statistics: SAN = POW×5, IDEA = INT×5, LUCK = POW×5, KNOW = EDU×5
+- Legacy random-stat generator (3–15)
+- Excel character / item / skill import
+- Item and skill display
+- Browser media library with image upload, search, download and delete
+- Element classifier migrated from the old NLTK notebook
+- Random maze generator migrated from the old Python maze notebooks
 - AES-GCM encrypted character share packages
-- Mobile-friendly layout and theme toggle
-- Browser `localStorage` persistence
+- Full JSON backup and restore
+- Automatic migration from the old `vault-v3.2.7a` browser data key
+- Responsive dark/light UI
 
-No application server is required for the current version.
+## Data model
 
-## Cloudflare Pages deployment
+The current application is client-side. Data is stored in browser `localStorage` under:
 
-The repository is designed to deploy directly from the repository root.
+`dnd-vault-v4`
 
-Recommended Cloudflare Pages settings:
+On first run, if `dnd-vault-v4` does not exist but `vault-v3.2.7a` does, the application imports and normalises the old data automatically. The old key is not deleted.
 
-- Git repository: `lchjames/Dungeon-and-Dragon`
-- Production branch: `main`
-- Framework preset: `None`
-- Build command: leave empty
-- Build output directory: `.`
-- Root directory: repository root
+The legacy MySQL database is **not** required by the current release. The old PHP CRUD behaviour is represented by the Character, Player Lookup and GM screens.
 
-After the first deployment, add the custom domain:
+## Cloudflare deployment
 
-`dungeon-and-dragon.lchjames.com`
+This repository is configured for **Cloudflare Workers Static Assets**. It is intentionally compatible with Cloudflare Builds that run:
 
-The site uses root-relative hosting (`<base href="/">`) so production assets and `/p/` share packages resolve from the custom-domain root.
+```bash
+npx wrangler deploy
+```
 
-## Share package links
+`wrangler.toml` points Workers Static Assets at the repository root. There is no JavaScript Worker entry point because this release is a static client-side application.
 
-Encrypted share packages intended for URL sharing should be committed under:
+Cloudflare configuration:
+
+- Worker name: `dungeon-and-dragon`
+- Production Git branch: `main`
+- Static assets directory: repository root (`.`)
+- Deploy command: `npx wrangler deploy`
+- Custom Domain: `dungeon-and-dragon.lchjames.com`
+
+The `.assetsignore` file prevents repository/configuration files from being uploaded as public web assets.
+
+## Share packages
+
+Encrypted share packages intended for URL sharing can be committed under:
 
 `/p/<filename>.json`
 
-The public link format is:
+Public link format:
 
 `https://dungeon-and-dragon.lchjames.com/#p=<filename>.json`
 
-## Cloudflare configuration
+## Legacy migration map
 
-`wrangler.toml` documents the Cloudflare Pages project and static output directory. `_headers` adds baseline security headers without blocking the SheetJS CDN currently used for Excel imports.
+| Legacy function | Current function |
+|---|---|
+| `newplayer.php` / `character_table.php` | Character editor + legacy stat generator |
+| `player.php` / `search.php` / `getdata_player.php` | Player Lookup |
+| `gamemaster.php` / `getdata_GM.php` | GM management table |
+| `updateplayer.php` / `deleteplayer.php` | Edit / delete actions |
+| `store_image.php` / `search_image.php` / `get_image.php` | Browser media library |
+| `D&D_nlp.ipynb` + `keywords.txt` | Element classifier |
+| `map_generator.ipynb` + `Untitled0.ipynb` | Browser maze generator |
 
-## Data model note
-
-Character data currently lives in the user's browser via `localStorage` (`vault-v3.2.7a`). Deploying a new site version does not itself create a server-side database or synchronize data across devices.
+The old PHP/MySQL code should no longer receive new production changes.

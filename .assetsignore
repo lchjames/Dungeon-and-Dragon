@@ -1,0 +1,8 @@
+.git/
+.github/
+.assetsignore
+.nojekyll
+README.md
+wrangler.toml
+_headers
+desktop.ini

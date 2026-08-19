@@ -1,5 +1,10 @@
 name = "dungeon-and-dragon"
-pages_build_output_dir = "."
+compatibility_date = "2026-08-20"
+workers_dev = true
 
-[vars]
-APP_ORIGIN = "https://dungeon-and-dragon.lchjames.com"
+[assets]
+directory = "."
+
+[[routes]]
+pattern = "dungeon-and-dragon.lchjames.com"
+custom_domain = true
