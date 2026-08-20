@@ -1,7 +1,7 @@
 # D&D Campaign Hub — Site & Character System Specification
 
 > Status: **Canonical design document**  
-> Purpose: Source of truth for website, database, Player, GM, character creation, character sheet, progression, Skill Tree and approval workflow development.  
+> Purpose: Source of truth for website, database, Player, GM, character creation, character sheet, EXP/Level progression, Skill Tree and approval workflow development.  
 > Production site: `https://dungeon-and-dragon.lchjames.com/`
 
 ---
@@ -10,12 +10,12 @@
 
 D&D Campaign Hub is a web-based TRPG character and campaign management system intended to support mixed settings such as fantasy, science fiction, modern, horror and custom worlds.
 
-The old offline spreadsheet is a structural reference, not something to copy literally. The web system keeps the useful Character-sheet structure while removing CoC-specific mechanics that are not genre-neutral.
+The old offline spreadsheet is a structural reference, not something to copy literally. The web version keeps the useful Character-sheet and progression concepts while removing setting-specific CoC elements that are not required by the new system.
 
 The platform has two separated workspaces:
 
-- **Player** — create a User, unlock it with a 4-digit Key, create owned Characters, allocate starting Skills, view Character data and submit proposed changes.
-- **GM** — administer campaigns, Characters, Classes/Occupations, progression, Skill definitions, Skill Trees, change requests and rules.
+- **Player** — create/unlock a User, create owned Characters, allocate starting Skill points, view Character data, spend earned Skill Points through approved progression rules, and submit proposed Character changes.
+- **GM** — administer campaigns, award EXP, manage Classes/Occupations, manage Skill definitions/trees, review change requests, and maintain Campaign rules.
 
 ---
 
@@ -29,6 +29,8 @@ All persistent application/game data must live in Cloudflare D1, including:
 - Session metadata
 - Characters and ownership
 - Character Level
+- Character EXP
+- earned/spent/available Skill Points
 - Class / Occupation
 - Attributes
 - LUCK
@@ -37,11 +39,15 @@ All persistent application/game data must live in Cloudflare D1, including:
 - Character Skill values
 - Skill Tree nodes and edges
 - starting Skill-point allocations
+- learned Skill Nodes
 - Inventory
 - Attacks
 - Notes
 - Character change requests
 - approval/audit history
+- EXP award history
+- Level-up history
+- Skill Point spending history
 - Campaign settings
 - GM settings
 - Character-generation results
@@ -49,16 +55,11 @@ All persistent application/game data must live in Cloudflare D1, including:
 
 ## 2.2 Do not use localStorage as application persistence
 
-The application must not use browser localStorage for persistent User, Character, Skill, Inventory, Resource, progression, approval or Campaign data.
+The application must not use browser localStorage for persistent User, Character, EXP, Level, Skill, Skill Point, Inventory, Resource, progression, approval or Campaign data.
 
-Do not build:
+Do not build local-first Character data, browser/database synchronization as the normal model, authoritative Character snapshots in localStorage, or pending changes that exist only in the browser.
 
-- local-first Character data
-- browser/database synchronization as the normal model
-- authoritative Character snapshots in localStorage
-- pending change requests that exist only in the browser
-
-Temporary form/UI state may exist in page memory while the page is open. If resumable Character creation is later required, the draft should be saved to D1 rather than localStorage.
+Temporary form/UI state may exist in page memory while the page is open. If resumable creation is required, drafts must be saved to D1.
 
 Authentication state uses a Secure + HttpOnly server-issued cookie.
 
@@ -78,8 +79,8 @@ D1 is authoritative.
 
 Normal Player access uses only:
 
-- **User** — player-facing name, e.g. `swolf`
-- **Key** — exactly four numeric digits, e.g. `4821`
+- **User** — player-facing name
+- **Key** — exactly four numeric digits
 
 No email address or traditional long password is required for normal Player access.
 
@@ -97,14 +98,9 @@ Every Character belongs to a User through D1:
 characters.owner_user_id -> users.id
 ```
 
-When a Player creates a Character:
+When a Player creates a Character, the Worker resolves the authenticated Session and writes the current `user.id` as `owner_user_id`. Client input cannot choose another owner.
 
-1. Worker resolves the authenticated Session.
-2. Worker obtains `user.id`.
-3. Worker creates the Character with that `owner_user_id`.
-4. The client cannot choose another owner.
-
-All Player Character APIs are scoped server-side to the authenticated User.
+All Player Character APIs must scope access server-side to the authenticated User.
 
 ---
 
@@ -127,25 +123,30 @@ Player and GM interfaces remain visually and functionally separated.
 
 # 6. Character-Creation Philosophy
 
-A new Character begins simple and relatively undefined.
-
 Confirmed starting principles:
 
 - Player creates their own Character.
-- Character always starts at **Level 1**.
+- Every Character begins at **Level 1**.
+- Starting EXP is **0**.
+- Starting progression Skill Points are **0**.
 - Player cannot choose starting Level.
+- Player cannot choose starting EXP.
 - Player does not choose Class / Occupation during creation.
 - Class / Occupation begins **Unassigned**.
 - GM assigns/develops Class / Occupation later.
 - Eight core Attributes are generated randomly by the server.
 - Attribute rolls are directly assigned and cannot be redistributed.
 - Server applies a total-stat balance gate.
-- Player cannot farm valid rerolls.
+- Player cannot farm rerolls.
 - LUCK is independently randomized.
 - HP and MP are core starting Resources.
 - Level-1 Characters receive a genre-neutral Root Skill set.
-- **Starting Skill points are freely allocated by the Player.**
-- Specialist Skills are mainly learned later and grow the Character-specific Skill Tree.
+- Starting Skill points are freely allocated by the Player during creation.
+- Creation Skill Points are separate from post-creation Level-up Skill Points.
+- After play begins, **EXP drives Level**.
+- **Level-ups grant Skill Points**.
+- Skill Points are used to improve existing Skills and/or unlock new Skill Tree Nodes.
+- GM is the normal source of EXP awards.
 
 ---
 
@@ -153,26 +154,26 @@ Confirmed starting principles:
 
 ## 7.1 Player-provided creation fields
 
-The Character creation form should initially contain only:
+The initial creation form should remain short:
 
 | Field | Required | Notes |
 |---|---:|---|
-| Character Name | Yes | Main display name |
-| Age | No | Background |
-| Gender | No | Background |
-| Portrait | No | Character image |
-| Background / Summary | No | Free-form background |
+| Character Name | Yes | main display name |
+| Age | No | background |
+| Gender | No | background |
+| Portrait | No | character image |
+| Background / Summary | No | free-form background |
 
 The old spreadsheet Player Name field is removed because ownership already comes from the authenticated User.
 
-## 7.2 Server-controlled values
-
-The following are not entered by the Player:
+## 7.2 Server-controlled starting values
 
 | Field | Starting value | Controlled by |
 |---|---|---|
 | Owner | authenticated User | Server |
 | Level | `1` | Server |
+| EXP | `0` | Server / later GM awards |
+| Progression Skill Points | `0` | Server / Level-up system |
 | Class / Occupation | `NULL` / Unassigned | GM later |
 | Status | `active` | Server |
 | STR/DEX/CON/APP/POW/INT/SIZ/EDU | random generation | Server |
@@ -182,23 +183,86 @@ The following are not entered by the Player:
 | Damage Bonus | calculated | Server |
 | Creation Skill Point Pool | calculated | Server |
 
-Player **does** choose how the valid Creation Skill Point Pool is allocated among the available Level-1 Root Skills.
+The Player chooses only how the valid Creation Skill Point Pool is allocated among available Level-1 Root Skills.
 
 ---
 
-# 8. Level and Class Rules
+# 8. Level, EXP and Class Rules
 
 ## 8.1 Starting Level
 
-Every new Character starts at:
-
 ```text
 Level = 1
+EXP = 0
 ```
 
-No Level input is shown during Player creation.
+No Level or EXP input is shown during Character creation.
 
-## 8.2 Starting Class / Occupation
+## 8.2 EXP is one Character-wide pool
+
+EXP is not stored separately per Skill.
+
+```text
+Character
+├── Level
+└── Total EXP
+```
+
+The Character has one cumulative EXP value used by the Level system.
+
+## 8.3 EXP determines Level automatically
+
+When EXP changes, the Worker must calculate the Character's Level using the **existing user-defined EXP-to-Level equation**.
+
+The old web code and available spreadsheet data preserve the EXP field but do not contain the original mathematical expression. Therefore:
+
+```text
+Level = USER_DEFINED_EXP_EQUATION(Total EXP)
+```
+
+This is a required canonical rule placeholder, not a substitute formula.
+
+**Do not invent a replacement EXP equation.**
+
+The exact mathematical expression must be inserted into this document and the server-side rules layer when recovered/provided.
+
+Normal flow:
+
+```text
+GM awards EXP
+      ↓
+Total EXP changes
+      ↓
+Worker applies EXP equation
+      ↓
+Calculated Level changes if threshold reached
+      ↓
+Level-up event recorded
+```
+
+The Player does not manually request or select the Level reached by EXP.
+
+## 8.4 Level-up grants Skill Points
+
+When the EXP equation causes the Character to reach a new Level, the system grants progression Skill Points.
+
+The exact number of Skill Points granted per Level is **not yet confirmed**.
+
+It must be rules/config driven rather than hard-coded into the Skill Tree UI.
+
+Conceptually:
+
+```text
+Level 1
+  ↓ enough EXP
+Level 2
+  ↓
++ N Skill Points
+```
+
+If a single EXP award skips multiple Levels, the system must grant the Skill Point reward for every Level crossed.
+
+## 8.5 Starting Class / Occupation
 
 Every new Character starts with:
 
@@ -206,18 +270,16 @@ Every new Character starts with:
 Class / Occupation = Unassigned
 ```
 
-Database equivalent:
+Database equivalent may be:
 
 ```text
 class_id = NULL
 occupation = NULL
 ```
 
-Player creation does not show a Class / Role / Occupation input.
-
 GM may later assign/change Class based on story development, training, behavior, factions, achievements, transformations, Campaign rules or special events.
 
-Class is a progression result, not a starting build choice.
+Class is a progression/story result, not a starting build choice.
 
 ---
 
@@ -236,7 +298,7 @@ Eight primary Attributes are retained:
 | SIZ | Size / 體型 | physical size/build | 2D6 + 6 |
 | EDU | Education / 教育 | general learned knowledge | 3D6 + 3 |
 
-D1 should use an extensible Attribute structure so Campaign-specific Attributes can be added later.
+D1 should use an extensible Attribute structure so Campaign-specific Attributes can be added later without redesigning the database.
 
 ---
 
@@ -277,13 +339,13 @@ If a complete set is outside the range, the Worker rerolls the entire set intern
 
 ## 10.4 Individual extremes remain valid
 
-Only total starting power is bounded. A Character may still have one unusually weak or strong Attribute.
+Only total starting power is bounded. A Character may still have an unusually weak or strong individual Attribute.
 
 ## 10.5 No reroll farming
 
 Once the server produces a valid starting set for a Character creation, that accepted result is locked for the creation process.
 
-GM may later perform an administrative reroll/reset with audit history.
+GM may later perform an administrative reroll/reset with audit history if such a function is enabled.
 
 ---
 
@@ -338,48 +400,43 @@ The following are not mandatory core Character fields:
 - SAN
 - Cthulhu Mythos
 
-A Campaign may add SAN or other Resources separately.
+A Campaign may add SAN or another Resource separately.
 
 ---
 
-# 13. Base Skill and Starting Skill-Point System
+# 13. Starting Skill Allocation System
 
 ## 13.1 Core principle
 
-The web version retains the important part of the old spreadsheet Skill system:
+The web version retains the useful allocation concept of the old spreadsheet:
 
 ```text
-Skill Current Value
+Starting Skill Value
 = Initial Base Value
 + Creation Allocation
-+ Later Growth
 ```
 
 The Player chooses where to spend starting Skill points.
 
-Starting Skill values are **not automatically fixed by STR/DEX/INT formulas**.
+Starting Skill values are not automatically determined by STR/DEX/INT formulas.
 
-Some individual Skills may still have a rules-defined base value, but the Player's build is created by allocating a shared starting pool.
-
-## 13.2 One combined Creation Skill Point Pool
+## 13.2 Creation Skill Points (CSP)
 
 There is no separate Occupation Point pool because Level-1 Characters do not have a Class/Occupation yet.
 
-There is no separate Interest Point pool either.
+There is no separate Interest Point pool.
 
-Instead, both concepts are replaced by one pool:
+Both are replaced by one creation-only pool:
 
 ```text
 Creation Skill Points (CSP)
 ```
 
-The Player may freely distribute CSP among the Level-1 Root Skills, subject to server-side limits.
+CSP exists only for Character creation and is not the same currency as Skill Points earned through Level-ups.
 
-## 13.3 Composite Skill Point source
+## 13.3 Composite CSP source
 
-The starting pool should come from multiple Character qualities rather than only EDU or INT.
-
-Initial rules formula:
+Current working formula:
 
 ```text
 Raw CSP
@@ -392,35 +449,22 @@ Raw CSP
 + floor(LUCK / 10)
 ```
 
-Then apply a hard balance clamp:
+Then:
 
 ```text
 Creation Skill Points = clamp(Raw CSP, 90, 120)
 ```
 
-Therefore a Level-1 Character begins with **90–120 distributable Skill points**, not several hundred points.
+Therefore a Level-1 Character begins with 90–120 distributable creation points rather than several hundred points.
 
-Design intent of the contributing values:
-
-- `INT` — learning/problem-solving capacity
-- `EDU` — previous general learning
-- `POW` — discipline/will
-- `DEX` — practical adaptability
-- `APP` — social adaptability
-- `LUCK` — small unpredictable bonus only
-
-STR, CON and SIZ primarily influence raw physical capability and Resources rather than heavily increasing starting Skill training.
-
-The exact coefficients live in the server-side rules/configuration layer so the formula can later be tuned without changing the database model.
+The exact coefficients live in the server-side rules/configuration layer.
 
 ## 13.4 Level-1 Skill cap
-
-A newly created Character may **not** begin with a 100% Skill.
 
 Hard creation rule:
 
 ```text
-Final Skill Value <= 70
+Final Starting Skill Value <= 70
 ```
 
 For every Root Skill:
@@ -429,58 +473,53 @@ For every Root Skill:
 Initial Base Value + Creation Allocation <= 70
 ```
 
-The UI must stop additional allocation once a Skill reaches 70.
+The UI stops additional allocation once a Skill reaches 70. The Worker independently validates the same limit.
 
-The Worker must independently validate the same limit.
-
-Values above 70 are reserved for later Character growth, training, mastery, special progression or GM-approved changes.
-
-This limit applies to Character creation only; future progression caps will be defined separately.
+Values above 70 can only be reached later through the post-creation progression system.
 
 ## 13.5 Allocation validation
 
-Before Character creation can be finalized:
+Before creation can be finalized:
 
 - every allocation must be a non-negative integer;
 - total allocated points must not exceed the Character's CSP;
-- the initial implementation should require all CSP to be spent before final confirmation;
-- no Skill may exceed the Level-1 cap of 70;
+- initial implementation should require all CSP to be spent;
+- no starting Skill may exceed 70;
 - client-calculated totals are not trusted;
-- Worker recalculates CSP from authoritative Attributes/LUCK and validates the allocation;
-- accepted allocation is persisted in D1 together with the Character.
+- Worker recalculates CSP from authoritative Attributes/LUCK;
+- Worker validates every allocation and final Skill value;
+- accepted allocation is persisted in D1.
 
-## 13.6 Skill data model
-
-Each Character Skill should preserve the separate components rather than storing only one unexplained total:
+## 13.6 Starting Skill data model
 
 ```text
 Character Skill
 ├── skill_definition_id
 ├── base_value
 ├── creation_allocation
-├── growth_value
+├── progression_investment
 ├── current_value
+├── node_state
 ├── rank / mastery metadata
 └── source metadata
 ```
 
-Initial calculation:
+At Level 1 creation:
 
 ```text
-current_value = base_value + creation_allocation + growth_value
+progression_investment = 0
+current_value = base_value + creation_allocation
 ```
 
-At Level 1:
+Post-creation increases must come through the Skill Point progression system rather than an unexplained free-form `growth_value`.
 
-```text
-growth_value = 0
-```
+---
 
-## 13.7 Root Skill set — current working list
+# 14. Root Skill Set — Current Working List
 
-The Root Skill list remains genre-neutral and deliberately avoids world-specific specializations.
+The Root Skill list remains genre-neutral and avoids world-specific specializations.
 
-### Awareness / Mental
+## Awareness / Mental
 
 - Perception / 觀察
 - Investigation / 調查
@@ -489,7 +528,7 @@ The Root Skill list remains genre-neutral and deliberately avoids world-specific
 - General Knowledge / 常識
 - Concentration / 專注
 
-### Physical
+## Physical
 
 - Athletics / 運動
 - Acrobatics / 靈巧
@@ -497,7 +536,7 @@ The Root Skill list remains genre-neutral and deliberately avoids world-specific
 - Survival / 生存
 - Endurance / 耐力
 
-### Social
+## Social
 
 - Persuasion / 說服
 - Deception / 欺瞞
@@ -505,7 +544,7 @@ The Root Skill list remains genre-neutral and deliberately avoids world-specific
 - Negotiation / 談判
 - Leadership / 領導
 
-### Practical
+## Practical
 
 - First Aid / 急救
 - Craft & Repair / 製作與修理
@@ -513,7 +552,7 @@ The Root Skill list remains genre-neutral and deliberately avoids world-specific
 - Navigation / 導航
 - Research / 資料研究
 
-### Combat
+## Combat
 
 - Melee / 近戰
 - Ranged / 遠程
@@ -524,32 +563,19 @@ The Root Skill list remains genre-neutral and deliberately avoids world-specific
 
 This is currently **27 Root Skills**.
 
-The exact Initial Base Value of each Root Skill still needs to be confirmed from the old-table philosophy before implementation.
+The exact Initial Base Value of each Root Skill still needs to be confirmed before implementation.
 
-## 13.8 Skills intentionally not present as Level-1 specialist roots
+The list itself is still a working set and may be expanded/reduced before seeding production D1.
 
-Do not add fixed starting specialist Skills for:
+---
 
-- languages
-- individual weapon families
-- firearms as a specialist family
-- swords/spears/bows as separate roots
-- individual sciences
-- magic schools
-- hacking
-- archaeology
-- accounting
-- law
-- photography
-- specific vehicles
-- starship systems
-- alchemy
-- Cthulhu Mythos
-- other setting-specific catalogues
+# 15. Specialist / Learned Skills
 
-These become learned/specialization nodes later.
+Do not add fixed starting specialist Skills for individual languages, weapon families, sciences, magic schools, hacking, archaeology, accounting, law, photography, specific vehicles, starship systems, alchemy, Cthulhu Mythos or other world-specific catalogues.
 
-## 13.9 Root-to-specialist examples
+These appear later as learned/specialization nodes.
+
+Examples:
 
 ```text
 Melee
@@ -574,45 +600,80 @@ Research
     └── Quantum Physics
 ```
 
----
-
-# 14. Learned / Unique Skills
-
 Character individuality develops primarily after creation.
 
-Skills may be gained through:
+---
 
-- study
-- training
-- repeated practice
-- teachers
-- books/manuals
-- quests
-- encounters
-- factions
-- items
-- technology
-- supernatural events
-- Class/Occupation
-- GM/story rewards
+# 16. Post-Creation Skill Point System
 
-Examples include Swordsmanship, Iaido, Plasma Rifle Handling, Starship Navigation, Alchemy, Rune Engraving, Necromancy, Cybernetic Repair, Dragon Riding and Quantum Physics.
+## 16.1 Skill Points are earned from Level-ups
 
-A learned Skill may branch from a Root Skill or another learned Skill.
+EXP does not directly increase a Skill.
+
+Instead:
+
+```text
+GM Award EXP
+      ↓
+EXP equation recalculates Level
+      ↓
+Level Up
+      ↓
+Gain Skill Points
+      ↓
+Spend Skill Points
+```
+
+The exact number of Skill Points granted per Level is not yet confirmed.
+
+## 16.2 Skill Point uses
+
+Progression Skill Points are used for both:
+
+1. improving an existing Skill; and
+2. unlocking/learning a new Skill Tree Node.
+
+Therefore Skill value growth and Skill Tree expansion share the same post-creation progression currency.
+
+The exact costs for:
+
+- +1 Skill value;
+- different Skill-value bands;
+- Root versus Specialist Nodes;
+- Mastery Nodes;
+- Unique/Event Nodes;
+
+are not yet confirmed and must remain rules/config driven.
+
+Do not assume one Skill Point always equals +1% until that rule is explicitly confirmed.
+
+## 16.3 Skill Point accounting
+
+D1 must be able to distinguish:
+
+```text
+skill_points_earned
+skill_points_spent
+skill_points_available
+```
+
+Every spend must produce a progression/audit record.
+
+The Worker must reject a spend that would make available Skill Points negative or violate node prerequisites/caps.
 
 ---
 
-# 15. Dynamic Skill / Talent Tree
+# 17. Dynamic Skill / Talent Tree
 
-## 15.1 Core concept
+## 17.1 Core concept
 
 The Skill interface uses a large zoomable node graph inspired by ARPG talent-tree interaction patterns such as Path of Exile, without copying proprietary art, exact layouts or assets.
 
 The graph is Character-specific and dynamic.
 
-A new Level-1 Character starts with the universal Root Skills. New branches appear as Skills are learned.
+A Level-1 Character starts with universal Root Skills. New branches appear as Skills are learned.
 
-## 15.2 Node types
+## 17.2 Node types
 
 ```text
 BASE
@@ -623,7 +684,7 @@ UNIQUE / EVENT
 CLASS / GM-GRANTED
 ```
 
-## 15.3 Node states
+## 17.3 Node states
 
 ```text
 LOCKED
@@ -633,7 +694,7 @@ MASTERED
 SPECIAL / GM-GRANTED
 ```
 
-## 15.4 Edge types
+## 17.4 Edge types
 
 ```text
 PREREQUISITE
@@ -644,13 +705,28 @@ CLASS LINK
 STORY LINK
 ```
 
-## 15.5 Unlocking does not require passive points
+## 17.5 Skill Points and prerequisites
 
-Tree nodes may unlock through training, study, Character Level, Attribute requirements, parent Skill requirements, teachers, quests, items, Class/Occupation, GM approval or story events.
+Unlike the earlier draft, the post-creation Skill Tree **does use earned Skill Points as progression currency**.
 
-Requirements are data-driven and validated server-side.
+A node may require both sufficient Skill Points and non-point prerequisites such as:
 
-## 15.6 UI behavior
+- Character Level
+- Attribute requirement
+- parent Skill value/rank
+- another Node
+- training
+- teacher
+- quest
+- item
+- Class / Occupation
+- GM/story permission
+
+A node is only purchasable when every required condition is satisfied.
+
+Some story/unique nodes may be GM-granted and cost zero Skill Points if their definition says so.
+
+## 17.6 UI behavior
 
 The Skill Tree should support:
 
@@ -663,19 +739,76 @@ The Skill Tree should support:
 - prerequisite path highlighting
 - learned path highlighting
 - locked requirement display
+- Skill Point cost display
+- Skill Points Available display
+- confirmation before spending points
 - mobile interaction
 
 Initial renderer: **SVG**.
 
-Logical nodes/edges live in D1. Screen coordinates are presentation metadata only.
+Logical nodes/edges and progression values live in D1. Screen coordinates are presentation metadata only.
 
 ---
 
-# 16. Post-Creation Change Request and GM Approval System
+# 18. EXP Award System
 
-## 16.1 Core rule
+## 18.1 GM awards EXP
 
-After Character creation, a Player does not directly overwrite persistent Character data.
+GM is the normal authority that awards EXP.
+
+Player cannot directly add, subtract or edit EXP.
+
+GM UI should support an action such as:
+
+```text
+Award EXP
+Character: <character>
+Amount: <positive integer>
+Reason: session / quest / event / correction
+```
+
+## 18.2 EXP transaction history
+
+Do not only overwrite a single EXP number without history.
+
+D1 should record transactions:
+
+```text
+character_exp_transactions
+├── id
+├── character_id
+├── amount
+├── reason
+├── source_type
+├── source_reference
+├── awarded_by_gm_id
+├── created_at
+└── metadata
+```
+
+Current Total EXP may be stored/cached on the Character for fast reads, but transactions remain auditable.
+
+## 18.3 Atomic Level-up processing
+
+When GM awards EXP, one server-side transaction should:
+
+1. validate the GM action;
+2. write the EXP award;
+3. update Total EXP;
+4. calculate Level from the canonical EXP equation;
+5. determine every Level crossed;
+6. grant the corresponding Skill Points;
+7. update Level and Skill Point balances;
+8. write Level-up/progression history;
+9. return the resulting Character state.
+
+This prevents EXP, Level and Skill Points from drifting out of sync.
+
+---
+
+# 19. Post-Creation Change Request and GM Approval System
+
+After Character creation, a Player does not directly overwrite ordinary persistent Character data.
 
 ```text
 Player proposes change
@@ -692,23 +825,13 @@ Character     unchanged
 Audit history
 ```
 
-## 16.2 Data covered by approval
+Player-initiated persistent changes include Character Name, Age/Gender/background, Portrait reference, HP/MP current values, Campaign Resources, Inventory changes, Character notes and other exposed Character fields.
 
-Player-initiated persistent changes use this workflow, including:
+EXP, Level, Skill Point balance, Class, rolled Attributes and LUCK are protected system/GM fields, not ordinary Player change requests.
 
-- Character Name
-- Age / Gender / background
-- Portrait reference
-- HP / MP current values
-- Campaign Resource values
-- Inventory changes
-- Character notes when treated as Character data
-- proposed learned/custom Skills
-- other Player-exposed persistent fields
+Skill Point spending should use its own progression endpoint and validation logic rather than pretending to be a generic Character-edit request.
 
-Protected fields such as Level, Class, rolled Attributes and LUCK are not ordinary Player-editable requests unless a future workflow explicitly allows them.
-
-## 16.3 Request states
+Request states:
 
 ```text
 PENDING
@@ -717,41 +840,19 @@ REJECTED
 CANCELLED
 ```
 
-## 16.4 Conceptual D1 model
-
-```text
-character_change_requests
-├── id
-├── character_id
-├── requested_by_user_id
-├── request_type
-├── target_entity_type
-├── target_entity_id
-├── before_data
-├── proposed_data
-├── reason / note
-├── status
-├── created_at
-├── reviewed_at
-├── reviewed_by_gm_id
-└── gm_comment
-```
-
-## 16.5 Approval integrity
-
-On approval, the Worker must verify the request is still pending, detect conflicts with newer Character revisions, apply the approved D1 mutation, mark the request approved, record reviewer/time and write audit/progression history.
-
 ---
 
-# 17. Language System
+# 20. Language System
 
 There is no dedicated global language subsystem.
 
-A language that matters mechanically may appear as an ordinary learned Skill.
+A language that matters mechanically may appear as an ordinary learned Skill if a Campaign needs it.
+
+There are no fixed Asian/European/African/Ancient language tables.
 
 ---
 
-# 18. Combat / Attacks
+# 21. Combat / Attacks
 
 Attacks remain separate from Inventory.
 
@@ -772,7 +873,7 @@ Items may link to Attack definitions without becoming the same database entity.
 
 ---
 
-# 19. Inventory
+# 22. Inventory
 
 Inventory is structured D1 data.
 
@@ -787,11 +888,11 @@ Inventory Item
 └── metadata
 ```
 
-Player-proposed persistent Inventory changes use the GM Change Request workflow.
+Player-proposed persistent Inventory changes use the GM Change Request workflow unless a later Campaign rule defines a different transactional inventory mechanic.
 
 ---
 
-# 20. Character Creation Flow
+# 23. Character Creation Flow
 
 ```text
 Step 1 — Identity
@@ -801,10 +902,13 @@ Step 1 — Identity
   NOT SHOWN:
   Owner ID
   Level
+  EXP
   Class / Occupation
 
 Step 2 — Server Generation
   Level = 1
+  EXP = 0
+  Progression Skill Points = 0
   Class / Occupation = Unassigned
   Roll STR / DEX / CON / APP / POW / INT / SIZ / EDU
   Apply 84–100 total-stat balance gate
@@ -814,30 +918,30 @@ Step 2 — Server Generation
   Calculate Damage Bonus
   Calculate Creation Skill Point Pool
 
-Step 3 — Skill Allocation
-  Load 27 Root Skills with their Initial Base Values
+Step 3 — Starting Skill Allocation
+  Load Root Skills with Initial Base Values
   Show CSP remaining
   Player freely allocates CSP
-  Enforce Final Skill <= 70
+  Enforce Starting Skill <= 70
   Require all CSP to be allocated
   Worker validates allocation
 
 Step 4 — Review
   Show complete Level-1 Character
-  Show Attribute rolls
-  Show LUCK / HP / MP / Damage Bonus
-  Show every Root Skill: Base + Allocation = Starting Value
+  Show EXP 0
+  Show Attributes / LUCK / HP / MP / Damage Bonus
+  Show Root Skills: Base + Allocation = Starting Value
   Player confirms creation
 
 Step 5 — Persist
-  Save Character, Attributes, Resources, Root Skills and starting allocation directly to D1
+  Save Character and all related records directly to D1
 ```
 
-No authoritative Character-creation data is persisted in localStorage.
+No authoritative creation data is persisted in localStorage.
 
 ---
 
-# 21. Character Sheet Layout
+# 24. Character Sheet Layout
 
 Recommended Player page:
 
@@ -846,6 +950,7 @@ OVERVIEW
 ────────────────────────
 Name
 Level
+EXP / next-level progress
 Class / Occupation
 Age / Gender
 Background
@@ -864,6 +969,14 @@ MP        Current / Max
 LUCK
 Damage Bonus
 Campaign Resources
+
+PROGRESSION
+────────────────────────
+Level
+Total EXP
+EXP to next Level
+Skill Points Available
+Skill Points Earned / Spent
 
 SKILL TREE
 ────────────────────────
@@ -897,65 +1010,43 @@ Requests
 
 ---
 
-# 22. Player Permissions
+# 25. Player Permissions
 
-During initial creation, Player may:
+During creation, Player may provide allowed identity/background fields, receive server-generated Attributes/LUCK, freely allocate the valid CSP, review the generated Character and confirm creation.
 
-- provide allowed identity/background fields
-- receive server-generated Attributes/LUCK
-- freely allocate the valid Creation Skill Point Pool
-- review the generated Character
-- confirm creation
+After creation, Player may view owned Characters, view EXP/Level/Skill Points, use the Skill Tree, spend available Skill Points on valid Skill progression, submit ordinary Character change requests, view request history and cancel their own pending requests.
 
-After creation, Player may:
-
-- view owned Characters
-- use the Skill Tree
-- submit Character change requests
-- view request status/history
-- cancel their own pending requests
-
-Player may not directly:
-
-- change owner
-- change Level
-- assign Class / Occupation
-- alter rolled Attributes
-- alter LUCK
-- exceed Skill-allocation limits
-- overwrite persistent Character fields after creation
-- bypass GM approval
-- grant protected Skills
-- view another User's Character
-- alter Campaign rules
+Player may not directly change owner, EXP, Level, Class/Occupation, rolled Attributes, LUCK, Skill Point balance, Campaign rules, another User's Character, or bypass server-side Skill Tree requirements.
 
 ---
 
-# 23. GM Responsibilities
+# 26. GM Responsibilities
 
 GM responsibilities include:
 
-- view Users and Characters
-- review/approve/reject Character change requests
-- directly correct Character data when administratively required
-- assign/change Class / Occupation
-- manage Level/progression
-- administratively reroll/reset with audit history
-- configure Attribute total range
-- configure Skill Point formula and min/max clamp
-- configure Level-1 Skill cap
-- configure formulas/rules
-- create/manage Skill definitions and Initial Base Values
-- manage Skill relationships/prerequisites
-- grant/remove Class, special and story Skills
-- manage Campaign settings
-- archive/delete Characters
+- view Users and Characters;
+- award EXP;
+- correct/reverse EXP through an audited administrative action when necessary;
+- view EXP transaction history;
+- review Character change requests;
+- assign/change Class / Occupation;
+- configure the canonical EXP equation once its exact expression is restored;
+- configure Skill Points granted per Level once decided;
+- configure Attribute total range;
+- configure CSP formula and min/max clamp;
+- configure Level-1 Skill cap;
+- create/manage Skill definitions and Initial Base Values;
+- configure Skill Point costs for Skill increases and Node unlocks;
+- manage Skill relationships/prerequisites;
+- grant/remove special story/Class nodes when appropriate;
+- manage Campaign settings;
+- archive/delete Characters.
+
+Normal Level progression is **not manually chosen by GM**; GM awards EXP and the server computes Level using the EXP equation.
 
 ---
 
-# 24. Database Principles
-
-Cloudflare D1 is the only persistent source of truth.
+# 27. Database Principles
 
 Core logical entities:
 
@@ -970,6 +1061,9 @@ character_class_history
 skill_definitions
 character_skills
 skill_edges / prerequisites
+character_skill_point_transactions
+character_exp_transactions
+character_level_history
 character_inventory
 character_attacks
 character_change_requests
@@ -977,15 +1071,19 @@ progression_history / audit_history
 settings
 ```
 
-## 24.1 Character record
+## 27.1 Character record
 
 ```text
 Character
 ├── id
 ├── owner_user_id
 ├── name
-├── level                 default 1
-├── class_id              nullable / GM-controlled
+├── level                       default 1
+├── total_exp                   default 0
+├── skill_points_earned         default 0
+├── skill_points_spent          default 0
+├── skill_points_available      default 0
+├── class_id                    nullable / GM-controlled
 ├── status
 ├── portrait reference
 ├── approved background fields
@@ -994,7 +1092,16 @@ Character
 └── updated_at
 ```
 
-## 24.2 Skill definitions
+The Worker must keep:
+
+```text
+skill_points_available
+= skill_points_earned - skill_points_spent
+```
+
+consistent.
+
+## 27.2 Skill definitions
 
 ```text
 skill_definitions
@@ -1003,12 +1110,13 @@ skill_definitions
 ├── category
 ├── node_type
 ├── initial_base_value
+├── point_cost_rule
 ├── description
 ├── active
 └── metadata
 ```
 
-## 24.3 Character Skills
+## 27.3 Character Skills
 
 ```text
 character_skills
@@ -1017,7 +1125,7 @@ character_skills
 ├── skill_definition_id
 ├── base_value
 ├── creation_allocation
-├── growth_value
+├── progression_investment
 ├── current_value
 ├── state
 ├── source
@@ -1025,19 +1133,15 @@ character_skills
 └── metadata
 ```
 
-## 24.4 Skill graph
+## 27.4 Progression transactions
 
-```text
-skill_edges / prerequisites
-```
-
-Graph relationships are authoritative. Visual positions are presentation metadata.
+EXP awards and Skill Point spends must be auditable transactions rather than unexplained final numbers.
 
 ---
 
-# 25. API Direction
+# 28. API Direction
 
-Recommended logical endpoints include:
+Recommended logical endpoints:
 
 ```text
 POST /api/player/character-drafts
@@ -1046,20 +1150,28 @@ POST /api/player/character-drafts/:id/allocate-skills
 POST /api/player/character-drafts/:id/finalize
 
 GET  /api/player/characters/:id
+GET  /api/player/characters/:id/progression
+POST /api/player/characters/:id/skill-spends
+
 POST /api/player/characters/:id/change-requests
 GET  /api/player/characters/:id/change-requests
 POST /api/player/change-requests/:id/cancel
+
+POST /api/gm/characters/:id/exp-awards
+GET  /api/gm/characters/:id/exp-history
 
 GET  /api/gm/change-requests?status=pending
 POST /api/gm/change-requests/:id/approve
 POST /api/gm/change-requests/:id/reject
 ```
 
-If resumable drafts are not required initially, the Character creation endpoints may be consolidated, but the same server-side validation rules apply.
+Skill-spend requests must be validated against authoritative D1 Skill Point balance and prerequisites.
+
+EXP-award endpoints must atomically apply EXP, Level and Level-up Skill Point results.
 
 ---
 
-# 26. Security and Integrity Rules
+# 29. Security and Integrity Rules
 
 - User + Key validation occurs server-side.
 - Key is not stored in plaintext.
@@ -1067,107 +1179,122 @@ If resumable drafts are not required initially, the Character creation endpoints
 - D1 is the only authoritative persistent store.
 - Do not persist game data in localStorage.
 - Character ownership is server-enforced.
-- Character creation ignores client-supplied owner, Level, Class and Attribute values.
-- New Character Level is always `1`.
+- Character creation ignores client-supplied owner, Level, EXP, Class and Attribute values.
+- New Character Level is always 1.
+- New Character EXP is always 0.
+- New Character progression Skill Point balance is always 0.
 - New Character Class/Occupation is always Unassigned.
 - Attribute and LUCK rolls happen server-side.
 - Attribute balance validation happens server-side.
-- Creation Skill Point Pool is recalculated server-side.
-- Skill allocation totals and Level-1 Skill cap are validated server-side.
-- Player cannot create a starting Skill above 70.
-- Skill unlock/progression validation happens server-side.
-- Player post-creation persistent edits are requests, not direct writes.
-- GM approval/rejection is server-authorized.
-- Approved changes produce audit history.
+- CSP is recalculated server-side.
+- Starting Skill allocation and 70 cap are validated server-side.
+- EXP can only change through authorized GM/admin progression actions.
+- Level is recalculated from EXP using the canonical equation.
+- Level-up Skill Points are granted server-side.
+- Skill Point spending is server-validated and auditable.
+- Skill Point balance cannot go negative.
+- Skill prerequisites and costs are server-validated.
+- Player ordinary persistent edits use Change Requests.
+- GM approval/rejection is server-authorized and audited.
 
 ---
 
-# 27. Development Order
+# 30. Development Order
 
 ## Phase A — Character Builder Core
 
 1. Remove Level input.
 2. Remove Class/Occupation input.
-3. Server always creates Level 1.
-4. Server always creates Unassigned Class.
+3. Server creates Level 1 / EXP 0 / progression Skill Points 0.
+4. Server creates Unassigned Class.
 5. Implement eight-Attribute dice generation.
-6. Implement confirmed `84–100` balance gate.
-7. Roll independent `LUCK = 3D6 × 5`.
+6. Implement `84–100` balance gate.
+7. Roll `LUCK = 3D6 × 5`.
 8. Calculate HP / MP / Damage Bonus.
-9. Calculate CSP using the composite formula and `90–120` clamp.
-10. Persist creation state in D1 when resumable drafts are implemented.
+9. Calculate CSP.
+10. Persist creation state in D1.
 
 ## Phase B — Starting Skill Allocation
 
-1. Finalize the 27 Root Skill list.
-2. Finalize Initial Base Value for every Root Skill.
-3. Seed Root Skill definitions in D1.
-4. Build point-allocation UI.
-5. Show `CSP Remaining` live.
-6. Enforce Level-1 final Skill cap of 70 in UI.
-7. Revalidate pool/cap server-side.
-8. Save `base_value`, `creation_allocation` and `current_value` separately.
+1. Finalize Root Skill list.
+2. Finalize Initial Base Values.
+3. Seed definitions in D1.
+4. Build CSP allocation UI.
+5. Show CSP Remaining live.
+6. Enforce Level-1 Skill cap 70.
+7. Revalidate server-side.
+8. Save Base and Creation Allocation separately.
 
-## Phase C — Change Request System
+## Phase C — EXP / Level Progression
+
+1. Restore the user's exact EXP-to-Level equation.
+2. Add `total_exp` to authoritative Character progression data.
+3. Add EXP transaction history.
+4. Build GM EXP Award UI/API.
+5. Recalculate Level automatically after every EXP change.
+6. Detect multiple Levels crossed in one award.
+7. Finalize Skill Points granted per Level.
+8. Grant Level-up Skill Points atomically.
+9. Add Level-up history.
+
+## Phase D — Skill Point Progression
+
+1. Add earned/spent/available Skill Point accounting.
+2. Define cost rules for increasing existing Skill values.
+3. Define cost rules for learning new Nodes.
+4. Build Player Skill Point spending UI.
+5. Validate prerequisites and balances server-side.
+6. Add Skill Point transaction history.
+
+## Phase E — Change Request System
 
 1. Add `character_change_requests` schema.
-2. Add Player request submission/history UI.
+2. Add Player request UI/history.
 3. Add GM Pending Requests inbox.
-4. Add Approve / Reject actions.
-5. Apply approved changes server-side.
-6. Add revision/conflict detection.
-7. Add audit/progression history.
+4. Add Approve / Reject.
+5. Add revision/conflict detection.
+6. Add audit history.
 
-## Phase D — Character Sheet
+## Phase F — Character Sheet
 
-1. Display Level and GM-managed Class.
-2. Display Attributes / LUCK / HP / MP / DB.
-3. Display Skill Base / Growth / Current values where relevant.
-4. Display approved Inventory/Combat data.
-5. Display pending-change indicators.
-6. Add Requests tab.
+1. Display Level / EXP / EXP-to-next-Level.
+2. Display Skill Points Available.
+3. Display GM-managed Class.
+4. Display Attributes / LUCK / HP / MP / DB.
+5. Display Skills, Inventory and Combat data.
+6. Add pending-change indicators and Requests tab.
 
-## Phase E — Skill Tree UI
+## Phase G — Skill Tree UI
 
 1. Build SVG graph renderer.
 2. Read graph from D1.
 3. Add pan/zoom.
 4. Add node states/details.
-5. Add search/filter.
-6. Add path highlighting.
-7. Add mobile interaction.
+5. Add Skill Point costs/balance.
+6. Add search/filter.
+7. Add path highlighting.
+8. Add mobile interaction.
 
-## Phase F — Learning / Growth
-
-1. Define Growth rules.
-2. Define progression above the Level-1 Skill cap.
-3. Add training history.
-4. Add custom learned Skills.
-5. Validate prerequisites.
-6. Add GM/story/Class nodes.
-7. Grow Character graph dynamically.
-
-## Phase G — Class / Occupation and Level Progression
+## Phase H — Class / Occupation
 
 1. Build GM assignment UI.
 2. Define optional Classes/Occupations.
 3. Link Class to Skill branches/requirements.
 4. Record Class history.
-5. Finalize Level progression rules.
 
-## Phase H — Full GM D1 Workspace
+## Phase I — Full GM D1 Workspace
 
 1. GM authentication/authorization.
 2. User/Character browser.
-3. Character administration.
-4. Change Request review centre.
-5. progression management.
+3. EXP award centre.
+4. Character administration.
+5. Change Request review centre.
 6. Skill graph/content management.
 7. Campaign settings.
 
 ---
 
-# 28. Canonical Decisions
+# 31. Canonical Decisions
 
 The following decisions must not be silently reversed during implementation:
 
@@ -1178,31 +1305,42 @@ The following decisions must not be silently reversed during implementation:
 5. Players create their own Characters.
 6. Character owner comes from authenticated Session.
 7. Every new Character starts at Level 1.
-8. Player cannot choose starting Level.
-9. Player does not choose Class / Occupation at creation.
-10. Class / Occupation starts Unassigned and is GM-managed later.
-11. Core Attributes are STR, DEX, CON, APP, POW, INT, SIZ and EDU.
-12. Starting Attributes are randomized and directly assigned server-side.
-13. Confirmed starting Primary Total range is 84–100.
-14. Valid starting rolls cannot be redistributed or farmed by rerolling.
-15. LUCK is core, independent of POW, and initially uses `3D6 × 5`.
-16. HP uses `ceil((CON + SIZ) / 2)`.
-17. MP is core in the initial ruleset and uses POW as Max MP.
-18. Damage Bonus is derived from STR + SIZ.
-19. Cthulhu Mythos is removed.
-20. Fixed language systems are removed.
-21. Level-1 Characters currently use 27 genre-neutral Root Skills.
-22. Starting Skills use **Initial Base Value + Player Creation Allocation**.
-23. Player receives one combined Creation Skill Point Pool rather than Occupation/Interest pools.
-24. Initial CSP formula combines INT, EDU, POW, DEX, APP and LUCK and is clamped to 90–120.
-25. Level-1 final Skill value cannot exceed 70.
-26. Creation Skill allocation is freely chosen by the Player within the pool/cap rules.
-27. Specialist Skills are mainly learned during play.
-28. Later Skill value follows `Base + Creation Allocation + Growth`.
-29. Skill progression is visualized as a Character-specific dynamic zoomable node graph.
-30. The Skill Tree does not require a passive-point economy.
-31. Skill relationships/unlocks are data-driven and server-validated.
-32. After creation, Player persistent Character changes are submitted as D1 Change Requests.
-33. Player requests do not modify authoritative Character data until GM approval.
-34. GM approval/rejection and resulting changes are audited in D1.
-35. Character page uses Overview / Skill Tree / Combat / Inventory / Notes / Requests as the primary interaction model.
+8. Every new Character starts at EXP 0.
+9. Every new Character starts with 0 post-creation progression Skill Points.
+10. Player cannot choose starting Level or EXP.
+11. Player does not choose Class / Occupation at creation.
+12. Class / Occupation starts Unassigned and is GM-managed later.
+13. Core Attributes are STR, DEX, CON, APP, POW, INT, SIZ and EDU.
+14. Starting Attributes are randomized and directly assigned server-side.
+15. Starting Primary Total range is 84–100.
+16. Valid starting rolls cannot be redistributed or farmed by rerolling.
+17. LUCK is core, independent of POW, and initially uses `3D6 × 5`.
+18. HP uses `ceil((CON + SIZ) / 2)`.
+19. MP is core in the initial ruleset and uses POW as Max MP.
+20. Damage Bonus is derived from STR + SIZ.
+21. Cthulhu Mythos is removed.
+22. Fixed language systems are removed.
+23. Level-1 Characters use a genre-neutral Root Skill set; the current working list contains 27 Skills.
+24. Starting Skills use Initial Base Value + Player Creation Allocation.
+25. Player receives one combined Creation Skill Point Pool during creation.
+26. Current CSP formula combines INT, EDU, POW, DEX, APP and LUCK and is clamped to 90–120.
+27. Level-1 final Skill value cannot exceed 70.
+28. Creation Skill allocation is freely chosen by the Player within pool/cap rules.
+29. Character EXP is one cumulative Character-wide pool.
+30. GM is the normal source of EXP awards.
+31. Level is automatically determined from Total EXP using the user's existing EXP equation.
+32. The exact original EXP equation must be restored; no substitute equation may be invented.
+33. EXP does not directly improve Skills.
+34. Reaching a new Level grants Skill Points.
+35. Exact Skill Points granted per Level is still undecided/configurable.
+36. Post-creation Skill Points are used both to improve existing Skills and to learn/unlock new Skill Tree Nodes.
+37. Creation Skill Points and post-creation Level-up Skill Points are separate systems.
+38. Skill Point costs for Skill increases and Node unlocks are rules-driven and still require confirmation.
+39. Skill progression is visualized as a Character-specific dynamic zoomable node graph.
+40. The Skill Tree uses earned Skill Points plus prerequisites for normal post-creation progression.
+41. Skill relationships/unlocks are data-driven and server-validated.
+42. Player ordinary persistent Character changes are submitted as D1 Change Requests.
+43. Player requests do not modify authoritative Character data until GM approval.
+44. EXP, Level and Skill Point balances are protected progression fields and do not use the ordinary Player Change Request workflow.
+45. GM approval/rejection and progression changes are audited in D1.
+46. Character page uses Overview / Skill Tree / Combat / Inventory / Notes / Requests as the primary interaction model.
