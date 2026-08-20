@@ -22,14 +22,17 @@ These questions must not be collapsed into one raw damage formula.
 
 # 2. Core Scaling Responsibilities
 
-Use three different sources of authority:
+Use different sources of authority:
 
 ```text
 Relevant Skill Value
 → reliability / check value / control complexity
 
-Spell or Ability Rank + Reference Table
-→ total power budget
+Rank 1–9 + Reference Table
+→ normal total power budget
+
+SPECIAL + approved MP amount
+→ special total power budget
 
 Ability Definition
 → how that budget is distributed
@@ -37,7 +40,7 @@ Ability Definition
 
 Therefore a high Fire Magic value does not simply multiply every Fire Spell's damage by a percentage.
 
-The same Character can become better at controlling difficult Fire spells without every low-rank spell automatically becoming an unlimited damage multiplier.
+`SPECIAL` is not Rank 10. It is a separate non-numeric level whose overall power is justified primarily by the approved MP amount rather than by a normal Rank 1–9 budget.
 
 ---
 
@@ -87,11 +90,13 @@ N projectiles × full Fireball damage
 
 unless its Rank, MP cost and total power budget are high enough to support that total output.
 
+For `SPECIAL`, the approved MP amount becomes the primary budget reference, while comparable approved abilities remain useful secondary references.
+
 ---
 
 # 5. Total Power Budget Rule
 
-Every Ability Rank has a broad total Power Budget.
+Every normal Ability Rank has a broad total Power Budget.
 
 The AI spends that budget across mechanical dimensions such as:
 
@@ -123,6 +128,10 @@ Increasing one dimension consumes budget that cannot simultaneously be spent els
 - reducing another output dimension.
 
 Exact numerical weights are Alpha tuning data.
+
+For `SPECIAL`, the same one-budget principle applies, but the approved MP amount is used as the primary scale instead of a fixed Rank budget.
+
+A high-MP control ability can therefore justify strong control even if it deals little or no damage. Likewise, a high-MP damage ability cannot also receive equally extreme area, duration and control for free.
 
 ---
 
@@ -216,9 +225,11 @@ Control Capacity is intentionally not a direct damage multiplier.
 
 ## 7.3 Power-Budget Capacity
 
-Even if the Character can mentally control many projectiles, the Ability's Rank may not have enough total budget to make every projectile powerful.
+Even if the Character can mentally control many projectiles, the Ability's total power budget may not have enough output to make every projectile powerful.
 
-The AI therefore checks how many projectiles can fit while keeping the whole Ability inside its Rank budget.
+For Rank 1–9, the Rank budget is the main reference.
+
+For `SPECIAL`, the approved MP amount is the main reference.
 
 ---
 
@@ -256,7 +267,7 @@ MP Cost
 Source Bonus
 Target Rules
 Same-Target Rules
-Suggested Rank
+Suggested Rank / SPECIAL where appropriate
 ```
 
 The important invariant is:
@@ -293,7 +304,7 @@ Chain Fireball
 
 But the final damage is produced after applying the composite budget allocation.
 
-Conceptually:
+Conceptually for Rank 1–9:
 
 ```text
 Reference Output
@@ -307,19 +318,21 @@ Composite Allocation
 Final Per-Projectile / Per-Target Output
 ```
 
-Do not use:
+Conceptually for `SPECIAL`:
 
 ```text
-Final Damage = Fire Magic Skill Value × Fireball Damage
+Reference Output
+      ↓
+Approved MP Amount
+      ↓
+Special Power Budget
+      ↓
+Composite Allocation
+      ↓
+Final Effect Package
 ```
 
-and do not use:
-
-```text
-Final Damage = Full Fireball Damage × Projectile Count
-```
-
-without budget validation.
+Do not use raw Skill value as an unlimited damage multiplier, and do not multiply full reference output by instance count without budget validation.
 
 ---
 
@@ -342,17 +355,6 @@ It should NOT create unlimited linear damage scaling.
 
 For Alpha, use Skill bands / Mastery tiers rather than multiplying damage directly by the raw Skill percentage.
 
-Example concept:
-
-```text
-Fire Magic increases
-→ Control Tier increases
-→ more complex Fire abilities become practical
-→ modest Mastery improvement may apply
-```
-
-Exact thresholds and output bonuses remain Alpha tuning values.
-
 ---
 
 # 11. One Cast = One Ability Resolution by Default
@@ -366,8 +368,6 @@ Final Check = relevant Skill + Source Bonus + Buff/Debuff
 The Ability profile then determines how its approved projectiles/targets/effects resolve.
 
 Do not require a completely separate Skill formula for every projectile by default.
-
-An Ability may explicitly define independent projectile rolls later if a particular design needs that behaviour, but that is an exception rather than the default.
 
 ---
 
@@ -388,9 +388,7 @@ FLEXIBLE
 
 The AI must include this targeting rule in the proposal.
 
-If focusing multiple projectiles on one target would make the Ability exceed its Rank budget, the AI must compensate through reduced per-projectile output, increased cost or another restriction.
-
-Therefore same-target focus is never allowed to bypass the total Power Budget merely because the Ability visually contains multiple projectiles.
+Same-target focus is never allowed to bypass the total Power Budget merely because the Ability visually contains multiple projectiles.
 
 ---
 
@@ -414,8 +412,6 @@ Healing per tick × duration × expected targets
 
 Repeated ticks consume Power Budget in the same way that repeated projectiles do.
 
-A three-round effect is not three rounds of full reference output for free.
-
 ---
 
 # 14. Control Effects Also Consume Budget
@@ -438,20 +434,9 @@ Disarm
 
 are part of the same Ability budget.
 
-Example:
+Control power is a first-class use of Power Budget. It does not need to be translated into fake damage to be valued.
 
-```text
-Lightning spell A
-High damage, no control
-
-Lightning spell B
-Lower damage + stun chance
-
-Lightning spell C
-Very low damage + reliable displacement
-```
-
-All three may belong to the same Rank if their total packages are comparable.
+For `SPECIAL`, a large approved MP amount can justify a powerful control package even where direct damage is low or zero.
 
 ---
 
@@ -464,28 +449,9 @@ Player custom creation still asks only for the agreed creative inputs:
 2. Effect Range / Target Pattern
 ```
 
-The current Skill Tree / magic-family context supplies the relevant Element/Skill.
+The Player does not manually enter authoritative Rank, MP Cost, Damage, Healing, control strength or other balance values.
 
-The Player does not manually enter authoritative:
-
-```text
-Rank
-MP Cost
-Damage
-Healing
-Projectile Count
-Stun chance
-Blind chance
-Push distance
-Area size
-Distance
-Duration
-Source Bonus
-```
-
-AI proposes these values.
-
-The Player then sees the complete interpretation before anything is sent to GM.
+AI proposes these values. For concepts that do not fit Rank 1–9 well, AI may propose `SPECIAL` together with an MP amount and complete effect package.
 
 ---
 
@@ -497,7 +463,7 @@ For a multi-effect Ability the AI proposal should include at least:
 Name
 Element / Family
 Relevant Skill
-Suggested Rank
+Suggested Rank or SPECIAL
 Source Bonus
 MP Cost
 Target Pattern
@@ -515,15 +481,6 @@ Closest References
 Balance Explanation
 ```
 
-Player options:
-
-```text
-Confirm & Send to GM
-Reject
-Regenerate
-Rename and Regenerate
-```
-
 Only a Player-confirmed proposal is sent to GM.
 
 ---
@@ -535,12 +492,13 @@ AI is responsible for interpreting and proposing, but a deterministic rules laye
 At minimum validate:
 
 ```text
-Rank is allowed
+Rank is 1–9 or SPECIAL
 MP/resource values are non-negative
+SPECIAL has an approved/proposed MP amount
 projectile/instance count does not exceed configured caps
 effect types are recognised
 no fractional indivisible outputs where prohibited
-total composite output is within configured Rank tolerance
+total composite output is within configured Rank or SPECIAL-MP tolerance
 no repeated full-reference multiplication without sufficient budget
 Character meets required Skill/Rank prerequisites
 ```
@@ -549,21 +507,45 @@ If validation fails, the proposal is regenerated or flagged rather than silently
 
 ---
 
-# 18. Alpha Locked Direction
+# 18. SPECIAL Runtime Rule
+
+`SPECIAL` does not require AI on every cast.
+
+During creation/modification:
+
+```text
+MP amount
+→ AI/GM derives and approves one complete Power Package
+→ save mp_cost + Effect Profile in D1
+```
+
+During play:
+
+```text
+read stored mp_cost
+→ pay MP
+→ resolve stored Effect Profile
+```
+
+Alpha therefore treats SPECIAL as MP-driven at design time, not as an open-ended runtime calculation.
+
+Variable-MP SPECIAL abilities can be designed later if needed; they are not the Alpha default.
+
+---
+
+# 19. Alpha Locked Direction
 
 1. Relevant Skill controls reliability and complexity; it is not a raw linear damage multiplier.
-2. Spell/Ability Rank and canonical references determine the main total Power Budget.
-3. Custom composite abilities divide one total budget among damage/healing, multiplicity, targets, area, duration, control and other effects.
-4. Multiple projectiles, targets or ticks are not free copies of the base reference effect.
-5. A derivative spell uses the closest canonical reference as its starting output scale.
-6. Final repeated-instance count is limited by concept, Character Control Capacity and Ability Power-Budget Capacity.
-7. Higher relevant Skill may permit greater Control Capacity and bounded Mastery benefits.
-8. Exact Skill bands, Rank budgets and effect weights are Alpha tuning values.
-9. One cast uses one Ability check by default.
-10. Same-target focus and multi-target splitting are explicit Ability-profile rules.
-11. Control effects consume the same total Power Budget as damage/healing/area/duration.
-12. Player still supplies only Ability Name and Effect Range/Target Pattern.
-13. AI generates the complete mechanical proposal.
-14. A deterministic validator checks AI output before Player confirmation.
-15. Player confirms the proposal before it is submitted to GM.
-16. GM remains the final approval authority during Alpha.
+2. Rank 1–9 and canonical references determine the normal total Power Budget.
+3. `SPECIAL` is a separate non-numeric level, not Rank 10.
+4. For `SPECIAL`, approved MP amount is the primary reference used to justify total Power Budget.
+5. Total Power includes Damage, Healing, Control, Area, Target Count, Duration, Movement, Buff/Debuff and other mechanical effects.
+6. Control-heavy SPECIAL abilities can consume large Power Budget without needing high direct damage.
+7. Custom composite abilities divide one total budget among all effects; multiple outputs are never free copies.
+8. Multiple projectiles, targets or ticks are not free copies of the base reference effect.
+9. A derivative spell uses the closest canonical reference as a starting output scale.
+10. One cast uses one Ability check by default.
+11. Player still supplies only Ability Name and Effect Range/Target Pattern.
+12. AI generates the complete mechanical proposal; Player confirms; GM is final authority.
+13. SPECIAL is resolved from stored `mp_cost + Effect Profile` during play; no per-cast AI calculation is required.
+14. Variable-MP SPECIAL abilities are not the Alpha default.
