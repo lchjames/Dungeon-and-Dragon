@@ -35,7 +35,7 @@ Starting EXP = 1
 Starting Level = 1
 ```
 
-The earlier workbook cube-root Level equation is superseded for the Web game by the following Alpha progression curve.
+The earlier workbook cube-root Level equation and the short-lived `2L² + 25L` Web curve are superseded for the Web game by the following Level 1–100 Alpha progression.
 
 ### 2.1 Current Level Cap
 
@@ -45,66 +45,7 @@ Current Alpha Level Cap = 100
 
 Level 100 is the current practical maximum. Future versions may extend the cap, but no Level above 100 is granted by the current resolver.
 
-### 2.2 EXP Required for the Next Level
-
-For a Character currently at Level `L`, where `1 <= L <= 99`:
-
-```text
-EXP required from Level L to Level L+1
-= 2L² + 25L
-```
-
-This deliberately makes later Levels progressively slower to earn.
-
-Examples:
-
-| Current Level | EXP to Next Level |
-|---:|---:|
-| 1 | 27 |
-| 5 | 175 |
-| 10 | 450 |
-| 20 | 1,300 |
-| 25 | 1,875 |
-| 40 | 4,200 |
-| 50 | 6,250 |
-| 60 | 8,700 |
-| 75 | 13,125 |
-| 80 | 14,800 |
-| 90 | 18,450 |
-| 95 | 20,425 |
-| 99 | 22,077 |
-
-### 2.3 Cumulative EXP Threshold
-
-The minimum Total EXP for Level `L` is:
-
-```text
-EXP Threshold(L)
-= 1 + ((L - 1) × L × (4L + 73)) / 6
-```
-
-Selected thresholds:
-
-| Level | Minimum Total EXP |
-|---:|---:|
-| 1 | 1 |
-| 5 | 311 |
-| 10 | 1,696 |
-| 20 | 9,691 |
-| 25 | 17,301 |
-| 40 | 60,581 |
-| 50 | 111,476 |
-| 60 | 184,671 |
-| 75 | 345,026 |
-| 80 | 413,961 |
-| 90 | 578,056 |
-| 95 | 674,216 |
-| 99 | 758,374 |
-| 100 | 780,451 |
-
-Implementation should derive Level from the highest threshold reached, then cap the result at Level 100.
-
-### 2.4 Ordinary Monster EXP Reference
+### 2.2 Ordinary Monster EXP Reference
 
 Current Alpha baseline for a normal ordinary monster is:
 
@@ -115,34 +56,98 @@ Ordinary Monster EXP
 
 This is a baseline for ordinary monsters, not a universal reward formula for elites, bosses, quests or story rewards.
 
-If the Character fights an ordinary monster of the same Level, the approximate number of such monsters required to gain one Level is:
+### 2.3 Target Same-Level Ordinary Monsters per Level
+
+The current Alpha progression is deliberately designed from the desired number of same-Level ordinary monsters needed to gain the next Character Level.
+
+For a Character currently at Level `L`, where `1 <= L <= 99`:
 
 ```text
-(2L² + 25L) / (5L)
-= 5 + 0.4L
+Target same-Level ordinary monsters
+= ceil(6 × L^1.5)
 ```
 
-Therefore the ordinary same-Level grind becomes steadily harder:
+Because one same-Level ordinary monster grants `5L EXP`, the required EXP for the next Level is:
 
-| Character / Monster Level | Same-Level Ordinary Monsters per Level |
+```text
+EXP required from Level L to Level L+1
+= 5L × ceil(6 × L^1.5)
+```
+
+Equivalent smooth approximation:
+
+```text
+EXP to next Level
+≈ 30 × L^2.5
+```
+
+The deterministic implementation should use the `ceil(6 × L^1.5)` form so the target monster count remains explicit and integer-valued.
+
+Selected progression points:
+
+| Current Level | Same-Level Ordinary Monsters | EXP to Next Level |
+|---:|---:|---:|
+| 1 | 6 | 30 |
+| 5 | 68 | 1,700 |
+| 10 | 190 | 9,500 |
+| 20 | 537 | 53,700 |
+| 25 | 750 | 93,750 |
+| 30 | **986** | **147,900** |
+| 40 | 1,518 | 303,600 |
+| 50 | 2,122 | 530,500 |
+| 60 | 2,789 | 836,700 |
+| 75 | 3,898 | 1,461,750 |
+| 80 | 4,294 | 1,717,600 |
+| 90 | 5,123 | 2,305,350 |
+| 95 | 5,556 | 2,639,100 |
+| 99 | 5,911 | 2,925,945 |
+
+This progression intentionally makes later Levels substantially harder to grind using ordinary enemies.
+
+The Level 30 anchor is intentional:
+
+```text
+Level 30 → 31
+≈ 1,000 same-Level ordinary monsters
+```
+
+This does not mean the intended campaign loop requires literally defeating around one thousand separate ordinary-monster encounters every Level. Bosses, elite enemies, quests, objectives, exploration rewards and story progression may provide substantially larger EXP awards. The ordinary-monster figure is the baseline used to establish the scale and to ensure ordinary grinding becomes increasingly inefficient at high Level.
+
+### 2.4 Cumulative EXP Threshold
+
+Because the per-Level requirement contains `ceil(6 × L^1.5)`, cumulative thresholds are stored/calculated as a deterministic sum rather than by the older closed-form equation:
+
+```text
+EXP Threshold(1) = 1
+
+EXP Threshold(L)
+= 1 + Σ [5k × ceil(6 × k^1.5)]
+    for k = 1 to L-1
+```
+
+Selected thresholds:
+
+| Level | Minimum Total EXP |
 |---:|---:|
-| 1 | 5.4 |
-| 5 | 7 |
-| 10 | 9 |
-| 20 | 13 |
-| 25 | 15 |
-| 40 | 21 |
-| 50 | 25 |
-| 60 | 29 |
-| 75 | 35 |
-| 80 | 37 |
-| 90 | 41 |
-| 95 | 43 |
-| 99 | 44.6 |
+| 1 | 1 |
+| 5 | 1,641 |
+| 10 | 22,661 |
+| 20 | 280,791 |
+| 25 | 624,231 |
+| 30 | 1,195,601 |
+| 40 | 3,321,041 |
+| 50 | 7,316,081 |
+| 60 | 13,930,366 |
+| 75 | 30,596,526 |
+| 80 | 38,407,121 |
+| 90 | 58,142,421 |
+| 95 | 70,326,626 |
+| 99 | 81,307,641 |
+| 100 | **84,233,586** |
 
-This monotonic increase is intentional. Higher Character Levels are not supposed to become easier to grind using ordinary same-Level enemies.
+Implementation should derive Level from the highest threshold reached, then cap the result at Level 100.
 
-Elite, boss, quest and campaign EXP multipliers remain separately tunable and must not silently alter this ordinary-monster baseline.
+Elite, boss, quest and campaign EXP multipliers remain separately tunable and must not silently alter the ordinary-monster baseline.
 
 GM awards EXP. Player cannot directly edit EXP. Level is calculated automatically from EXP.
 
