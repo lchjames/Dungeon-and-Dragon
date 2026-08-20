@@ -1,36 +1,86 @@
 # D&D Campaign Hub — Site & Character System Specification
 
 > Status: **Canonical design document**  
-> Purpose: Source of truth for future website, database, Player, GM, character-creation and character-sheet development.  
+> Purpose: Source of truth for website, database, Player, GM, character-creation, character-sheet and progression development.  
 > Production site: `https://dungeon-and-dragon.lchjames.com/`
 
 ---
 
 # 1. Product Direction
 
-D&D Campaign Hub is a lightweight web-based TRPG character and campaign management system intended to support multiple genres, including fantasy, science fiction, modern, horror and custom settings.
+D&D Campaign Hub is a web-based TRPG character and campaign management system designed to support mixed settings such as fantasy, science fiction, modern, horror and custom worlds.
 
-The web version is **not** a direct digital copy of the old offline CoC-style spreadsheet. The spreadsheet is the structural reference, while setting-specific systems are removed or generalized.
+The old offline spreadsheet is a structural reference only. The web system is not a direct CoC conversion.
 
-The platform has two separated experiences:
+The platform has two clearly separated workspaces:
 
-- **Player side** — create a User, unlock it with a 4-digit Key, create and manage owned Characters, and use Character Sheets during play.
-- **GM side** — view/manage campaign data, Users, Characters, game content, balance rules and administrative settings.
-
-Cloudflare D1 is the authoritative database. Browser localStorage must not contain authoritative User, Character, Skill, Inventory, Resource or campaign data.
+- **Player** — create a User, unlock it with a 4-digit Key, create and play owned Characters.
+- **GM** — administer campaigns, Characters, Classes/Occupations, game content, progression, special Skills and rules.
 
 ---
 
-# 2. Identity and Ownership
+# 2. Non-Negotiable Storage Rule
 
-## 2.1 Player Identity
+## 2.1 Cloudflare D1 is the only authoritative data store
 
-A Player uses:
+All persistent application/game data must live in Cloudflare D1.
+
+This includes:
+
+- Users
+- Key verification data
+- Sessions metadata
+- Characters
+- Character ownership
+- Character Level
+- Class / Occupation
+- Attributes
+- LUCK
+- Resources
+- Skills
+- Skill-tree nodes and edges
+- Inventory
+- Attacks
+- Notes
+- Campaign settings
+- GM settings
+- Character-generation results
+- progression/history data
+
+## 2.2 Do not design around localStorage
+
+The application must **not** use browser localStorage as a persistence layer.
+
+Do not keep parallel local copies of Character, Skill, Inventory, Resource or User data.
+
+Do not implement "local first then sync later" as the normal architecture.
+
+Temporary interface state should remain in memory for the current page/session only unless a server-side setting is intentionally added later.
+
+Authentication session state is represented by the server-issued Secure + HttpOnly cookie, not localStorage.
+
+```text
+Browser UI
+    ↓ HTTPS API
+Cloudflare Worker
+    ↓
+Cloudflare D1
+```
+
+D1 is the source of truth.
+
+---
+
+# 3. Player Identity
+
+A Player uses only:
 
 - **User** — player-facing name, e.g. `swolf`
 - **Key** — exactly four numeric digits, e.g. `4821`
 
-No email or traditional password is required.
+No email address or traditional long password is required for normal Player access.
+
+The Key must not be stored as plaintext.
 
 One User may own multiple Characters:
 
@@ -41,21 +91,28 @@ User: swolf
 └── Character C
 ```
 
-## 2.2 Character Ownership
+---
 
-Every Character has:
+# 4. Character Ownership
+
+Every Character belongs to a User through D1:
 
 ```text
 characters.owner_user_id -> users.id
 ```
 
-When a Player creates a Character, the Worker reads the authenticated User ID from the server-side Session and writes it into `owner_user_id`.
+When a Player creates a Character:
 
-The browser must never be able to choose another User ID as the owner.
+1. Worker resolves the current authenticated Session.
+2. Worker gets `user.id`.
+3. Worker inserts the new Character with that `owner_user_id`.
+4. Browser never chooses another User ID.
+
+The API must reject attempts to read or modify another User's Character.
 
 ---
 
-# 3. Site Structure
+# 5. Site Structure
 
 ```text
 /
@@ -68,234 +125,275 @@ The browser must never be able to choose another User ID as the owner.
     └── GM Workspace
 ```
 
-The Player and GM interfaces must remain functionally and visually separate.
+Player and GM interfaces remain visually and functionally separated.
 
 ---
 
-# 4. Character System Philosophy
+# 6. Character-Creation Philosophy
 
-The old spreadsheet provides the base concepts, but the web Character system is genre-neutral.
+A new Character should begin simple and relatively undefined.
 
-## Keep
+The Character's identity, Class/Occupation and specialist abilities should emerge through play and GM involvement rather than being fully selected during creation.
 
-- Character identity/background
-- Eight core attributes
-- LUCK
-- Randomized Character generation
-- Server-side balance protection
-- HP and optional campaign Resources
-- Small universal Base Skill set
-- Character growth through learned/unique Skills
-- Combat/Attacks
-- Inventory
-- Notes
-- Long-term progression
+Confirmed starting principles:
 
-## Remove from the core system
-
-- Cthulhu Mythos / 克蘇魯神話
-- Fixed language families and language tables
-- CoC-specific specialist-skill catalogue
-- CoC empty skill slots
-- Occupation Skill Point budget
-- Interest Skill Point budget
-- Spreadsheet-only helper/modifier fields
-- Duplicate manually stored derived values
-
-## Optional / Campaign-defined rather than core
-
-- SAN / Sanity
-- Stress
-- Mana / MP
-- Energy
-- Corruption
-- Shield
-- Reputation
-- Faith
-- Rage
-- any setting-specific Resource
-
-This allows fantasy, science-fiction, modern and horror campaigns to share the same underlying Character model.
+- Player creates their own Character.
+- Character always starts at **Level 1**.
+- Player cannot choose starting Level.
+- Player does **not** choose Class / Occupation during creation.
+- Class / Occupation begins **Unassigned**.
+- GM assigns or develops the Character's Class / Occupation later.
+- Eight core Attributes are rolled randomly by the server.
+- Player cannot redistribute rolls.
+- Server protects against extremely weak or strong total rolls.
+- LUCK is retained as a core Character value.
+- Only a small genre-neutral set of Base Skills exists at creation.
+- Specialist Skills are mainly learned later.
 
 ---
 
-# 5. Character Identity
+# 7. Character Identity
 
-Character creation begins with identity information.
+## 7.1 Player-editable creation fields
 
-| Field | Required | Notes |
+Initial Character creation may contain:
+
+| Field | Required | Owner |
 |---|---:|---|
-| Character Name | Yes | Main display name |
-| Owner User | Automatic | Taken from authenticated Session |
-| Occupation / Role | No | Current profession/archetype; does not lock a class |
-| Age | No | Character background |
-| Gender | No | Free/selectable value |
-| Education / School | No | Background, separate from EDU stat |
-| Birthplace | No | Background |
-| Residence | No | Background |
-| Era / Setting | No | May later become Campaign-controlled |
-| Portrait | No | Character image |
-| Summary / Background | No | Character description |
+| Character Name | Yes | Player |
+| Age | No | Player |
+| Gender | No | Player |
+| Education / School | No | Player |
+| Birthplace | No | Player |
+| Residence | No | Player |
+| Portrait | No | Player |
+| Background / Summary | No | Player |
 
-`Player Name / PL` from the spreadsheet is removed because the authenticated User already identifies the owner.
+The exact number of optional background fields may later be simplified in the UI.
+
+## 7.2 Server-controlled creation fields
+
+The following values are **not entered by the Player**:
+
+| Field | Initial value | Controlled by |
+|---|---|---|
+| Owner User | authenticated User | Server |
+| Level | `1` | Server |
+| Class / Occupation | `Unassigned` / `NULL` | GM later |
+| Status | `active` | Server |
+| Core Attributes | server dice result | Server |
+| LUCK | rules calculation | Server |
+| HP Max | rules calculation | Server |
+| other derived values | rules calculation | Server |
+
+## 7.3 Level rule
+
+Every newly created Character starts at:
+
+```text
+Level = 1
+```
+
+The Player creation API must ignore any client-submitted Level value.
+
+The creation page must not display a Level input.
+
+Future Level progression is controlled through the progression/game system and/or GM rules.
+
+## 7.4 Class / Occupation rule
+
+A new Character starts without a finalized profession/class:
+
+```text
+Class / Occupation = Unassigned
+```
+
+or database equivalent:
+
+```text
+class_id = NULL
+occupation = NULL
+```
+
+The Player creation page must not display a Class, Role or Occupation input.
+
+The GM later determines or assigns it based on:
+
+- story development
+- training
+- Character behavior
+- world/campaign rules
+- faction membership
+- achievements
+- transformations
+- special events
+
+This prevents the creation process from locking the Character into a build before play begins.
 
 ---
 
-# 6. Core Character Attributes
+# 8. Core Character Attributes
 
-The following eight attributes are retained as first-class Character values.
+Eight primary Attributes are retained from the old spreadsheet because they work across many genres.
 
 | Code | Name | Meaning | Initial Roll |
 |---|---|---|---|
-| STR | Strength / 力量 | Raw physical strength | 3D6 |
-| DEX | Dexterity / 敏捷 | Coordination, speed and reaction | 3D6 |
-| CON | Constitution / 體質 | Health, stamina and endurance | 3D6 |
-| APP | Appearance / 外貌 | Presence and physical/social impression | 3D6 |
-| POW | Power / 意志 | Resolve, mental force and supernatural potential | 3D6 |
-| INT | Intelligence / 智力 | Reasoning and problem solving | 2D6 + 6 |
-| SIZ | Size / 體型 | Physical size/build | 2D6 + 6 |
-| EDU | Education / 教育 | General learned knowledge and education | 3D6 + 3 |
+| STR | Strength / 力量 | physical strength | 3D6 |
+| DEX | Dexterity / 敏捷 | speed, coordination, reaction | 3D6 |
+| CON | Constitution / 體質 | health and endurance | 3D6 |
+| APP | Appearance / 外貌 | presence and impression | 3D6 |
+| POW | Power / 意志 | resolve, will and supernatural potential | 3D6 |
+| INT | Intelligence / 智力 | reasoning and problem solving | 2D6 + 6 |
+| SIZ | Size / 體型 | physical size/build | 2D6 + 6 |
+| EDU | Education / 教育 | general learned knowledge | 3D6 + 3 |
 
-These are prominent in the Character Sheet UI.
+These are first-class Character values in the UI.
 
-D1 may store them in an extensible attribute table so future custom attributes can be added without schema changes.
+They should be stored in D1 using an extensible structure so new campaign Attributes can be introduced later without redesigning the entire database.
 
 ---
 
-# 7. Random Character Generation
+# 9. Random Attribute Generation
 
-## 7.1 Fully Random Assignment
+## 9.1 Fully random direct assignment
 
-Attribute rolls are assigned directly to the attribute that generated them.
+Each Attribute receives its own roll.
 
-The Player does **not** receive a pool and redistribute the best rolls.
+```text
+STR -> 3D6
+DEX -> 3D6
+CON -> 3D6
+APP -> 3D6
+POW -> 3D6
+INT -> 2D6 + 6
+SIZ -> 2D6 + 6
+EDU -> 3D6 + 3
+```
 
 Example:
 
 ```text
-STR -> 3D6    -> 11
-DEX -> 3D6    -> 15
-CON -> 3D6    -> 9
-APP -> 3D6    -> 12
-POW -> 3D6    -> 10
-INT -> 2D6+6  -> 14
-SIZ -> 2D6+6  -> 13
-EDU -> 3D6+3  -> 16
+STR  8
+DEX  16
+CON  10
+APP  9
+POW  13
+INT  15
+SIZ  12
+EDU  14
 ```
 
-## 7.2 Total-stat Balance Gate
+The Player cannot move `DEX 16` into STR or otherwise redistribute results.
 
-Pure randomness can create excessively weak or strong starting Characters. The server therefore enforces a total-stat acceptance range.
+## 9.2 Server-side generation only
+
+The browser must not submit final Attribute numbers as trusted input.
+
+The Worker generates and validates the roll.
+
+The accepted generation result is stored directly in D1.
+
+## 9.3 Total-stat balance gate
+
+Starting Characters should not be extremely strong or weak.
 
 ```text
 Primary Total = STR + DEX + CON + APP + POW + INT + SIZ + EDU
 ```
 
-Expected average is approximately:
+The expected average of the current dice set is approximately:
 
 ```text
 92
 ```
 
-Initial recommended accepted range:
+Initial proposed acceptance range:
 
 ```text
 84 <= Primary Total <= 100
 ```
 
-If the generated set is outside the accepted range, the **entire set is rerolled automatically by the server** until one valid set is produced.
+If a complete roll is outside the accepted band, the server rerolls the entire set internally until it produces one valid result.
 
-The balance band should later become a GM/Campaign setting.
+The accepted minimum/maximum should eventually be GM/Campaign-configurable values stored in D1.
 
-## 7.3 Preserve Individual Extremes
+## 9.4 Preserve individual weaknesses and strengths
 
-The balance gate controls only total starting power. Individual strengths and weaknesses are intentionally preserved.
+Only the total is balanced.
 
-Example:
+Individual Attributes are allowed to be unusually low or high.
+
+This is valid:
 
 ```text
-STR 6
-DEX 17
+STR  6
+DEX  17
 CON 10
 ...
 ```
 
-is valid if the total is acceptable.
+provided the complete total passes the balance gate.
 
-## 7.4 No Reroll Farming
+## 9.5 No reroll farming
 
-A valid generated set becomes locked for that Character creation.
+Once the server produces a valid starting set, that result is stored and treated as the Character's creation result.
 
-```text
-Create Character
-      ↓
-Server rolls attributes
-      ↓
-Server rejects out-of-band totals internally
-      ↓
-One valid randomized set is returned
-      ↓
-Set is locked
-```
+Normal Players do not receive unlimited reroll controls.
 
-The ordinary Player UI must not provide unlimited reroll buttons.
-
-GM may later have an administrative reroll/reset action.
+GM may later receive an administrative reroll/reset function.
 
 ---
 
-# 8. LUCK and Derived Status
+# 10. LUCK and Derived Status
 
-## 8.1 LUCK — Core Value
+## 10.1 LUCK
 
-`LUCK` is retained as a permanent cross-genre Character value.
+LUCK is a permanent cross-genre Character value.
 
-It can be used for:
-
-- chance events
-- fortunate coincidences
-- escape checks
-- loot/event rolls
-- narrative fortune
-- generic GM Luck checks
-
-Initial legacy-compatible formula:
+Initial rule:
 
 ```text
 LUCK = POW × 5
 ```
 
-The formula should be implemented through the rules/configuration layer so it may be changed later without redesigning the Character database.
+Possible uses:
 
-LUCK is displayed prominently in Character Status.
+- chance events
+- fortunate coincidences
+- loot/event checks
+- emergency fortune rolls
+- narrative luck
+- GM-defined Luck checks
 
-## 8.2 HP
+The formula should live in the server-side rules/configuration layer so it can be changed later without changing database structure.
 
-Initial formula:
+## 10.2 HP
+
+Initial maximum HP formula:
 
 ```text
 Max HP = ceil((CON + SIZ) / 2)
 ```
 
-Character Sheet stores/uses Current HP and derives or records Max HP according to the active ruleset.
+Current HP changes during play and is stored in D1.
 
-## 8.3 MP / Energy
+## 10.3 MP / Energy
 
-Initial default formula:
+Initial optional formula:
 
 ```text
 Max MP = POW
 ```
 
-MP is optional at Campaign level and may be renamed or disabled.
+MP is not required in every campaign and may later be renamed, disabled or replaced.
 
-## 8.4 Damage Bonus
+## 10.4 Damage Bonus
 
-Damage Bonus is automatically derived from STR + SIZ using the legacy table or a future configurable rule.
+Damage Bonus is automatically derived from STR + SIZ using a configurable rule/table.
 
-It is not manually entered by the Player.
+Player does not manually enter Damage Bonus.
 
-## 8.5 Removed Mandatory CoC Values
+## 10.5 Removed CoC-specific mandatory values
 
 The following are not mandatory core Character values:
 
@@ -304,23 +402,26 @@ The following are not mandatory core Character values:
 - SAN
 - Cthulhu Mythos
 
-SAN may exist as an optional Campaign Resource, but there is no mandatory global sanity system.
+SAN may exist as a campaign-defined Resource when needed.
 
 ---
 
-# 9. Resources / Character Status
+# 11. Resources / Character Status
 
-Resources are mutable values used during play.
+Resources are mutable values stored in D1.
 
 Core/default presentation:
 
 ```text
-HP      Current / Max
-LUCK    Derived/core value
-MP      Current / Max     [only when Campaign enables it]
+Level        1+      [Level 1 at creation]
+Class        Unassigned / GM-assigned
+HP           Current / Max
+LUCK         core value
+MP           Current / Max      [only if campaign enables it]
+Damage Bonus derived
 ```
 
-Campaigns may add:
+Campaign-defined Resources can include:
 
 ```text
 SAN
@@ -334,7 +435,7 @@ Faith
 etc.
 ```
 
-Generic Resource model:
+Generic D1 Resource concept:
 
 ```text
 Resource
@@ -348,87 +449,79 @@ Resource
 └── sort_order
 ```
 
-Spreadsheet-only modifier fields such as `SAN Increase/Decrease` are removed.
-
 ---
 
-# 10. Base Skill System
+# 12. Base Skill System
 
-The old spreadsheet skill catalogue is intentionally not copied in full.
+New Characters receive only a deliberately small set of genre-neutral Base Skills.
 
-New Characters begin with a small set of universal Skills that remain useful across fantasy, science-fiction, modern and mixed settings.
+Initial proposed set:
 
-## 10.1 Initial Universal Base Skills
-
-### Awareness
+## Awareness
 
 - Perception / 觀察
 - Investigation / 調查
 - Insight / 洞察
 
-### Physical
+## Physical
 
 - Athletics / 運動
 - Acrobatics / 靈巧
 - Stealth / 潛行
 - Survival / 生存
 
-### Social
+## Social
 
 - Persuasion / 說服
 - Deception / 欺瞞
 - Intimidation / 威嚇
 
-### Practical
+## Practical
 
 - First Aid / 急救
 - Craft & Repair / 製作與修理
 
-### Combat
+## Combat
 
 - Melee / 近戰
 - Ranged / 遠程
 - Dodge / 閃避
 
-This list should stay deliberately small.
+This list is intentionally small and may be refined before implementation.
 
-## 10.2 Removed Default Specialist Skills
+The following are not default creation Skills:
 
-The default Character creation process does not include fixed lists for:
-
+- fixed language families
 - individual sciences
 - archaeology
 - accounting
 - law
 - photography
-- specific vehicles
-- individual weapon families
+- specific vehicle skills
+- specific weapon-family skills
 - Cthulhu Mythos
-- language families
-- ancient languages
-
-Such capabilities can exist as learned Skills when relevant.
+- setting-specific specialist catalogues
 
 ---
 
-# 11. Learned / Unique Skills
+# 13. Learned / Unique Skills
 
-Character individuality should develop primarily **after Character creation**.
+Character individuality is expected to emerge primarily after Character creation.
 
-Characters may gain Skills from:
+Characters may gain Skills through:
 
 - study
-- repeated practice
 - training
+- repeated practice
 - teachers
 - books/manuals
 - quests
 - encounters
-- equipment
 - factions
+- items
+- technology
 - supernatural events
-- technological upgrades
-- Campaign rewards
+- GM/story rewards
 
 Examples:
 
@@ -443,141 +536,111 @@ Necromancy
 Cybernetic Repair
 Dragon Riding
 Quantum Physics
-Ancient Imperial History
 ```
 
-Generic learned Skill model:
+Conceptual D1 model:
 
 ```text
 Skill
 ├── id
 ├── character_id
-├── name
+├── skill_definition_id (optional)
+├── custom_name
 ├── category
 ├── rank / value
 ├── description
 ├── source
 ├── learned_at
-├── parent_skill_id (optional)
+├── parent_skill_id
 ├── node_type
-└── sort / graph metadata
+└── metadata
 ```
 
-The old spreadsheet model:
+The old spreadsheet formula:
 
 ```text
 Initial + Occupation + Interest + Growth = Total
 ```
 
-is removed from the default rules.
-
-Long-term Skill growth may use ranks, values, training progress or Campaign-specific progression, but this must be defined separately from the visual Skill Tree.
+is removed from the default web rules.
 
 ---
 
-# 12. Dynamic Talent / Skill Tree Interface
+# 14. Dynamic Skill / Talent Tree
 
-## 12.1 Design Goal
+## 14.1 Core concept
 
-The Character Skill interface should use a large, zoomable, node-and-connection layout **inspired by the interaction model of ARPG talent trees such as Path of Exile**, without copying proprietary artwork, exact layouts, names or visual assets.
+The Character Skill interface uses a large zoomable node graph inspired by the interaction pattern of ARPG talent trees such as Path of Exile, without copying proprietary art/layout/assets.
 
-The purpose is to make a Character's development visually readable.
+It is **Character-specific and dynamic**.
 
-The tree is **dynamic per Character**, not one enormous identical global tree shared by everyone.
+There is not one enormous fixed global tree that every Character must use.
 
-A new Character begins with only Base Skills and a small central structure. As the Character learns new abilities, new branches/nodes appear.
+A new Level-1 Character starts with only Base Skill roots. As the Character learns new Skills, the Character's own graph grows.
 
 Example:
 
 ```text
-                         Sword Mastery
-                              │
-Melee ───── Swordsmanship ─── Iaido ─── Void Draw
-  │
-  └──── Unarmed ─── Grappling
+Melee
+ └── Swordsmanship
+      ├── Sword Mastery
+      └── Iaido
+           └── Void Draw
 
-Craft & Repair ─── Engineering ─── Cybernetics
-                         │
-                         └── Mech Maintenance
+Craft & Repair
+ └── Engineering
+      ├── Cybernetics
+      └── Mech Maintenance
 
-Ranged ─── Firearms ─── Plasma Rifle Handling
+Ranged
+ └── Firearms
+      └── Plasma Rifle Handling
 ```
 
-Two Characters should naturally develop different trees after enough play.
+## 14.2 Starting tree
 
-## 12.2 Tree Starting Structure
+A Level-1 newly created Character starts with only generic Base Skill nodes.
 
-Recommended central layout:
+Class/Occupation branches do not appear until the GM assigns/develops a Class or until gameplay creates relevant branches.
 
-```text
-                      Awareness
-                          │
-             Physical ─ Character ─ Social
-                          │
-                 Practical / Combat
-```
-
-The exact visual geometry is presentation-only. Database relationships must not depend on X/Y coordinates.
-
-Base Skills act as stable roots from which learned Skills may branch.
-
-## 12.3 Node Types
+## 14.3 Node types
 
 Initial node types:
 
+```text
+BASE
+LEARNED
+SPECIALIZATION
+MASTERY
+UNIQUE / EVENT
+CLASS / GM-GRANTED
+```
+
 ### Base Node
 
-Universal starting Skill.
-
-Examples:
-
-- Melee
-- Perception
-- Survival
-- Craft & Repair
+Universal starting capability.
 
 ### Learned Node
 
-A Skill acquired during play.
-
-Examples:
-
-- Swordsmanship
-- Engineering
-- Alchemy
+Skill gained through normal play/training.
 
 ### Specialization Node
 
-A narrower branch of another Skill.
+A narrower branch from another Skill.
 
-Examples:
+### Mastery Node
 
-```text
-Melee -> Swordsmanship -> Iaido
-Ranged -> Firearms -> Sniping
-Engineering -> Cybernetics
-```
-
-### Mastery / Major Node
-
-Important advanced capability representing substantial training or Character identity.
-
-Examples:
-
-- Sword Mastery
-- Master Hacker
-- Archmage Theory
-- Starship Commander
+Major advanced capability.
 
 ### Unique / Event Node
 
-Rare capability obtained from story events, artifacts, transformations or Campaign rewards.
+Rare story/event transformation or reward.
 
-These nodes may not follow normal training rules.
+### Class / GM-Granted Node
 
-## 12.4 Node States
+Node or branch introduced because the GM assigns a Class/Occupation or another campaign-level role.
 
-Visual states should include:
+## 14.4 Node states
 
 ```text
 LOCKED
@@ -587,181 +650,120 @@ MASTERED
 SPECIAL / GM-GRANTED
 ```
 
-Suggested visual behavior:
-
-- Locked — dim
-- Available — highlighted edge/node
-- Learned — fully illuminated
-- Mastered — stronger ring/border
-- Special — distinctive icon/frame
-
-Exact colours remain a UI/theme decision.
-
-## 12.5 Connections / Edges
-
-Connections represent relationships, not merely decoration.
-
-Initial edge types:
+## 14.5 Edge types
 
 ```text
 PREREQUISITE
 SPECIALIZATION
 UPGRADE
 RELATED
-SPECIAL / STORY LINK
+CLASS LINK
+STORY LINK
 ```
 
-For example:
+## 14.6 Unlocking is not automatically point-buy
+
+The Skill Tree does not inherently use passive points.
+
+A node can unlock because the Character:
+
+- trains
+- studies
+- reaches a Level
+- meets an Attribute requirement
+- learns a parent Skill
+- meets a teacher
+- completes a quest
+- obtains an item
+- receives GM approval
+- receives a Class/Occupation
+- triggers a story event
+
+## 14.7 Requirements are data-driven
+
+Possible requirements:
 
 ```text
-Melee
-  └─ Swordsmanship        prerequisite
-       └─ Iaido            specialization
-            └─ Void Draw   story/unique advancement
-```
-
-## 12.6 Unlocking Is Not Automatically a Point-buy System
-
-The visual tree must not force the Campaign to use PoE-style passive points.
-
-A node can become learned because the Character:
-
-- completed training
-- studied a book
-- met a teacher
-- used a Skill successfully enough times
-- completed a quest
-- obtained a relevant item
-- met stat prerequisites
-- received GM approval/event reward
-
-A future Campaign may optionally introduce `Learning Points`, but the graph UI and database model must work without them.
-
-## 12.7 Node Requirements
-
-A Skill node may optionally require:
-
-```text
-Minimum STR / DEX / INT / etc.
-Minimum LUCK
-Parent Skill learned
-Parent Skill rank
-Character Level
-Training progress
-Required Item
-Required Teacher
-Required Campaign flag/event
+minimum STR / DEX / INT / etc.
+minimum LUCK
+minimum Character Level
+Class / Occupation
+parent Skill learned
+parent Skill rank
+training progress
+required Item
+required Teacher
+required Event/Campaign flag
 GM approval
 ```
 
-Requirements must be data-driven rather than hard-coded into the visual component.
+Requirements must be validated server-side.
 
-## 12.8 Tree Interaction
+## 14.8 Interface behavior
 
-Player Skill Tree should support:
+Skill Tree UI should support:
 
-- pan / drag
-- zoom in/out
-- reset/centre view
-- search Skills by name
-- filter by category
-- click/tap a node for details
-- highlight prerequisite path
-- highlight unlocked path
-- show locked requirements
-- mobile pinch zoom where practical
-- desktop mouse wheel zoom
+- pan/drag
+- zoom
+- reset/centre
+- search
+- filter
+- click/tap node details
+- prerequisite path highlighting
+- unlocked path highlighting
+- locked requirement display
+- mobile interaction
 
-Recommended node detail panel:
+Initial rendering direction: SVG.
 
-```text
-Swordsmanship
-─────────────
-Type: Learned Skill
-Rank: 2
-Source: Training — Master Ren
-Parent: Melee
-
-Requirements for next node:
-DEX 12+
-Swordsmanship Rank 2
-
-Description...
-```
-
-## 12.9 Technical Rendering Direction
-
-Initial web implementation should prefer **SVG** because the expected Character trees are tens to hundreds of nodes rather than tens of thousands.
-
-SVG provides:
-
-- crisp scalable lines/nodes
-- straightforward click/tap targets
-- CSS styling
-- DOM accessibility
-- easy tooltips/detail interactions
-- transform-based pan/zoom
-
-If future Characters can contain thousands of nodes, rendering may later move to Canvas/WebGL without changing the underlying graph data model.
-
-The database stores logical nodes and edges. Screen coordinates may be cached for layout but are never authoritative game data.
+All graph data is stored in D1. Screen coordinates, if cached, are presentation metadata only.
 
 ---
 
-# 13. Language System
+# 15. Language System
 
-The old spreadsheet language subsystem is completely removed from the default Character Sheet.
+There is no dedicated default language subsystem.
 
-There are no fixed global language categories.
+If a language matters mechanically, it may be represented as an ordinary learned Skill.
 
-If language becomes mechanically relevant, it is represented as an ordinary learned Skill.
-
-Examples:
-
-```text
-Elvish
-Martian Trade Cant
-Ancient Imperial Script
-```
+There is no fixed global Asian/European/African/Ancient language table.
 
 ---
 
-# 14. Combat / Attacks
+# 16. Combat / Attacks
 
 Attacks remain separate from Inventory.
+
+Conceptual model:
 
 ```text
 Attack
 ├── id
 ├── character_id
 ├── name
-├── linked_skill_id (optional)
+├── linked_skill_id
 ├── hit_value / calculation
 ├── damage_formula
 ├── attacks_per_round
 ├── notes
-└── source_item_id (optional)
+└── source_item_id
 ```
 
-Examples:
+Example:
 
 ```text
 Unarmed Strike
 Skill: Melee
 Damage: 1D3 + DB
-
-Plasma Rifle
-Skill: Plasma Rifle Handling
-Damage: Campaign-defined
 ```
 
-A weapon Item may link to an Attack without being the same database entity.
+Weapons may link Inventory Items to Attack definitions.
 
 ---
 
-# 15. Inventory
+# 17. Inventory
 
-Inventory replaces the spreadsheet's large free-text item area.
+Inventory is structured data stored in D1.
 
 ```text
 Inventory Item
@@ -771,55 +773,64 @@ Inventory Item
 ├── quantity
 ├── description / notes
 ├── category
-└── optional metadata
+└── metadata
 ```
 
-Players may gain and lose Items during play.
+Items may later grant:
 
-Items may later grant Resources, Attacks, Skill Tree nodes or temporary modifiers.
+- Attacks
+- Resources
+- Skill nodes
+- temporary effects
+- permanent progression
 
 ---
 
-# 16. Character Creation Flow
+# 18. Character Creation Flow
 
-Recommended Character Builder:
+The Character Builder should be short and should not ask the Player to define their final build.
+
+Recommended flow:
 
 ```text
 Step 1 — Identity
-  Name
-  Occupation / Role
-  Age / Gender
-  Background
+  Character Name
+  optional personal/background fields
 
-Step 2 — Random Attributes
-  Server rolls STR / DEX / CON / APP / POW / INT / SIZ / EDU
-  Server applies total-stat balance gate
-  Player receives one accepted randomized set
+  NOT SHOWN:
+  Level
+  Class / Occupation
+  Owner ID
 
-Step 3 — Derived Status
-  HP
-  LUCK
-  optional MP
-  Damage Bonus
-  Campaign-defined Resources
+Step 2 — Server Generation
+  Level = 1
+  Class / Occupation = Unassigned
+  Roll STR / DEX / CON / APP / POW / INT / SIZ / EDU
+  Apply server-side total-stat balance gate
+  Calculate LUCK
+  Calculate HP
+  Calculate optional campaign Resources
+  Calculate Damage Bonus
 
-Step 4 — Base Skills
-  Display the universal starting nodes
-  No giant specialist catalogue
-  No occupation/interest point spending
+Step 3 — Starting Skills
+  Attach Base Skill nodes
+  No specialist catalogue
+  No class selection
+  No skill-point spending
 
-Step 5 — Review
-  Confirm Character
-  Save to D1
+Step 4 — Review
+  Show generated Level-1 Character
+  Player confirms creation
+
+Step 5 — Persist
+  Save the complete Character and related records directly to D1
 ```
 
-Character creation should be fast. Deep specialization happens during play.
-
-The first time the completed Character is opened, the Skill Tree shows only the Base Skill structure. Future learning grows the graph.
+No Character-creation data should rely on localStorage.
 
 ---
 
-# 17. Character Sheet Layout
+# 19. Character Sheet Layout
 
 Recommended Player Character page:
 
@@ -827,7 +838,8 @@ Recommended Player Character page:
 OVERVIEW
 ────────────────────────
 Name
-Occupation / Role
+Level: 1+
+Class / Occupation: Unassigned or GM-assigned
 Age / Gender
 Background
 Portrait
@@ -847,8 +859,7 @@ Custom Campaign Resources
 
 SKILL TREE
 ────────────────────────
-Interactive zoomable dynamic graph
-Base Skills + Learned Skills + Masteries + Unique nodes
+Dynamic graph from D1
 
 COMBAT
 ────────────────────────
@@ -863,7 +874,7 @@ NOTES
 Player notes
 ```
 
-Recommended Character navigation tabs:
+Primary tabs:
 
 ```text
 Overview
@@ -875,55 +886,62 @@ Notes
 
 ---
 
-# 18. Player Permissions
+# 20. Player Permissions
 
-Player can:
+Player may:
 
-- create their own Character
+- create a Character for themselves
 - view owned Characters
-- update permitted Character background fields
-- update mutable Resource values
+- update permitted personal/background fields
+- update mutable Resources
 - manage permitted Inventory data
-- view Base Skills
-- acquire Learned Skills through the future learning system
-- navigate their Skill Tree
+- view Base/Learned Skills
+- interact with their Skill Tree
 - update notes
 
-Player cannot:
+Player may not:
 
-- create a Character for another User
-- change `owner_user_id`
-- view another User's Character through API manipulation
-- bypass server-side random-generation/balance rules
-- manually unlock protected Skills without satisfying game rules
-- directly modify GM/Campaign administrative data
+- choose another Character owner
+- set starting Level
+- choose starting Class / Occupation
+- bypass the Level-1 rule
+- submit trusted Attribute values
+- redistribute rolled Attributes
+- farm unlimited starting rerolls
+- view another User's Character
+- directly grant protected Skills
+- directly alter GM/campaign rules
 
 ---
 
-# 19. GM Responsibilities
+# 21. GM Responsibilities
 
-GM is not required to create or assign ordinary Player Characters.
+GM does **not** need to create ordinary Player Characters.
 
-GM functions focus on:
+GM responsibilities include:
 
-- view all Users
-- view all Characters
-- edit/fix Characters when necessary
-- administrative reroll/reset
-- configure Character-generation balance band
+- view Users
+- view Characters
+- assign/change Class / Occupation
+- manage future Level/progression rules
+- administratively correct Character data
+- administratively reroll/reset when justified
+- configure Attribute total acceptance range
 - configure Campaign Resources
-- configure LUCK/rules formulas
-- create Skill definitions/content
-- create Skill prerequisites/relationships
-- grant/remove special Skills when appropriate
-- manage Campaign/global settings
+- configure formulas such as LUCK/HP/MP/Damage Bonus
+- create/manage Skill definitions
+- create Skill prerequisites and relationships
+- grant/remove special or Class Skills
+- manage Campaign settings
 - archive/delete Characters
 
+Class/Occupation is therefore principally a **GM-managed progression field**, not a creation choice.
+
 ---
 
-# 20. Database Principles
+# 22. Database Principles
 
-Cloudflare D1 is the source of truth.
+Cloudflare D1 is the only persistent source of truth.
 
 Core logical entities:
 
@@ -933,146 +951,159 @@ sessions
 characters
 character_attributes
 character_resources
-skills / skill_definitions
+class_definitions / occupations
+character_class_history
+skill_definitions
 character_skills
 skill_edges / prerequisites
 character_inventory
 character_attacks
 settings
+progression_history
 ```
 
-## 20.1 Skill Graph Data
+## 22.1 Characters
 
-The Skill Tree must be represented as graph data rather than an image.
+Conceptual Character record:
 
-Conceptual structure:
+```text
+Character
+├── id
+├── owner_user_id
+├── name
+├── level                  default 1
+├── class_id               nullable / GM-controlled
+├── status
+├── portrait
+├── background fields
+├── created_at
+└── updated_at
+```
+
+`level` and `class_id` must not be trusted from the Player's create request.
+
+## 22.2 Skill graph
+
+Skill Tree data is graph data in D1 rather than a static image.
 
 ```text
 skill_definitions
-├── id
-├── name
-├── category
-├── node_type
-├── description
-├── default_base_skill
-└── metadata
-
 character_skills
-├── id
-├── character_id
-├── skill_definition_id (nullable for fully custom skills)
-├── custom_name
-├── rank / value
-├── state
-├── source
-├── learned_at
-└── metadata
-
 skill_edges
-├── id
-├── character_id / template scope
-├── from_skill_id
-├── to_skill_id
-├── edge_type
-└── requirement_data
 ```
 
-Graph layout coordinates are presentation metadata only.
+Logical graph relationships are authoritative. Visual positions are not game rules.
 
 ---
 
-# 21. Security Rules
+# 23. Security and Integrity Rules
 
-- User/Key authentication is server-side.
-- Character ownership is enforced server-side.
-- 4-digit Key is never stored as plaintext.
-- Player APIs scope Character queries to authenticated `user.id`.
-- Character creation ignores any client-supplied owner ID.
-- Attribute generation and balance validation are server-side.
-- Skill unlock validation is server-side once progression is implemented.
-- D1 is authoritative.
-- localStorage is limited to non-authoritative UI preferences.
+- User + Key validation occurs server-side.
+- 4-digit Key is not stored in plaintext.
+- Session uses Secure + HttpOnly cookie.
+- Character ownership is server-enforced.
+- D1 is the only authoritative persistent store.
+- Do not persist application/game data in localStorage.
+- Character creation ignores client-supplied owner ID.
+- Character creation ignores client-supplied Level.
+- Character creation ignores client-supplied Class/Occupation.
+- New Character Level is always `1`.
+- New Character Class/Occupation is always Unassigned until GM action.
+- Attribute generation is server-side.
+- Attribute balance validation is server-side.
+- Skill progression/unlock validation is server-side.
 
 ---
 
-# 22. Development Order
+# 24. Recommended Development Order
 
-Recommended implementation sequence:
+## Phase A — Rebuild Character Creation
 
-## Phase A — Character Builder
+1. Remove Level input from Player creation UI.
+2. Remove Role/Class/Occupation input from Player creation UI.
+3. Make server always insert `level = 1`.
+4. Make server always insert `class/occupation = NULL / Unassigned`.
+5. Implement server-side eight-Attribute dice generation.
+6. Implement total-stat balance gate.
+7. Store accepted Attribute set in D1.
+8. Calculate/store required Character Status values.
+9. Add LUCK.
+10. Seed Base Skills in D1.
 
-1. Complete Identity form.
-2. Implement server-side randomized eight-stat generator.
-3. Implement total-stat balance gate.
-4. Lock the accepted roll.
-5. Add LUCK calculation.
-6. Add HP / optional MP / Damage Bonus calculation.
-7. Save complete Character to D1.
+## Phase B — Character Sheet
 
-## Phase B — Base Skills
-
-1. Finalize universal Base Skill list.
-2. Seed Base Skill definitions.
-3. Create starting Character Skill nodes.
-4. Define initial attribute-to-skill relationships if required.
+1. Display Level and GM-assigned Class/Occupation read-only to Player.
+2. Display eight Attributes.
+3. Display HP/LUCK/Resources.
+4. Add structured Inventory.
+5. Add Attacks.
 
 ## Phase C — Skill Tree UI
 
 1. Build SVG graph renderer.
-2. Add pan and zoom.
-3. Add node state styling.
-4. Add node detail panel.
-5. Add search/filter.
-6. Add prerequisite-path highlighting.
-7. Implement responsive/mobile interaction.
+2. Read nodes/edges from D1 API.
+3. Add pan/zoom.
+4. Add node state styling.
+5. Add node detail panel.
+6. Add search/filter.
+7. Add path highlighting.
+8. Add mobile controls.
 
-## Phase D — Learning / Growth
+## Phase D — Learning and Growth
 
-1. Define how training progress works.
-2. Define rank/value progression.
-3. Implement learned/custom Skill creation.
-4. Implement prerequisite validation.
-5. Implement GM-granted/story nodes.
-6. Allow the graph to grow dynamically.
+1. Define progression/rank rules.
+2. Add learning/training history.
+3. Add custom learned Skills.
+4. Add prerequisite validation.
+5. Add GM/story nodes.
+6. Grow graph dynamically.
 
-## Phase E — Combat and Inventory Integration
+## Phase E — Class / Occupation System
 
-1. Attack entities.
-2. Link Attacks to Skills.
-3. Link Items to Attacks.
-4. Allow Items/events to grant temporary or permanent Skill nodes.
+1. Build GM Class/Occupation assignment UI.
+2. Define optional Class definitions.
+3. Link Class/Occupation to Skill branches/requirements.
+4. Record assignment/change history.
+5. Decide Level progression rules.
 
 ## Phase F — GM D1 Workspace
 
 1. GM authentication/authorization.
 2. User/Character browser.
 3. Character administration.
-4. Skill graph/content administration.
-5. Campaign Resource/rules settings.
+4. progression management.
+5. Skill graph/content administration.
+6. Campaign rules/settings.
 
 ---
 
-# 23. Current Canonical Decisions
+# 25. Canonical Decisions
 
-Confirmed decisions that should not be silently reversed during implementation:
+The following decisions must not be silently reversed during implementation:
 
 1. Player and GM are separate workspaces.
-2. Player identity is User + 4-digit Key.
-3. D1 is the authoritative data store.
-4. Players create their own Characters.
-5. Character ownership comes from authenticated Session, never client input.
-6. Core attributes are STR, DEX, CON, APP, POW, INT, SIZ and EDU.
-7. Initial attributes are fully randomized and directly assigned.
-8. Server applies a total-stat balance gate to avoid extreme starting power.
-9. Ordinary Players cannot farm rerolls after receiving a valid set.
-10. `LUCK` is retained as a core cross-genre value.
-11. Cthulhu Mythos is removed.
-12. Fixed language systems are removed.
-13. The default Skill catalogue is deliberately small and genre-neutral.
-14. Specialist/unique Skills are primarily learned during play.
-15. The old Occupation + Interest + Growth Skill Point model is removed.
-16. Character Skill progression is presented as a dynamic zoomable node graph/talent tree.
-17. The Skill Tree is Character-specific and grows over time rather than being one fixed global tree.
-18. The talent-tree visual model does not require a passive-point economy.
-19. Skill relationships, requirements and unlocks are data-driven and server-validated.
-20. The Character Sheet should ultimately use Overview / Skill Tree / Combat / Inventory / Notes as the primary interaction model.
+2. Player identity uses User + 4-digit Key.
+3. Cloudflare D1 is the only authoritative persistent data store.
+4. Do not build game persistence around localStorage.
+5. Players create their own Characters.
+6. Character owner comes from authenticated Session.
+7. Every newly created Character is **Level 1**.
+8. Player cannot choose or edit starting Level.
+9. Class / Occupation is **not selected during Player Character creation**.
+10. New Character Class / Occupation starts Unassigned / NULL.
+11. GM manages Class / Occupation later.
+12. Core Attributes are STR, DEX, CON, APP, POW, INT, SIZ and EDU.
+13. Starting Attributes are fully randomized and directly assigned by the server.
+14. Server applies a total-stat balance gate.
+15. Players cannot redistribute or endlessly reroll valid starting Attributes.
+16. LUCK is a core cross-genre value.
+17. Cthulhu Mythos is removed.
+18. Fixed language systems are removed.
+19. Default Skills are deliberately small and genre-neutral.
+20. Specialist/unique Skills are mainly learned during play.
+21. The old Occupation + Interest + Growth Skill Point system is removed.
+22. Character Skill progression is visualized as a dynamic zoomable node graph.
+23. The Skill Tree is Character-specific and grows over time.
+24. The tree does not require a passive-point economy.
+25. Skill relationships and unlocks are data-driven and server-validated.
+26. Character page uses Overview / Skill Tree / Combat / Inventory / Notes as the primary interaction model.
