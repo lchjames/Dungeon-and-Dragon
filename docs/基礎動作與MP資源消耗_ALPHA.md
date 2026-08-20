@@ -158,7 +158,28 @@ Alpha 使用固定 Rank Reference，並以明顯的量級差距拉開高低階�
 
 同一個已批准的低 Rank Ability 不會因角色 Max MP 增加而自動變貴，因此後期角色可以更輕鬆地重複使用低階能力。
 
-目前角色基礎 `Max MP = INT × 3` 主要適合作為早期角色基準。高 Rank 能力所需的長期 Max MP 成長／Scale 另行設計，不在本文件硬改角色基礎公式。
+角色 Max MP 現已按目前 Level 1–100 Alpha 重新校正：
+
+```text
+Max MP
+= INT × 3 + floor((Level - 1)² / 15)
+```
+
+因此 Level 1 保留原本 `INT × 3` 的起始基準，而 Level 成長逐步擴大 MP Pool。
+
+以 `INT = 12` 為例：
+
+```text
+Lv1   → 36 MP
+Lv30  → 92 MP
+Lv50  → 196 MP
+Lv75  → 401 MP
+Lv95  → 625 MP
+Lv99  → 676 MP
+Lv100 → 689 MP
+```
+
+現行 Rank 9 Reference 為 `640 MP`，所以它被刻意放在接近 Level 100 的資源量級。擁有／符合 Rank 9 Ability 的資格，與角色是否有足夠 Current / Max MP 施放，仍是兩個不同問題。
 
 ---
 
@@ -334,6 +355,6 @@ Alpha 預設：
 10. Power 同時包括 Damage、Healing、Control、Area、Target Count、Duration、Movement、Buff/Debuff 等，不只看傷害。
 11. 特殊能力建立後仍保存固定 `mp_cost + Effect Profile`；施放時不需要 AI 即時計算。
 12. 動態可變 MP 投入不是 Alpha 預設，未來如需要再另行擴充。
-13. 高 Rank 能力所需 Max MP 成長／Scale 另行設計，不在本文件硬改目前 `INT × 3` 的基礎 Max MP 公式。
+13. Current Alpha Max MP 使用 `INT × 3 + floor((Level - 1)² / 15)`，把 Rank 9 的 `640 MP` 放在接近 Level 100 的資源量級。
 14. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
 15. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
