@@ -1,123 +1,59 @@
-# Inventory & Money Data Model — Alpha
+# Inventory, Currency & Store Data Model — Alpha
 
 > Status: Alpha structural decision.  
-> Scope: database representation only; detailed Inventory page UI is intentionally deferred.
+> Scope: database representation only; detailed Inventory/Store page UI is intentionally deferred.
 
 ---
 
-# 1. Money Model
+# 1. Core Economy Principle
 
-The normal economy uses three visible coin denominations:
+There is **no automatic currency conversion** and no universal fixed exchange rate.
 
-- Brown Coin
-- Silver Coin
-- Gold Coin
+Bronze/Brown, Silver and Gold coins are real in-world possessions. They are stored and traded as Items rather than being converted into one authoritative base-money number.
 
-Alpha conversion:
+A coin may itself be bought or sold in a Store.
 
-```text
-100 Brown = 1 Silver
-100 Silver = 1 Gold
-1 Gold = 10,000 Brown
-```
-
-These ratios are rules/config values and may be tuned later without changing stored Character balances or item prices.
-
-## 1.1 Store one authoritative base amount
-
-D1 does **not** store three independent editable balances for Brown/Silver/Gold.
-
-The authoritative money value is stored in the smallest denomination:
-
-```text
-money_base_amount = total value in Brown Coins
-```
-
-Example:
-
-```text
-12,345 Brown base units
-= 1 Gold + 23 Silver + 45 Brown
-```
-
-The UI converts the base amount into Gold/Silver/Brown for display.
-
-This prevents denomination drift such as simultaneously storing inconsistent equivalents.
-
-## 1.2 Character wallet
-
-Conceptual table:
-
-```text
-character_wallets
-├── character_id             PRIMARY KEY
-├── base_amount              INTEGER NOT NULL DEFAULT 0
-├── revision
-└── updated_at
-```
-
-`base_amount` must never become negative unless a future Campaign rule explicitly allows debt.
-
-## 1.3 Item prices
-
-Normal item prices are also stored in Brown base units:
-
-```text
-item_definitions.base_price
-```
+Exchange value belongs to a specific Store Offer at a specific time.
 
 Examples:
 
 ```text
-Torch          20 Brown
-Potion         175 Brown   -> 1 Silver 75 Brown
-Steel Sword  2,450 Brown   -> 24 Silver 50 Brown
-Rare Armour 12,500 Brown   -> 1 Gold 25 Silver
+Store A
+Give:    103 Bronze Coins
+Receive:   1 Silver Coin
 ```
-
-`base_price` may be NULL for priceless/non-tradeable/story items.
-
-## 1.4 Money transactions
-
-Do not silently overwrite wallet totals without history.
-
-Conceptual table:
 
 ```text
-character_money_transactions
-├── id
-├── character_id
-├── delta_base_amount
-├── balance_after
-├── transaction_type
-├── reason
-├── source_type
-├── source_reference
-├── created_by_user_id / gm_id
-├── created_at
-└── metadata
+Store B
+Give:    101 Bronze Coins
+Receive:   1 Silver Coin
 ```
 
-Examples of `transaction_type`:
+A different exchange may be expressed directly as another trade:
 
 ```text
-GM_AWARD
-PURCHASE
-SALE
-LOOT
-REWARD
-TRANSFER
-CORRECTION
-REQUEST_APPROVAL
+Give:    100 Silver Coins
+Receive:  95 Gold Coins
 ```
 
-For Alpha, Player-authored manual money changes follow the normal Change Request -> GM approval workflow. Future Shop/Trade systems may create validated transactions directly.
+No system-wide equation attempts to reconcile these into a universal conversion rate.
+
+This allows:
+
+- different exchange rates between towns/stores;
+- exchange spreads;
+- temporary market changes;
+- shortages/inflation;
+- faction-specific pricing;
+- future negotiation/reputation modifiers;
+- shops that refuse a particular currency;
+- direct barter using non-currency Items.
 
 ---
 
-# 2. Item Model
+# 2. Main Item Types
 
-The three primary Item categories are fixed for Alpha:
+The three primary Item categories remain:
 
 ```text
 WEAPON
@@ -125,54 +61,415 @@ ARMOUR
 ITEM
 ```
 
-`ITEM` is the general category for consumables, tools, materials, keys, quest objects and other non-weapon/non-armour possessions.
+Currency remains inside the general `ITEM` family, using a structured subtype/tag:
 
-Do not create a separate database table for every possible minor subtype.
+```text
+ITEM
+└── CURRENCY
+```
+
+Therefore the core three-category model is not expanded merely to accommodate money.
+
+Other possible general ITEM subtypes may include:
+
+```text
+CONSUMABLE
+AMMUNITION
+MATERIAL
+TOOL
+KEY
+QUEST
+BOOK
+DEVICE
+CURRENCY
+OTHER
+```
+
+Subtype is organizational data and should not require a separate D1 table for every subtype.
 
 ---
 
-# 3. Two-Layer Item Storage
+# 3. Coin Definitions
 
-Items are represented using two layers:
+Alpha begins with three normal coin definitions:
 
 ```text
-Item Definition
-      ↓
-Character Inventory Entry
+Bronze / Brown Coin
+Silver Coin
+Gold Coin
 ```
 
-This avoids duplicating the same standard sword/potion definition on every Character while still allowing a Character to own individual modified copies.
+The exact Player-facing name of the lowest coin (Brown versus Bronze) may be finalized later without changing the data architecture.
 
-## 3.1 Item definitions
+Conceptually these are ordinary Item Definitions:
 
-GM/system catalogue table:
+```text
+item_definitions
+├── id                    e.g. coin_bronze
+├── name                  Bronze Coin
+├── item_type             ITEM
+├── item_subtype          CURRENCY
+├── description
+├── stackable             true
+├── max_stack             nullable / high
+├── tradeable             true
+├── active
+├── image_ref             coin artwork/icon
+├── created_at
+├── updated_at
+└── metadata
+```
+
+Important:
+
+```text
+Bronze Coin does NOT contain:
+  value_in_silver
+  value_in_gold
+  universal_exchange_rate
+```
+
+Silver and Gold likewise contain no fixed conversion relationship.
+
+---
+
+# 4. Character Money Storage
+
+There is no separate authoritative `character_wallets.base_amount` model.
+
+Coins are stored through Character Inventory exactly like other stackable possessions:
+
+```text
+character_inventory
+├── id
+├── character_id
+├── item_definition_id
+├── quantity
+├── is_equipped
+├── equip_slot
+├── custom_name
+├── custom_description
+├── condition_value
+├── acquired_at
+├── source
+├── revision
+└── instance_metadata
+```
+
+Example Character holdings:
+
+```text
+coin_bronze × 312
+coin_silver × 48
+coin_gold   × 7
+```
+
+Player UI may render these three currency stacks in a dedicated Money section rather than mixed among ordinary bag Items.
+
+The UI must NOT automatically change:
+
+```text
+100 Bronze -> 1 Silver
+```
+
+or any other ratio.
+
+If the Player wants to exchange coins, that requires an actual Store/GM transaction.
+
+---
+
+# 5. Item Definitions
+
+Standard reusable Item data lives in:
 
 ```text
 item_definitions
 ├── id
 ├── name
 ├── item_type              WEAPON | ARMOUR | ITEM
+├── item_subtype           nullable / e.g. CURRENCY, CONSUMABLE
 ├── description
-├── base_price             Brown base units / nullable
-├── stackable              boolean
-├── max_stack              nullable
-├── tradeable              boolean
+├── stackable
+├── max_stack
+├── tradeable
 ├── active
-├── image_ref              nullable
+├── image_ref
 ├── created_at
 ├── updated_at
 └── metadata
 ```
 
-`metadata` is only for uncommon extension data. Important combat fields should not be hidden exclusively inside generic metadata.
+There is deliberately **no authoritative global `base_price`**.
+
+An Item can have different prices in different Stores and at different times.
+
+A future optional `reference_value` may exist for GM convenience, but it must never be treated as an enforced transaction price or automatic conversion value.
 
 ---
 
-# 4. Weapon Data
+# 6. Store / Merchant Model
 
-Weapon-specific data is attached to a WEAPON definition.
+A Store is a world entity that can expose trade offers.
 
 Conceptual table:
+
+```text
+stores
+├── id
+├── campaign_id
+├── name
+├── description
+├── location_reference
+├── faction_reference
+├── active
+├── created_at
+├── updated_at
+└── metadata
+```
+
+Examples:
+
+```text
+Riverside General Store
+Royal Exchange House
+Guild Quartermaster
+Black Market Dealer
+Travelling Merchant
+```
+
+---
+
+# 7. Store Offers — Unified Buy / Sell / Exchange Model
+
+Do not model normal purchases and currency exchange as fundamentally different systems.
+
+Every Store Offer describes what the customer gives and what the customer receives.
+
+```text
+Store Offer
+       │
+       ├── Input Bundle  (Player gives)
+       └── Output Bundle (Player receives)
+```
+
+Conceptual tables:
+
+```text
+store_offers
+├── id
+├── store_id
+├── name / label
+├── active
+├── valid_from             nullable
+├── valid_until            nullable
+├── stock_limit            nullable
+├── purchase_limit         nullable
+├── created_at
+├── updated_at
+└── metadata
+```
+
+```text
+store_offer_inputs
+├── offer_id
+├── item_definition_id
+└── quantity
+```
+
+```text
+store_offer_outputs
+├── offer_id
+├── item_definition_id
+└── quantity
+```
+
+This supports ordinary shopping:
+
+```text
+Healing Potion Offer
+
+Player Gives:
+  Silver Coin × 2
+  Bronze Coin × 15
+
+Player Receives:
+  Healing Potion × 1
+```
+
+It also supports coin exchange:
+
+```text
+Silver Exchange — Store A
+
+Player Gives:
+  Bronze Coin × 103
+
+Player Receives:
+  Silver Coin × 1
+```
+
+and a different Store can simultaneously offer:
+
+```text
+Silver Exchange — Store B
+
+Player Gives:
+  Bronze Coin × 101
+
+Player Receives:
+  Silver Coin × 1
+```
+
+No conflict exists because they are two separate Store Offers.
+
+---
+
+# 8. Exchange Direction and Spread
+
+Buying and selling the same currency can have different Offers.
+
+Example:
+
+```text
+Merchant buys Silver from Player:
+Player Gives:    Silver × 1
+Player Receives: Bronze × 98
+```
+
+```text
+Merchant sells Silver to Player:
+Player Gives:    Bronze × 103
+Player Receives: Silver × 1
+```
+
+The difference is the Store's exchange spread.
+
+The same model works for Gold/Silver or any future currency.
+
+There is no requirement that Store offers be mathematically symmetrical.
+
+---
+
+# 9. Time-Dependent Prices
+
+Store Offers can be replaced, deactivated, or time-limited rather than changing a universal Item price.
+
+Example:
+
+```text
+Week 1
+103 Bronze -> 1 Silver
+
+Week 2
+108 Bronze -> 1 Silver
+
+Festival Event
+95 Bronze -> 1 Silver
+```
+
+For Alpha, GM may manually manage active Offers.
+
+Later systems may derive Offers from:
+
+- location;
+- supply/demand;
+- faction;
+- Campaign events;
+- Character reputation;
+- negotiation Skill;
+- scarcity;
+- world economy rules.
+
+The authoritative transaction must always use the concrete Offer accepted at purchase time.
+
+---
+
+# 10. Barter Is Naturally Supported
+
+Because Store Offers use Item bundles rather than a hard-coded `price` number, Stores can request non-currency Items.
+
+Example:
+
+```text
+Player Gives:
+  Wolf Pelt × 5
+  Silver Coin × 3
+
+Player Receives:
+  Hunter Bow × 1
+```
+
+Or pure barter:
+
+```text
+Player Gives:
+  Ancient Relic × 1
+
+Player Receives:
+  Spellbook × 1
+```
+
+No extra barter system is required.
+
+---
+
+# 11. Store Transaction Records
+
+A completed Shop/Exchange action must be auditable.
+
+Conceptual structure:
+
+```text
+store_transactions
+├── id
+├── store_id
+├── character_id
+├── offer_id
+├── transaction_type
+├── created_at
+├── created_by
+└── metadata
+```
+
+The transaction must also preserve the exact Item quantities transferred at that moment, either through transaction-line tables or an immutable transaction snapshot.
+
+Conceptual lines:
+
+```text
+store_transaction_lines
+├── transaction_id
+├── direction              CHARACTER_TO_STORE | STORE_TO_CHARACTER
+├── item_definition_id
+└── quantity
+```
+
+This ensures historical transactions remain understandable even if the Store Offer changes later.
+
+---
+
+# 12. Atomic Store Transaction
+
+When a Character accepts an Offer, the Worker should perform one D1 transaction:
+
+1. load active Offer;
+2. validate time/stock/limits;
+3. validate Character ownership/session;
+4. verify Character has every required Input Item and quantity;
+5. subtract every Input quantity;
+6. add every Output quantity;
+7. update Store stock if stock is tracked;
+8. write transaction history;
+9. commit everything together.
+
+If any part fails, no Item or coin quantity changes.
+
+This is especially important for currency exchange because a partial transaction must never remove one currency without granting the other.
+
+---
+
+# 13. Weapon Data
+
+Weapon-specific data is attached to a WEAPON definition.
 
 ```text
 weapon_definitions
@@ -208,15 +505,13 @@ Linked Skill: Plasma Rifle Handling
 Range: 120m
 ```
 
-Weapon definitions describe the item. Actual usable `Attack` records may reference the owned weapon but remain a separate combat entity.
+Weapon definitions describe the Item. Actual usable Attack records may reference the owned Weapon but remain separate combat entities.
 
 ---
 
-# 5. Armour Data
+# 14. Armour Data
 
 Armour-specific data is attached to an ARMOUR definition.
-
-Conceptual table:
 
 ```text
 armour_definitions
@@ -229,99 +524,54 @@ armour_definitions
 └── properties
 ```
 
-Exact armour combat mathematics remain Alpha-tunable. The database therefore records relevant values without forcing a final defence formula yet.
-
-Examples:
-
-```text
-Leather Armour
-Type: ARMOUR
-Defence: 1
-Slot: Body
-```
-
-```text
-Powered Exosuit
-Type: ARMOUR
-Defence: 5
-Movement Modifier: -1
-```
+Exact armour combat mathematics remain Alpha-tunable.
 
 ---
 
-# 6. General ITEM Data
+# 15. General ITEM Data
 
-`ITEM` covers ordinary possessions such as:
+General `ITEM` covers ordinary possessions such as:
 
-- potions / medicine
-- ammunition
-- food
-- tools
-- crafting materials
-- keys
-- books
-- quest objects
-- electronic devices
-- scrolls
-- other consumables or utility objects
+- currency;
+- potions / medicine;
+- ammunition;
+- food;
+- tools;
+- crafting materials;
+- keys;
+- books;
+- quest objects;
+- devices;
+- scrolls;
+- other consumables or utility objects.
 
-General items do not require their own subtype table during Alpha.
-
-Optional behaviour/effects may later be represented by reusable effect records rather than forcing fixed `Bonus1/Bonus2/Bonus3` columns.
+General Items may later use reusable effect records rather than fixed `Bonus1/Bonus2/Bonus3` columns.
 
 ---
 
-# 7. Character-Owned Inventory Entries
+# 16. Character-Owned Item Instances
 
-The Character does not own an `item_definition` directly. It owns an Inventory entry pointing to that definition.
-
-Conceptual table:
+Standard Item Definition data and Character ownership remain separate:
 
 ```text
-character_inventory
-├── id
-├── character_id
-├── item_definition_id
-├── quantity
-├── is_equipped
-├── equip_slot             nullable
-├── custom_name            nullable
-├── custom_description     nullable
-├── condition_value        nullable
-├── acquired_at
-├── source
-├── revision
-└── instance_metadata
+Item Definition
+      ↓
+Character Inventory Entry
 ```
 
 Rules:
 
-- WEAPON and ARMOUR default to `quantity = 1` and non-stackable.
-- ITEM may be stackable depending on `item_definitions.stackable`.
-- Two otherwise identical items with different unique modifications/condition should use separate Inventory entries.
-- `custom_name`, `custom_description` and instance metadata allow unique loot without duplicating the global definition.
-
-Example:
-
-```text
-Definition:
-Steel Sword
-Damage 1D8
-Price 2450
-
-Owned instance:
-"Captain Rook's Steel Sword"
-Character: char_123
-Quantity: 1
-Condition: 82
-Equipped: Yes
-```
+- Currency is stackable and represented by quantity.
+- Ordinary stackable ITEMs may share one Inventory entry.
+- WEAPON and ARMOUR default to quantity 1 and non-stackable.
+- Modified/unique Items use separate Inventory entries where needed.
+- Unique names, condition/durability and Character-specific modifications belong to the owned Inventory instance rather than changing the global definition.
 
 ---
 
-# 8. Relationship with Combat and Skills
+# 17. Relationship with Combat and Skills
 
-Inventory, Attack and Skill remain separate entities but can link to each other.
+Inventory, Attack and Skill remain separate entities but may link:
 
 ```text
 Item Definition
@@ -333,31 +583,29 @@ Attack
 Skill / Skill Tree Node
 ```
 
-Example:
-
-```text
-Steel Sword (Inventory)
-        ↓
-Sword Slash (Attack)
-        ↓
-Swordsmanship (Skill)
-```
-
-This prevents an item from becoming the same database object as an attack or a Skill.
+Currency normally has no Attack or Skill link.
 
 ---
 
-# 9. Alpha Rules Locked by This Document
+# 18. Alpha Rules Locked by This Document
 
-1. Money is displayed as Brown / Silver / Gold coins.
-2. Brown Coin is the authoritative smallest currency unit.
-3. Alpha conversion is 100 Brown = 1 Silver and 100 Silver = 1 Gold.
-4. Character wallet and item prices are stored as integer Brown base units.
-5. Money changes are auditable transactions.
-6. Main Item categories are WEAPON / ARMOUR / ITEM.
-7. Standard item data lives in `item_definitions`.
-8. Character ownership of items lives in `character_inventory`.
-9. Weapon and Armour use structured subtype data.
-10. General ITEM remains flexible and may stack.
-11. Inventory, Attack and Skill are separate but linkable.
-12. All authoritative values live in Cloudflare D1; no localStorage persistence.
+1. The normal visible currencies begin with Bronze/Brown, Silver and Gold Coins.
+2. Coins are real tradable Items, not display denominations of one hidden base amount.
+3. Currency Items use the main Item type `ITEM` with subtype `CURRENCY`.
+4. There is no automatic currency conversion.
+5. There is no universal fixed Bronze/Silver/Gold exchange ratio.
+6. Character coin holdings are stored as Item quantities in D1.
+7. Item Definitions do not have an authoritative universal price.
+8. A price/exchange rate belongs to a Store Offer.
+9. Different Stores may offer different exchange rates simultaneously.
+10. The same Store may change rates over time.
+11. Buying Items and exchanging currencies use the same Input Bundle -> Output Bundle model.
+12. Store Offers may use multiple currencies or non-currency barter Items.
+13. Completed transactions preserve the exact Items/quantities transferred.
+14. Main Item categories remain WEAPON / ARMOUR / ITEM.
+15. Standard Item data lives in `item_definitions`.
+16. Character ownership lives in `character_inventory`.
+17. Weapon and Armour use structured subtype data.
+18. Inventory, Attack and Skill are separate but linkable.
+19. Store transactions are atomic and auditable.
+20. All authoritative data lives in Cloudflare D1; no localStorage persistence.
