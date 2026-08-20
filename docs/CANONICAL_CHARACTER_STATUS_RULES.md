@@ -1,7 +1,7 @@
 # Canonical Character Status Rules
 
 > Status: **Canonical override**  
-> Date: 2026-08-20  
+> Date: 2026-08-21  
 > Source basis: latest user-provided `人物表.xlsx` plus explicit Web redesign decisions.  
 > This file supersedes any conflicting character-status/resource statements currently remaining in `docs/SITE_SPECIFICATION.md` until that document is consolidated.  
 > Core integration behaviour is additionally locked by `docs/ALPHA_CORE_INTEGRATION_RULES.md`.
@@ -12,7 +12,7 @@
 |---|---|
 | EXP | KEEP |
 | Level | KEEP; automatically derived from cumulative EXP using the current Web Level 1–100 progression curve |
-| Alignment / 陣營 | KEEP |
+| Alignment / 陣營 | REMOVE |
 | IDEA / 靈感 | REMOVE |
 | Mind / SAN / 心智值 | KEEP |
 | KNOW / 知識 | REMOVE |
@@ -409,9 +409,16 @@ Keep Damage Bonus derived from `STR + SIZ` using the current table:
 
 ## 8. Alignment
 
-Alignment / 陣營 is retained as a Character field.
+Alignment / 陣營 is removed from the Web Character model.
 
-The field's ownership at creation is not yet locked: whether Player selects it, GM assigns it, or it is editable through the normal approval workflow remains TBD.
+```text
+No Character-creation Alignment field
+No Player Overview Alignment field
+No Alignment-based mechanics
+No GM-managed Alignment state
+```
+
+Older spreadsheet/site references that retain Alignment are superseded by this rule.
 
 ## 9. Separate Rank Tracks
 
@@ -437,7 +444,6 @@ The Player Character Overview should ultimately expose at least:
 ```text
 Identity
 ├── Character Name
-├── Alignment
 ├── Age / Gender where present
 └── GM-managed Class / Occupation
 
@@ -461,6 +467,6 @@ Status / Resources
 └── Damage Bonus
 ```
 
-Do not display IDEA or KNOW as Character status fields.
+Do not display Alignment, IDEA or KNOW as Character status fields.
 
 Player-facing Current HP/MP are not arbitrary edit fields. Ordinary changes are resolved through Damage, Healing, Ability cost, Focus, Rest, Items/effects and other approved server actions. GM may make authorised corrective adjustments. All authoritative values are stored in D1.
