@@ -1,7 +1,7 @@
 # 基礎物理行動與 MP 資源 — Alpha
 
 > 狀態：Canonical Alpha Working Rule  
-> 範圍：MP 的用途、MP=0 時的物理行動、Ability Rank 的預設 MP 成本、特殊級別、AI 成本裁決。  
+> 範圍：MP 的用途、MP=0 時的物理行動、Ability Rank 的預設 MP 成本、特殊級別、AI 成本裁決與 MP 回復框架。  
 > 本文件覆蓋較早 `Rank 1 = 2 MP ... Rank 9 = 32 MP` 的舊固定成本表、其後短暫採用的 Max MP 百分比成本表，以及需要為每種普通拳腳／揮劍建立額外 Ability 層的設計。
 
 ---
@@ -158,28 +158,38 @@ Alpha 使用固定 Rank Reference，並以明顯的量級差距拉開高低階�
 
 同一個已批准的低 Rank Ability 不會因角色 Max MP 增加而自動變貴，因此後期角色可以更輕鬆地重複使用低階能力。
 
-角色 Max MP 現已按目前 Level 1–100 Alpha 重新校正：
+角色 Max MP 現按 Level 1–100 Alpha 共用成長倍率計算：
 
 ```text
+G(Level)
+= 1 + ((Level - 1) / 21.7)²
+
+Base MP
+= INT × 3
+
 Max MP
-= INT × 3 + floor((Level - 1)² / 15)
+= floor(Base MP × G(Level))
 ```
 
-因此 Level 1 保留原本 `INT × 3` 的起始基準，而 Level 成長逐步擴大 MP Pool。
+因此 Level 1 保留原本 `INT × 3` 的起始基準，而 INT 的差異會隨角色成長繼續保持實際影響。
 
 以 `INT = 12` 為例：
 
 ```text
 Lv1   → 36 MP
-Lv30  → 92 MP
-Lv50  → 196 MP
-Lv75  → 401 MP
-Lv95  → 625 MP
-Lv99  → 676 MP
-Lv100 → 689 MP
+Lv30  → 100 MP
+Lv50  → 219 MP
+Lv70  → 399 MP
+Lv80  → 513 MP
+Lv85  → 575 MP
+Lv90  → 641 MP
+Lv95  → 711 MP
+Lv100 → 785 MP
 ```
 
-現行 Rank 9 Reference 為 `640 MP`，所以它被刻意放在接近 Level 100 的資源量級。擁有／符合 Rank 9 Ability 的資格，與角色是否有足夠 Current / Max MP 施放，仍是兩個不同問題。
+現行 Rank 9 Reference 為 `640 MP`。標準 `INT = 12` 角色約在 Level 90 自然跨過一次 Rank 9 的資源門檻；低 INT 角色可能仍需裝備、Buff 或其他正式來源提高 Max / Current MP。
+
+擁有／符合 Rank 9 Ability 的資格，與角色是否有足夠 Current / Max MP 施放，仍是兩個不同問題。
 
 ---
 
@@ -341,7 +351,57 @@ Alpha 預設：
 
 ---
 
-# 10. Alpha 鎖定結論
+# 10. MP 回復框架
+
+Alpha 鎖定採用「主動回復 + 休息回復」而不是每回合免費自然回復。
+
+## 10.1 戰鬥內：集中
+
+戰鬥中不會因為輪到角色行動就自動回復 MP。
+
+角色可以使用自己的 **主行動** 執行：
+
+```text
+集中
+→ 放棄本回合以主行動攻擊／施放其他主動能力
+→ 回復一部分 MP
+```
+
+`集中` 是正式基礎動作，不需要額外建立 Ability，也不預設需要 D100 判定。
+
+除非特殊 Profile 明確另有規則，倒地瀕死、失去行動能力或其他無法正常使用主行動的角色不能執行 `集中`。
+
+`集中` 的最終回復量仍待數值校準；目前先鎖定機制，不在未確認前硬寫百分比。
+
+## 10.2 戰鬥外：冥想／休息
+
+戰鬥外 MP 回復使用休息尺度處理，而不是把戰鬥中的 `集中` 動作無限重複當成免費瞬間回滿。
+
+目前鎖定：
+
+```text
+短時間冥想／短休
+→ 回復部分 MP
+
+完整休息／長休
+→ 回復大量或全部 MP
+```
+
+具體所需時間、短休回復比例與長休是否固定全滿，仍待下一步數值校準。
+
+## 10.3 共通限制
+
+所有 MP 回復均受以下限制：
+
+```text
+Current MP <= Max MP
+```
+
+普通集中／休息不得令 Current MP 超過 Max MP。任何突破 Max MP 的 Temporary MP、Overcharge 或特殊效果必須由獨立 Profile 明確批准。
+
+---
+
+# 11. Alpha 鎖定結論
 
 1. 不為普通拳、腳、揮劍等建立大量額外 Ability；合理普通物理行動天然可做。
 2. MP 是「額外輸出／特殊效果」資源，不是角色能否做普通物理動作的開關。
@@ -355,6 +415,9 @@ Alpha 預設：
 10. Power 同時包括 Damage、Healing、Control、Area、Target Count、Duration、Movement、Buff/Debuff 等，不只看傷害。
 11. 特殊能力建立後仍保存固定 `mp_cost + Effect Profile`；施放時不需要 AI 即時計算。
 12. 動態可變 MP 投入不是 Alpha 預設，未來如需要再另行擴充。
-13. Current Alpha Max MP 使用 `INT × 3 + floor((Level - 1)² / 15)`，把 Rank 9 的 `640 MP` 放在接近 Level 100 的資源量級。
-14. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
-15. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
+13. Current Alpha Max MP 使用 `floor(INT × 3 × [1 + ((Level - 1) / 21.7)²])`；標準 INT 12 角色約在 Level 90 跨過 Rank 9 的 `640 MP` Reference。
+14. 戰鬥內沒有免費的每回合 MP 自然回復；角色可花主行動使用 `集中` 回復 MP。
+15. 戰鬥外使用冥想／休息尺度回復 MP；短休回部分，長休回大量或全部，精確數值待校準。
+16. 普通 MP 回復不得超過 Max MP；任何超額 MP 必須由獨立正式 Profile 定義。
+17. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
+18. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
