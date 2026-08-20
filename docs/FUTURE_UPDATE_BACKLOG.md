@@ -246,7 +246,9 @@ IMPLEMENTED     已完成，可移出本文件或保留歷史摘要
 
 AI 自創魔法／能力需要正式繁體中文 Reference / Scale 表。
 
-未來需建立：
+目前 `基礎動作與MP資源消耗_ALPHA.md` 已提供 Rank 1–9 的 Alpha Default MP Cost Reference；未來完整 Rank Reference Table 需將此表與其他輸出尺度一併校正，而不是重新建立互相衝突的 MP 成本表。
+
+未來仍需建立／整合：
 
 - Rank 1–9 傷害尺度；
 - 治療尺度；
@@ -255,7 +257,7 @@ AI 自創魔法／能力需要正式繁體中文 Reference / Scale 表。
 - 射程；
 - 控制強度；
 - 持續回合；
-- MP／其他資源消耗；
+- Default MP Cost 與實測後調整範圍；
 - 多段攻擊／投射物；
 - 限制條件對威力 Budget 的回饋；
 - 物理能力與魔法能力的等價比較方式。
@@ -324,7 +326,7 @@ Reference Table 是 AI 平衡基準，不是固定法術清單。
 
 - Character EXP → Level 保留；
 - Level-up 可授予技能點（SP）；
-- SP 主要用於提升 22 個基礎技能；
+- SP 主要用於提升基礎技能；
 - SP 不直接購買／解鎖具名能力；
 - 基礎技能另可透過有效 D100 判定的大成功產生使用成長。
 
@@ -675,6 +677,66 @@ Temporary HP 精確數值
 2. 每回合維持 `1 主行動 + 1 移動` 的基本行動經濟，除非未來明確版本覆蓋。
 3. 地圖系統不得偷偷改寫 D100 命中／對抗核心；若地形提供優勢，應以明確修正／Profile 表示。
 4. 完整 Map 規則正式確立前，不在 Combat Alpha 偷偷寫死每回合移動格數。
+
+---
+
+# N. 進階資源池與特殊施放成本
+
+**狀態：DEFERRED**
+
+目前 Alpha 已鎖定：
+
+```text
+所有主動具名物理／元素 Ability
+→ 預設使用 MP
+→ MP Cost 至少 1
+
+基礎動作
+→ 0 MP
+```
+
+未來可研究：
+
+```text
+Stamina／體力
+氣力／內力
+怒氣
+Charges／次數
+HP Cost
+Item Charge
+Cooldown-only Ability
+特殊真正 0 MP Ability
+多資源混合成本
+```
+
+未來加入其他資源時，不可破壞目前重要語義：普通拳腳、普通武器揮擊等自然物理行為不能因特殊資源耗盡而完全消失。
+
+---
+
+# O. 普通物理攻擊的 D100 基礎值映射
+
+**狀態：PLANNED / ALPHA_TUNING**
+
+目前已鎖定：
+
+- `Melee`／`Ranged` 不重新加入 23 個基礎技能；
+- 普通拳、腳、揮劍、刺擊等屬於「基礎動作」，不是具名 Ability；
+- 普通武器／徒手行動仍與對應武器／徒手專精和 Attack Source Profile 有關；
+- 投擲繼續使用獨立基礎技能 `投擲`；
+- 推／撞等一般身體對抗可使用 `運動` 等既有基礎技能。
+
+尚需設計一張 Default Physical Check Reference，決定：
+
+```text
+武器／徒手專精階級
+角色屬性
+Attack Source
+裝備／Buff 修正
+```
+
+如何形成普通物理攻擊使用的 D100 基礎值／修正。
+
+不可用一個新的完整 `Melee` 百分比技能再次與武器專精重複成長，也不可令專精階級直接線性乘上傷害。
 
 ---
 
