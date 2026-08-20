@@ -1,12 +1,13 @@
 # 戰鬥回合與行動經濟 — Alpha
 
 > 狀態：Canonical Alpha Working Rule  
-> 範圍：先攻、每回合行動、移動、被動反應／防守、預備反擊、回合開始處理、格仔鄰接。  
-> 地圖尺寸、每回合可移動格數、障礙／地形／視線等完整 Map 規則留待後續地圖系統處理。
+> 範圍：戰鬥先攻、戰鬥／非戰鬥回合、每回合行動、移動、被動反應／防守、預備反擊、回合開始處理、格仔鄰接、戰鬥控制權。  
+> 地圖尺寸、每回合可移動格數、障礙／地形／視線等完整 Map 規則留待後續地圖系統處理。  
+> 與 `ALPHA_CORE_INTEGRATION_RULES.md` 一起使用。
 
 ---
 
-# 1. 先攻只使用 DEX
+# 1. 戰鬥先攻只使用 DEX
 
 戰鬥開始時，角色按 DEX 由高至低排列行動順序。
 
@@ -16,6 +17,8 @@ DEX 低者後行動
 ```
 
 Alpha 不再另外擲 Initiative 骰。
+
+完整 Combat Turn Order 必須包含所有具備正常行動資格的參戰角色，確保每名角色都有自己的 Turn，而不是只讓最高 DEX 的角色行動。
 
 同 DEX 的正式 Tie Rule 尚未鎖定；Alpha 階段由 GM 手動決定穩定順序即可，不額外增加新判定。
 
@@ -32,7 +35,50 @@ Alpha 不再另外擲 Initiative 骰。
 
 兩者分開保存與消耗。
 
+這個基本 Action + Move allowance 同時適用於正式戰鬥回合，以及需要追蹤行動順序的正常／非戰鬥回合。
+
 Alpha 不建立 Bonus Action／Minor Action 等額外全域行動類型。
+
+## 2.1 正常／非戰鬥回合
+
+戰鬥外如場景需要追蹤時間、休息、持續效果或多人行動，仍使用正式 Round lifecycle。
+
+每個有正常行動資格的角色在該 Round 取得：
+
+```text
+1 次主行動
+1 次移動
+```
+
+非戰鬥狀態**不強制使用 DEX Initiative 排序**；角色可以依場景需要完成自己的行動機會。
+
+當所有角色都已完成該 Round 的角色行動，或因休息／失去行動能力等原因沒有可執行的角色行動時：
+
+```text
+所有角色本 Round 已處理
+→ Round +1
+→ 下一個正常／非戰鬥 Round
+```
+
+正在短休／長休的角色，其休息進度按 Round lifecycle 推進；休息期間該角色不再另外取得可用於其他角色行為的主行動或移動。
+
+Player 本人仍可以聊天、查看資料、操作與該休息角色行動無關的被動／介面功能。
+
+## 2.2 戰鬥狀態控制權
+
+Alpha 正常流程：
+
+```text
+GM
+→ Start Combat
+→ End Combat
+→ 必要時 Override / Force Advance
+
+Player
+→ End Own Turn
+```
+
+Player 不以普通流程自行切換全局 Combat ON/OFF。
 
 ---
 
@@ -263,7 +309,7 @@ Temporary Effect 不建立另一套獨立倒數系統。
 
 # 10. Alpha 回合範例
 
-角色 A 的回合開始：
+角色 A 的戰鬥回合開始：
 
 ```text
 1. 狀態倒數
@@ -306,19 +352,34 @@ A 仍可進行普通被動防守
 → 另按該彈反 Profile 結算預備行動
 ```
 
+正常／非戰鬥 Round 例：
+
+```text
+角色 A → Action + Move
+角色 B → Action + Move
+角色 C → 正在休息，本 Round 只推進 Rest Progress
+角色 D → Action + Move
+
+全部角色已處理
+→ Round +1
+```
+
 ---
 
 # 11. Alpha 鎖定結論
 
-1. Initiative 只以 DEX 排序，高 DEX 先行動。
+1. Combat Initiative 只以 DEX 排序，高 DEX 先行動，所有合法參戰角色都會取得自己的 Turn。
 2. 同 DEX 正式 Tie Rule 待定；Alpha 由 GM 手動定穩定順序。
 3. 每回合只有 `1 主行動 + 1 移動`。
-4. 換武器、飲藥、拾物、使用一般物品均消耗主行動。
-5. 普通閃避／抵抗／防守屬被動反應，只在受到波及時觸發，不消耗主行動或移動。
-6. 彈反／反擊／架勢反制等可設為「主動準備」：先消耗主行動，再等待合法觸發。
-7. Alpha 預備行動首次合法觸發後消耗；若到下次自己回合開始前未觸發則失效，除非 Profile 另有規定。
-8. 回合開始順序為：狀態倒數 → Burning/Poison Tick → 瀕死倒數 → Regeneration → 正常行動。
-9. Temporary Effects 併入 Buff/Debuff 狀態倒數，不另建時間系統。
-10. 地圖採格仔；以角色為中心的八個相鄰格，包括斜角，全部計距離 1。
-11. 每回合移動格數與完整地圖規則留待 Map 系統。
-12. 正式狀態、行動、回合與戰鬥資料保存於 D1。
+4. 正常／非戰鬥狀態在需要時間追蹤時同樣使用 Round；每名合法角色有 `1 主行動 + 1 移動`，全員處理完成後 `Round +1`。
+5. 非戰鬥 Round 不強制使用 DEX Initiative 排序。
+6. GM 負責 Start/End Combat 並可 Override；Player 正常只負責 End Own Turn。
+7. 換武器、飲藥、拾物、使用一般物品均消耗主行動。
+8. 普通閃避／抵抗／防守屬被動反應，只在受到波及時觸發，不消耗主行動或移動。
+9. 彈反／反擊／架勢反制等可設為「主動準備」：先消耗主行動，再等待合法觸發。
+10. Alpha 預備行動首次合法觸發後消耗；若到下次自己回合開始前未觸發則失效，除非 Profile 另有規定。
+11. 回合開始順序為：狀態倒數 → Burning/Poison Tick → 瀕死倒數 → Regeneration → 正常行動。
+12. Temporary Effects 併入 Buff/Debuff 狀態倒數，不另建時間系統。
+13. 地圖採格仔；以角色為中心的八個相鄰格，包括斜角，全部計距離 1。
+14. 每回合移動格數與完整地圖規則留待 Map 系統。
+15. 正式狀態、行動、回合、戰鬥與 Rest Progress 資料保存於 D1。
