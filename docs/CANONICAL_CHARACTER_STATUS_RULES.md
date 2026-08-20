@@ -173,12 +173,66 @@ Starting generation rules already confirmed elsewhere remain in force unless exp
 
 ## 4. HP
 
-Keep the latest-sheet formula:
+Character creation keeps the latest-sheet HP basis:
 
 ```text
-Max HP = ceil((CON + SIZ) / 2)
-Current HP = Max HP at Character creation
+Base HP = ceil((CON + SIZ) / 2)
 ```
+
+HP and MP now share one Level 1–100 resource growth multiplier:
+
+```text
+G(Level)
+= 1 + ((Level - 1) / 21.7)²
+```
+
+Max HP is:
+
+```text
+Max HP
+= ceil(Base HP × G(Level))
+```
+
+At Level 1:
+
+```text
+G(1) = 1
+Max HP = Base HP
+```
+
+so the original workbook starting HP is preserved exactly.
+
+For a representative Character with:
+
+```text
+CON = 12
+SIZ = 13
+Base HP = 13
+```
+
+selected values are:
+
+| Level | Growth Multiplier | Max HP |
+|---:|---:|---:|
+| 1 | 1.00 | 13 |
+| 10 | 1.17 | 16 |
+| 20 | 1.77 | 23 |
+| 30 | 2.79 | 37 |
+| 40 | 4.23 | 55 |
+| 50 | 6.10 | 80 |
+| 60 | 8.39 | 110 |
+| 70 | 11.11 | 145 |
+| 75 | 12.63 | 165 |
+| 80 | 14.25 | 186 |
+| 85 | 15.98 | 208 |
+| 90 | 17.82 | 232 |
+| 95 | 19.76 | 257 |
+| 99 | 21.40 | 279 |
+| 100 | 21.81 | 284 |
+
+This multiplicative design preserves the long-term importance of CON and SIZ: a Character with a larger Base HP remains proportionally tougher at high Level rather than having the original attributes drowned out by a large flat Level bonus.
+
+Current HP starts at Max HP at Character creation. Exact healing, recovery and Level-change Current HP handling are resolved separately.
 
 ## 5. MP
 
@@ -188,11 +242,14 @@ Character creation keeps the workbook baseline:
 Base MP = INT × 3
 ```
 
-Current Alpha Max MP then grows with Character Level using a bounded Level 1–100 quadratic term:
+Max MP uses the same Level growth multiplier as HP:
 
 ```text
+G(Level)
+= 1 + ((Level - 1) / 21.7)²
+
 Max MP
-= INT × 3 + floor((Level - 1)² / 15)
+= floor(Base MP × G(Level))
 ```
 
 At Level 1 this is exactly the original workbook value:
@@ -201,40 +258,56 @@ At Level 1 this is exactly the original workbook value:
 Level 1 Max MP = INT × 3
 ```
 
-The Level term exists so the common MP resource can support increasingly expensive named physical and magical abilities without making a low-Rank Ability itself more expensive as the Character grows.
+The curve is calibrated so a representative `INT = 12` Character reaches the current standard Rank 9 MP cost (`640 MP`) at approximately Level 90 rather than only at the Level cap.
 
-For a representative `INT = 12` Character:
+For `INT = 12`:
 
 | Level | Max MP |
 |---:|---:|
 | 1 | 36 |
-| 10 | 41 |
-| 20 | 60 |
-| 30 | 92 |
-| 40 | 137 |
-| 50 | 196 |
-| 60 | 268 |
-| 70 | 353 |
-| 75 | 401 |
-| 80 | 452 |
-| 90 | 564 |
-| 95 | 625 |
-| 99 | 676 |
-| 100 | 689 |
+| 10 | 42 |
+| 20 | 63 |
+| 30 | 100 |
+| 40 | 152 |
+| 50 | 219 |
+| 60 | 302 |
+| 70 | 399 |
+| 75 | 454 |
+| 80 | 513 |
+| 85 | 575 |
+| 90 | **641** |
+| 95 | 711 |
+| 99 | 770 |
+| 100 | 785 |
 
-With the current natural starting INT range (`2D6 + 6`, or 8–18), Level 100 Max MP is approximately:
+Therefore:
 
 ```text
-INT 8  → 677 MP
-INT 12 → 689 MP
-INT 18 → 707 MP
+Representative INT 12 Character
+Level 90 Max MP = 641
+Standard Rank 9 MP Cost = 640
+→ can fund one standard Rank 9 activation from a full MP pool
 ```
 
-This intentionally places the current Rank 9 default MP reference (`640 MP`) near the end of the Level 1–100 progression. Owning or qualifying for a Rank 9 Ability remains separate from having enough Current / Max MP to activate it.
+INT remains mechanically important because the Level multiplier scales the Character's own Base MP rather than adding a mostly attribute-independent flat amount.
+
+Selected comparisons:
+
+| INT | Lv90 Max MP | Lv100 Max MP |
+|---:|---:|---:|
+| 8 | 427 | 523 |
+| 10 | 534 | 654 |
+| 12 | **641** | 785 |
+| 15 | 801 | 981 |
+| 18 | 962 | 1,177 |
+
+A lower-INT Character may therefore need equipment, Buffs, special progression or another approved source to fund Rank 9 earlier, while a high-INT Character has substantially more remaining MP after using high-Rank abilities.
+
+Owning or qualifying for a Rank 9 Ability remains separate from having enough Current / Max MP to activate it.
 
 Current MP starts at Max MP when the Character is created. Exact MP recovery/rest rules are defined separately and are not changed by this formula.
 
-This supersedes the earlier Web draft that used only `Max MP = INT × 3` at every Level, and the older incorrect draft that used `Max MP = POW`.
+This supersedes the short-lived additive `INT × 3 + floor((Level - 1)² / 15)` Web curve, the earlier Web draft that used only `Max MP = INT × 3` at every Level, and the older incorrect draft that used `Max MP = POW`.
 
 ## 6. Mind / SAN
 
