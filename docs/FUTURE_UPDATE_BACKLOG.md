@@ -394,6 +394,166 @@ Reference Table 是 AI 平衡基準，不是固定法術清單。
 
 ---
 
+# L. 過量治療失控與體質承受系統
+
+**狀態：DEFERRED**
+
+## 目前 Alpha 已鎖定
+
+目前 Alpha 只保留最簡單的 Overheal 流程：
+
+```text
+Overheal Amount > 0
+→ GM-only 50% Random Check
+
+Success
+→ floor(Overheal Amount / 2) 轉為 Hidden Temporary HP
+
+Failure
+→ Overheal 全部消散
+```
+
+並且：
+
+- Temporary HP 的精確值只供 GM／系統查看；
+- Player 不顯示 Temporary HP 數值；
+- Temporary HP 不改寫 Max HP；
+- Damage 先消耗 Hidden Temporary HP，再扣 Current HP；
+- Hidden Temporary HP 可用作故事上「生命力旺盛／恢復較快」的合理化，但 Alpha 不自動提供真正 Buff。
+
+## 為何延後
+
+若加入「過量生命過高會產生副作用」，會牽涉：
+
+```text
+角色體質
+種族／身體結構
+治療來源
+生命能量類型
+狀態效果
+抗性／豁免
+Temporary HP 上限
+AI 情境推演
+```
+
+容易令 Alpha Healing Resolver 膨脹成另一套完整狀態／生理系統，因此先延後。
+
+## 未來需要研究
+
+### L1. Overheal Load／失控線
+
+可研究：
+
+```text
+(Max HP + Temporary HP) / Max HP
+```
+
+作為 Overheal Load。
+
+早期構思曾以：
+
+```text
+200% Max HP
+```
+
+作「開始出現失控風險」的參考點，但 **目前並未鎖定 200% 為正式門檻**。
+
+未來需測試是否：
+
+- 200% 合理；
+- 應按種族／體型／能力改變；
+- 使用固定線或逐步風險曲線。
+
+### L2. CON／體質作承受能力
+
+未來可考慮使用：
+
+```text
+CON／體質
+```
+
+作為角色承受過量生命、異常再生或身體增生的主要合理化來源之一。
+
+需要決定：
+
+- CON 是固定門檻、Bonus、抵抗值還是 D100 來源；
+- 高 CON 是否只是減輕副作用，還是提高安全 Temporary HP 區間；
+- 是否需要與 SIZ、種族、身體結構共同計算；
+- 魔法／機械／不死／植物生命是否應使用不同屬性。
+
+### L3. 過量治療副作用
+
+未來可能方向：
+
+```text
+組織過度增生
+再生失控
+腫脹／身體比例異常
+過剩生命能量外溢
+活動控制下降
+異常器官／組織短暫形成
+植物生命枝芽／根系擴張
+其他符合種族與治療來源的變化
+```
+
+上述效果不可直接固定成同一張懲罰表。
+
+### L4. AI + GM 推演
+
+如果未來正式加入 Overheal Overload：
+
+```text
+系統偵測達到風險條件
+→ AI 提供 1–3 個合理副作用／故事結果
+→ GM 接受／修改／拒絕
+```
+
+AI 應參考：
+
+```text
+CON／體質
+種族／身體結構
+Overheal Load
+治療來源
+既有狀態
+環境
+世界規則
+```
+
+### L5. 正面機械效果
+
+未來亦可研究 Hidden Temporary HP 是否可在某些條件下合理提供：
+
+```text
+自然恢復加快
+疲勞恢復加快
+短暫再生
+某些狀態抗性提升
+```
+
+但不可因 Temporary HP 存在就全域自動獲得免費 Buff。
+
+### L6. 隱藏資訊原則
+
+即使未來 Overheal 系統擴充，預設仍應保留：
+
+```text
+Temporary HP 精確數值
+→ GM-only
+```
+
+若要讓玩家感受到異常生命力，優先使用敘事提示／狀態描述，而不是直接顯示隱藏 HP 數字。
+
+## 不可違反原則
+
+1. 目前 Alpha 的 50% GM-only Overheal Check 不因 Future Design 尚未完成而改變。
+2. Temporary HP 不直接改寫 Max HP。
+3. 隱藏 Temporary HP 的精確數值預設只供 GM／系統查看。
+4. Overheal 副作用必須有合理世界／生理因果，不使用無條件固定懲罰表。
+5. Future Overheal 機械效果須由正式 Status／Effect Resolver 處理，不可只靠 AI 偷偷改數值。
+
+---
+
 # Future Update 全域原則
 
 1. Future idea 不得因為尚未完成而偷偷影響目前 Alpha Canonical 規則。
