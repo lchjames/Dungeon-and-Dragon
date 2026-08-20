@@ -157,21 +157,23 @@ Rank Cost = Max MP 的固定百分比
 
 這與長期成長方向相反。
 
-Alpha 改回固定 Rank Reference，但使用比舊 `2 → 32` 更陡的曲線：
+Alpha 改用固定 Rank Reference，並使用明顯更大的高階差距：
 
 | Ability Rank | Default MP Cost |
 |---:|---:|
 | 1 | 1 |
-| 2 | 2 |
-| 3 | 4 |
-| 4 | 7 |
-| 5 | 11 |
-| 6 | 17 |
-| 7 | 25 |
-| 8 | 36 |
-| 9 | 50 |
+| 2 | 5 |
+| 3 | 10 |
+| 4 | 20 |
+| 5 | 40 |
+| 6 | 80 |
+| 7 | 160 |
+| 8 | 320 |
+| 9 | 640 |
 
 這張表是 **Reference，不是所有能力的硬公式**。
+
+其設計目的不是令 MP Cost 與 Damage 線性對應，而是讓不同 Rank 的資源量級明顯分離。
 
 重要結果：
 
@@ -185,6 +187,8 @@ Alpha 改回固定 Rank Reference，但使用比舊 `2 → 32` 更陡的曲線�
 
 高 Rank Ability 則因固定成本快速上升，自然要求更高 MP Pool；若角色 Current / Max MP 不足，就不能使用該能力，除非 Ability Profile 本身有經 GM 批准的特殊成本規則。
 
+目前角色基礎 `Max MP = INT × 3` 主要適合作為早期角色基準。高 Rank 能力所需的長期 Max MP 成長／Scale 需另行設計，不在本文件硬改角色基礎公式。
+
 ---
 
 # 6. MP 成本不等於傷害倍率
@@ -192,8 +196,8 @@ Alpha 改回固定 Rank Reference，但使用比舊 `2 → 32` 更陡的曲線�
 不可理解為：
 
 ```text
-Rank 9 MP Cost 是 Rank 1 的 50 倍
-→ Rank 9 Damage 就必須剛好是 Rank 1 的 50 倍
+Rank 9 MP Cost 是 Rank 1 的 640 倍
+→ Rank 9 Damage 就必須剛好是 Rank 1 的 640 倍
 ```
 
 MP Cost 是資源壓力，不是直接 Damage Multiplier。
@@ -298,9 +302,10 @@ Alpha 預設：
 5. MP=0 不會全域刪除仍合法存在的 Status；各 Status 是否需要 upkeep 由自身 Profile 決定。
 6. 具名主動物理／元素能力預設共用 MP。
 7. Max MP 百分比成本取消；低 Rank Ability 不會因角色 Max MP 增長而自動變貴。
-8. Alpha Default MP Cost Reference 為：`1, 2, 4, 7, 11, 17, 25, 36, 50`（Rank 1–9）。
+8. Alpha Default MP Cost Reference 為：`1, 5, 10, 20, 40, 80, 160, 320, 640`（Rank 1–9）。
 9. MP Cost 不需要與 Damage 倍率一比一；Rank Power 還包括範圍、控制、治療、多段、持續等總效果。
 10. AI 只在 Ability 建立／修改時提出實際 MP Cost；GM 批准後固定保存於 D1，實際每次施放不需要 AI 即時計算。
 11. 角色後期 Max MP 增加後，低階能力自然變得相對便宜，視為成長回報。
-12. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
-13. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
+12. 高 Rank 能力所需 Max MP 成長／Scale 另行設計，不在本文件硬改目前 `INT × 3` 的基礎 Max MP 公式。
+13. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
+14. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
