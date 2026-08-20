@@ -1,36 +1,76 @@
 # Magic Reference & AI-Created Skill System — Alpha
 
-> Status: Alpha structural specification.
-> Purpose: define the elemental magic framework, Rank 1–9 reference magic, and the workflow for Player-created Skills/Spells balanced by AI against canonical reference data.
+> Status: **Alpha structural specification**.
+> Purpose: define the eight-element magic framework, Rank 1–9 reference magic, and the minimal-input Player-created Spell workflow balanced by AI against canonical reference data.
 
 ---
 
 # 1. Element Framework
 
-Alpha uses **seven natural elements plus Light and Dark**.
-
-Seven natural elements:
-
-```text
-FIRE
-WATER
-ICE
-WIND
-EARTH
-LIGHTNING
-NATURE
-```
-
-Metaphysical/polar elements:
+Alpha uses **eight magic elements**:
 
 ```text
 LIGHT
 DARK
+FIRE
+WATER
+WIND
+EARTH
+LIGHTNING
+WOOD
 ```
 
-This gives nine magic families without forcing Light/Dark into the seven-natural-element set.
+Player-facing identities:
 
-The elemental families are classification/affinity systems, not rigid spell lists.
+```text
+Light / 光元素
+- sacred power
+- healing
+- purification
+
+Dark / 暗元素
+- shadow
+- curses
+- destruction
+
+Fire / 火元素
+- heat
+- burst damage
+- burning
+
+Water / 水元素
+- flow
+- change
+- healing
+
+Wind / 風元素
+- speed
+- freedom
+- air
+- movement/displacement
+
+Earth / 土元素
+- solidity
+- defence
+- terrain/ground
+
+Lightning / 雷元素
+- speed
+- destruction
+- high voltage
+- interruption/stun tendency
+
+Wood / 木元素
+- nature
+- plants
+- growth
+- binding
+- regeneration
+```
+
+`WOOD` is the system code for the Nature/plant family. The Player-facing label may be rendered as `Wood / Nature` if desired.
+
+These identities are **tendencies**, not hard restrictions. For example Water can attack, Light can damage, Dark can control, and Fire can potentially create utility effects if the AI can justify them inside the Rank budget.
 
 ---
 
@@ -50,40 +90,40 @@ Rank 8
 Rank 9
 ```
 
-A Rank represents a broad power budget and complexity ceiling rather than one mandatory spell.
+Rank is a broad power/complexity budget rather than a fixed damage number.
 
-Higher Rank may permit larger values in combinations of:
+Higher Rank may support larger combinations of:
 
-- raw damage;
-- number of targets;
+- damage;
+- healing;
+- target count;
 - area;
 - range;
 - duration;
 - control strength;
-- defensive value;
-- healing;
-- summons;
+- movement/displacement;
+- blindness/vision effects;
+- stun/interruption;
+- defence;
 - terrain manipulation;
 - status effects;
-- secondary effects;
+- summons;
 - resource efficiency;
-- rule-breaking/special properties.
+- special rule exceptions.
 
-The exact numeric budget per Rank remains Alpha-tunable.
+Exact numeric budgets remain Alpha-tunable.
 
 ---
 
 # 3. Reference Magic Matrix
 
-The system contains a canonical **Reference Magic Matrix**.
-
-Conceptually:
+The canonical balancing library is a **Reference Magic Matrix**:
 
 ```text
 Element × Rank × Role
 ```
 
-Each reference Spell is a benchmark, not a restriction on what Players may learn or create.
+Reference Spells are **benchmarks**, not a closed spell list.
 
 Example:
 
@@ -92,126 +132,221 @@ FIRE / Rank 1 / Basic Offensive
 Reference: Fireball
 ```
 
-The reference entry defines a known-balanced package such as:
+The reference entry contains the authoritative benchmark package, for example:
 
 ```text
-Rank
 Element
+Rank
 Role
-Check Source
+Skill used
 Source Bonus
-Damage Formula
-Damage Type
-Target Count
+Damage / Healing
+Target pattern
 Range
 Area
 MP Cost
 Duration
-Secondary Effects
+Status / Control effects
+Movement effects
 Restrictions
 ```
 
-AI uses these reference entries to estimate appropriate values for custom Player-created Skills/Spells.
+AI compares Player-created Spell concepts against these references before assigning mechanics.
 
 ---
 
-# 4. Elemental Identity
+# 4. Reference Spell Philosophy
 
-Reference Spells at the same Rank should have similar total power budgets but may express that budget differently.
+Every Element should eventually have Rank 1–9 reference examples covering common roles.
 
-Illustrative Rank-1 offensive references:
+The point is not that every Player must learn the reference Spell. The point is that AI and GM always have a known baseline.
+
+Example Rank-1 offensive references may include:
 
 ```text
-FIRE       Fireball        direct damage / burn tendency
-WATER      Water Shot      damage / push / wet tendency
-ICE        Ice Shard       damage / slow tendency
-WIND       Wind Blade      damage / range / displacement tendency
-EARTH      Stone Bullet    damage / impact / stagger tendency
-LIGHTNING  Spark Bolt      damage / interrupt tendency
-NATURE     Thorn Shot      damage / bind/bleed tendency
-LIGHT      Light Lance     damage / purification/anti-dark tendency
-DARK       Shadow Bolt     damage / weakening/anti-light tendency
+LIGHT       Light Bolt / purification-oriented attack
+DARK        Shadow Bolt / weakening-oriented attack
+FIRE        Fireball / direct damage + burn tendency
+WATER       Water Shot / damage + push/flow tendency
+WIND        Wind Blade / damage + displacement tendency
+EARTH       Stone Bullet / impact + stagger tendency
+LIGHTNING   Spark Bolt / damage + interrupt/stun tendency
+WOOD        Thorn Shot / damage + bind/bleed tendency
 ```
 
-The exact names and numbers are Alpha content, not structural rules.
+Exact names and values remain content/balance data rather than structural rules.
 
-A secondary effect is not automatically free. If one Spell receives stronger control, area, duration or utility than its peers, its damage/cost/other values should be adjusted so the total package remains inside the Rank budget.
+A secondary effect is not free. A Spell with stronger area, healing, control, displacement, blindness, stun, duration or utility may need lower damage or higher MP cost to remain within its Rank budget.
 
 ---
 
-# 5. Rank Reference Ladder
+# 5. Rank 1–9 Reference Ladder
 
-For Alpha, use this broad reference intent:
+Broad Alpha intent:
 
 ```text
-Rank 1  Basic spell / simple single-target effect
-Rank 2  Improved basic spell / minor utility or control
-Rank 3  Stronger attack / small-area effect / stronger support
-Rank 4  Persistent effect / meaningful defence / stronger control
-Rank 5  Major combat technique / battlefield influence
-Rank 6  Large-area or high-impact advanced magic
-Rank 7  Major battlefield control / powerful summon / domain-like effect
-Rank 8  Extreme high-tier magic / large-scale transformation or destruction
-Rank 9  Ultimate/legendary magic with severe cost, limits or prerequisites
+Rank 1  basic effect / simple attack / minor utility
+Rank 2  stronger basic effect / minor control or support
+Rank 3  stronger attack / small area / meaningful support
+Rank 4  persistent effect / stronger defence / stronger control
+Rank 5  major combat Spell / battlefield influence
+Rank 6  large-area or high-impact advanced magic
+Rank 7  major battlefield control / powerful summon / domain-like effect
+Rank 8  extreme high-tier transformation/destruction/support
+Rank 9  legendary/ultimate magic with major cost, limits or prerequisites
 ```
 
-These descriptions guide AI and GM review. Exact numerical ceilings remain configurable.
+This ladder guides AI comparison. Exact numbers remain configurable.
 
 ---
 
-# 6. Player-Created Skill / Spell Workflow
+# 6. Minimal Player Spell-Creation Input
 
-Players may propose original Skills/Spells rather than being limited to the Reference Magic Matrix.
+The Player-facing custom Spell creation form must remain intentionally minimal.
 
-Player supplies primarily creative intent:
+The Player supplies only:
 
 ```text
-Name
+1. Spell Name
+2. Effect Range / Target Pattern
+```
+
+The Player does **not** manually enter:
+
+```text
 Element
-Description / fantasy
-Desired effect(s)
-Optional target/range/area concept
-Optional intended Rank if allowed
+Rank
+MP Cost
+Damage
+Healing
+Source Bonus
+numeric distance
+numeric area size
+Duration
+Stun value
+Blind value
+Push / Pull distance
+Position effect
+Status chance
+Cooldown
 ```
+
+Element and available Rank context are supplied by the Character's current Magic Skill / Skill Tree context rather than entered again by the Player.
 
 Example:
 
 ```text
+Current context:
+Fire Magic / available Rank up to 4
+
+Player enters:
 Name: Firestorm
-Element: FIRE
-Description:
-Create a violent rotating storm of flame around a target area,
-burning multiple enemies over time.
+Effect Range: Area
 ```
 
-The Player does not directly choose authoritative damage, MP cost, bonuses or control numbers.
+That is enough to request an AI proposal.
 
 ---
 
-# 7. AI Balancer Role
+# 7. Effect Range / Target Pattern
 
-AI receives:
+`Effect Range` means the **shape/targeting intention**, not the final numeric distance.
 
-- proposed Skill/Spell name and description;
-- selected Element;
-- Character Magic Rank / accessible Rank ceiling;
-- relevant Character Skills;
-- canonical Reference Magic Matrix;
+Recommended Alpha choices:
+
+```text
+SELF
+SINGLE
+MULTI_TARGET
+AREA
+LINE
+CONE
+```
+
+The UI can initially emphasize simple choices such as `Single` and `Area`, while retaining the structured enum for later expansion.
+
+The Player selects the pattern; AI determines appropriate numeric values such as:
+
+```text
+Range: 30 m
+Area: 5 m radius
+Targets: up to 3
+Line length: 20 m
+Cone length: 10 m
+```
+
+based on Rank and reference balance.
+
+---
+
+# 8. AI Interpretation and Mechanical Assignment
+
+AI receives hidden/system context including:
+
+- Character ID and current Character state;
+- selected/current Magic Element from Skill Tree context;
+- Character's accessible Magic Rank ceiling;
+- Spell Name;
+- Player-selected Effect Range / Target Pattern;
+- Element Rank 1–9 Reference Matrix;
 - current Rank-budget rules;
-- current Alpha damage scale;
-- allowed effect vocabulary;
-- existing similar Skills/Spells;
-- Campaign restrictions.
+- existing approved similar Spells;
+- Campaign restrictions;
+- current Combat/Damage scale.
 
-AI returns a **structured mechanical proposal**.
+AI then decides the full mechanical interpretation.
+
+AI may assign:
+
+```text
+Suggested Rank
+Role
+Skill used
+Source Bonus
+MP Cost
+Damage
+Healing
+Range
+Area / target count
+Duration
+Stun
+Blind
+Burn
+Slow
+Bind
+Push
+Pull
+Knockback
+Reposition
+Defence
+Cleanse
+Regeneration
+Terrain effect
+Other structured status/effect data
+Restrictions / trade-offs
+```
+
+The Spell Name is therefore both a creative name and a semantic prompt.
 
 Example:
+
+```text
+Context:
+Fire Magic
+Maximum available Rank: 4
+
+Player Input:
+Name: Firestorm
+Effect Range: AREA
+```
+
+Possible AI proposal:
 
 ```text
 Firestorm
 Element: FIRE
 Suggested Rank: 4
-Role: Area / Damage-over-Time
+Role: Area Damage / Damage over Time
 Uses Skill: Fire Magic
 Source Bonus: +0
 Range: 30 m
@@ -219,118 +354,163 @@ Area: 6 m radius
 Duration: 3 rounds
 Damage: 1D6 Fire per round
 MP Cost: 12
-Secondary Effect: Burn chance
-Restrictions: concentration / one active Firestorm
+Effect: Burn chance
+Restriction: one active Firestorm at a time
 ```
 
-AI must also return a short comparison such as:
-
-```text
-Reference comparison:
-- stronger area and duration than Rank-3 Fire references;
-- lower immediate burst than Rank-4 direct-damage references;
-- increased MP cost compensates for repeated area damage.
-```
-
-The explanation is for GM/Player transparency; the structured fields are what the rules engine uses.
+The exact values above are illustrative Alpha content only.
 
 ---
 
-# 8. AI Must Not Invent Power Without Reference Constraints
+# 9. Ambiguous Spell Names
 
-AI is a **balancer and translator**, not an unrestricted rules authority.
-
-Bad workflow:
-
-```text
-Player: "Firestorm that destroys everything"
-AI: 20D100 damage because it sounds powerful
-```
-
-Required workflow:
-
-```text
-Creative intent
-      ↓
-Determine closest Element / Role / Rank references
-      ↓
-Estimate total effect budget
-      ↓
-Trade damage against area/range/control/duration/cost
-      ↓
-Return bounded structured proposal
-```
-
-If the requested concept exceeds the Character's available Rank, AI should either:
-
-1. downgrade the mechanics to fit the highest available Rank; or
-2. propose the requested version at a higher Rank and explain that it is currently unavailable.
-
-It must never silently bypass Rank restrictions.
-
----
-
-# 9. Reference Comparison Is More Important Than Exact Formula
-
-The Alpha AI balancer does not need one giant universal equation for every possible Spell.
-
-Instead, each proposal should be anchored against known reference points.
+Because the Player only supplies a Name and Effect Range, some names may be ambiguous.
 
 Example:
 
 ```text
-Reference Fireball R1
-Reference Flame Burst R2
-Reference Fire Wave R3
-Reference Inferno Field R4
+Name: Crimson Crown
+Effect Range: SELF
 ```
 
-For a Player-created Firestorm, AI can interpolate/compare against the closest relevant references and produce a bounded package.
+AI must make its best bounded interpretation from:
 
-This allows unusual effects without requiring hand-authored formulas for every possible concept.
+- Element context;
+- Rank ceiling;
+- the name's semantic meaning;
+- Reference Spells;
+- existing Campaign vocabulary.
+
+The AI proposal must clearly show what it interpreted the Spell to do.
+
+If the Player does not like that interpretation, the Player may:
+
+```text
+Reject proposal
+Rename the Spell
+Generate again
+```
+
+No additional mandatory description field is required merely to resolve ambiguity.
 
 ---
 
-# 10. Mechanical Budget Dimensions
+# 10. AI Uses Reference Data, Not Freeform Power Guessing
 
-AI should evaluate at least these dimensions when balancing a custom Skill/Spell:
+AI is a **mechanical translator/balancer**, not an unrestricted rules authority.
+
+Required process:
 
 ```text
-Damage / Healing
+Player Name + Effect Range
+        ↓
+Element / accessible Rank context
+        ↓
+Interpret intended Role/effect
+        ↓
+Find closest Element × Rank × Role references
+        ↓
+Allocate Rank budget across damage/healing/control/area/range/duration/etc.
+        ↓
+Assign MP and other costs
+        ↓
+Return structured proposal + short justification
+```
+
+Bad result:
+
+```text
+"Firestorm sounds powerful"
+→ arbitrary 20D100 damage
+```
+
+Required result:
+
+```text
+Compared with Rank-3/Rank-4 Fire area references,
+this has persistent area damage, therefore immediate damage is reduced and MP cost is increased.
+```
+
+---
+
+# 11. AI Effect Trade-Offs
+
+AI balances the complete package, not only raw damage.
+
+Examples at the same Rank may include:
+
+```text
+A. High damage + Single target
+B. Medium damage + Area
+C. Low damage + Area + Stun
+D. No damage + strong Blind
+E. Healing + Cleanse
+F. Push/Pull + positional control
+```
+
+All may be valid if their total effect remains within the Rank reference budget.
+
+Important budget dimensions include:
+
+```text
+Damage
+Healing
 Target count
 Area
 Range
 Duration
-Control strength
+Stun / interruption
+Blind / sensory impairment
+Slow / Bind
+Push / Pull / Knockback / Reposition
 Defence / mitigation
-Mobility
-Summoning
+Cleanse
+Regeneration
 Terrain/environment manipulation
-Status effects
+Summoning
 Reliability / Source Bonus
-MP/resource cost
-Cast/action cost
+MP cost
+Action/cast cost
 Cooldown / usage limit
 Prerequisites
 Risk / backlash
 Special exceptions
 ```
 
-Increasing one or more dimensions may require reducing another or increasing cost/Rank.
+---
+
+# 12. Rank Ceiling Handling
+
+AI may not silently grant a Spell above the Character's accessible Rank.
+
+If the name implies something much stronger than the Character can currently use, AI should produce a version that fits the available Rank.
+
+Example:
+
+```text
+Player:
+Fire Magic currently supports up to Rank 2
+Name: Firestorm
+Range: Area
+```
+
+AI may interpret it as a small Rank-2 fire storm rather than a city-scale disaster.
+
+The same name can later receive stronger upgraded versions through Skill Tree progression if the system supports evolution/upgrades.
 
 ---
 
-# 11. Skill vs Spell Definition
+# 13. Skill vs Spell
 
-A broad magic proficiency is a numeric Skill:
+A broad elemental proficiency is a numeric Skill:
 
 ```text
 Fire Magic 52
-Ice Magic 31
-Earth Magic 44
+Water Magic 31
+Wood Magic 44
 ```
 
-A specific Player-created or reference Spell is an Ability/Spell that normally uses the relevant numeric Skill.
+A specific Spell is an Ability that references the relevant Skill.
 
 Example:
 
@@ -344,64 +524,99 @@ Final Check
 + Buff/Debuff
 ```
 
-This remains consistent with the general Combat equation.
+This remains compatible with the canonical one-check equation.
 
 ---
 
-# 12. AI Proposal Approval
+# 14. Player Confirmation Before GM Submission
 
-During Alpha, AI-generated custom Skills/Spells should not become authoritative immediately.
+AI output is **not submitted to GM immediately**.
 
-Recommended flow:
+Required Player workflow:
 
 ```text
-Player Create Skill/Spell
+Player enters
+Name + Effect Range
       ↓
-AI Generate Mechanical Proposal
+AI generates complete mechanical proposal
       ↓
-Player Review
+PLAYER CONFIRMATION SCREEN
+      ├── Confirm & Send to GM
+      └── Reject / Rename / Generate Again
       ↓
-Submit
+GM receives proposal only after Player confirmation
+```
+
+The Player confirmation screen should show at least:
+
+```text
+Name
+Element
+Suggested Rank
+Role
+Skill used
+Source Bonus
+MP Cost
+Damage and/or Healing
+Target pattern
+Range / Area
+Duration
+Status / Control effects
+Restrictions
+AI reference justification
+```
+
+The Player cannot directly edit authoritative generated combat numbers during this confirmation step. If the interpretation is unwanted, the Player can reject/regenerate or rename the proposed Spell.
+
+---
+
+# 15. GM Approval
+
+After Player confirmation:
+
+```text
+PLAYER CONFIRMED
       ↓
-GM Review
+PENDING GM REVIEW
+      ↓
+GM
    ├── Approve
    ├── Edit + Approve
    └── Reject
       ↓
-Approved definition stored in D1
+Approved Spell stored as structured D1 data
 ```
 
-This protects balance while still letting Players own the creative process.
+GM remains the final authority during Alpha.
 
-A future Campaign setting may allow automatic approval for proposals that pass strict deterministic budget validation.
+If GM edits the AI-generated mechanics before approval, the final saved definition must preserve the GM-approved values and the audit history should preserve the original AI proposal.
 
 ---
 
-# 13. Reuse and Learning
+# 16. Approved Spell Reuse
 
-Once approved, a custom Skill/Spell becomes a normal D1-backed definition/Character ability.
-
-It may be:
+An approved custom Spell may be:
 
 - unique to that Character;
-- made available as a learnable Skill Tree Node;
+- added as a Skill Tree node;
 - promoted by GM into a reusable Campaign template;
-- used later as another AI reference example.
+- added to the AI's approved reference/example library;
+- used to improve future proposals for mechanically similar Skills.
 
-Thus the Campaign's Skill library can grow organically through play.
+The system therefore becomes better grounded in the Campaign's own rules over time without allowing AI to mutate live balance automatically.
 
 ---
 
-# 14. Suggested D1 Structures
+# 17. Suggested D1 Structures
 
 Conceptually:
 
 ```text
 magic_elements
 ├── id
-├── code
+├── code                  LIGHT | DARK | FIRE | WATER | WIND | EARTH | LIGHTNING | WOOD
 ├── name
-├── category              NATURAL | POLAR
+├── description
 ├── active
 └── metadata
 ```
@@ -415,12 +630,12 @@ magic_reference_spells
 ├── name
 ├── source_bonus
 ├── damage_formula
-├── damage_type
-├── target_data
+├── healing_formula
+├── target_pattern
 ├── range_data
 ├── area_data
 ├── duration_data
-├── resource_cost
+├── mp_cost
 ├── effects
 ├── restrictions
 ├── active
@@ -428,39 +643,46 @@ magic_reference_spells
 ```
 
 ```text
-custom_ability_proposals
+custom_spell_proposals
 ├── id
 ├── character_id
-├── proposed_name
 ├── element_id
-├── player_description
-├── requested_effects
+├── proposed_name
+├── requested_target_pattern
+├── accessible_rank_ceiling
 ├── ai_suggested_rank
 ├── ai_structured_proposal
 ├── ai_reference_comparison
-├── status                DRAFT | PENDING | APPROVED | REJECTED
+├── player_status         DRAFT | CONFIRMED | CANCELLED
+├── gm_status             NOT_SUBMITTED | PENDING | APPROVED | REJECTED
 ├── reviewed_by_gm_id
 ├── created_at
 └── updated_at
 ```
 
-Approved proposals become ordinary Character ability/Skill Tree data rather than remaining trapped inside an AI text blob.
+Approved proposals become normal structured Character Ability/Skill Tree records rather than remaining only as AI-generated text.
 
 ---
 
-# 15. Alpha Locked Direction
+# 18. Alpha Locked Direction
 
-1. Magic uses seven natural elements: Fire, Water, Ice, Wind, Earth, Lightning and Nature.
-2. Light and Dark are additional metaphysical/polar magic families.
-3. Magic power is organized from Rank 1 through Rank 9.
-4. The system contains canonical reference Spells for Element × Rank × Role.
-5. Reference Spells are balancing benchmarks, not the only Spells Players may use.
-6. Players may create original Skills/Spells by name and effect concept.
-7. Players do not directly assign authoritative damage/cost/balance numbers to custom Spells.
-8. AI converts creative intent into a structured mechanical proposal.
-9. AI must compare against canonical Rank/Element reference data rather than inventing unconstrained values.
-10. Stronger area/control/duration/utility consumes part of the same Rank power budget and may reduce damage or increase cost.
-11. Broad elemental magic proficiencies are numeric Skills; individual Spells/Abilities normally reference those Skills.
-12. Custom Spell checks remain compatible with `Skill + Source Bonus + Buff/Debuff`.
-13. During Alpha, GM reviews AI-generated custom Skill/Spell proposals before they become authoritative.
-14. Approved custom abilities are stored as structured D1 data and may later become reusable Campaign references.
+1. Magic uses eight elements: Light, Dark, Fire, Water, Wind, Earth, Lightning and Wood/Nature.
+2. Magic power is organized from Rank 1 through Rank 9.
+3. Canonical Reference Spells exist as `Element × Rank × Role` balancing benchmarks.
+4. Reference Spells are reference points, not a restrictive spell list.
+5. Player-created Spells are intentionally minimal-input.
+6. The Player supplies only `Name` and `Effect Range / Target Pattern`.
+7. Element and accessible Rank are supplied by current Character/Skill Tree context rather than manually entered again.
+8. The Player does not assign MP, damage, healing, Source Bonus, numeric range, duration or status/control values.
+9. AI interprets the Name and Target Pattern against the Element/Rank Reference Matrix.
+10. AI assigns the complete structured mechanical proposal, including MP and damage/healing/control effects such as stun, displacement/repositioning and blindness where appropriate.
+11. AI must remain inside the Character's accessible Rank ceiling and reference budget.
+12. Stronger area/control/healing/duration/utility consumes the same Rank budget and may reduce damage or increase MP/cost/restrictions.
+13. Ambiguous names are resolved through AI interpretation; the Player may reject/rename/regenerate rather than filling a mandatory description form.
+14. AI output is first shown to the Player for confirmation.
+15. Only after Player confirmation is the proposal sent to GM.
+16. GM may approve, edit+approve or reject during Alpha.
+17. Approved custom Spells are stored as structured D1 data.
+18. Approved Campaign Spells may later become reusable references/examples for future AI balancing.
+19. Spell checks remain compatible with `Skill + Source Bonus + Buff/Debuff`.
+20. AI assists balancing and interpretation but does not autonomously change authoritative Character data.
