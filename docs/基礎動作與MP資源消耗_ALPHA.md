@@ -1,7 +1,7 @@
 # 基礎物理行動與 MP 資源 — Alpha
 
 > 狀態：Canonical Alpha Working Rule  
-> 範圍：MP 的用途、MP=0 時的物理行動、Ability Rank 的預設 MP 成本、AI 成本裁決。  
+> 範圍：MP 的用途、MP=0 時的物理行動、Ability Rank 的預設 MP 成本、特殊級別、AI 成本裁決。  
 > 本文件覆蓋較早 `Rank 1 = 2 MP ... Rank 9 = 32 MP` 的舊固定成本表、其後短暫採用的 Max MP 百分比成本表，以及需要為每種普通拳腳／揮劍建立額外 Ability 層的設計。
 
 ---
@@ -138,26 +138,9 @@ Current MP < Ability MP Cost
 
 ---
 
-# 5. MP 成本使用固定 Rank Reference，不跟 Max MP 比例上升
+# 5. Rank 1–9 使用固定 MP Reference
 
-較早曾嘗試：
-
-```text
-Rank Cost = Max MP 的固定百分比
-```
-
-此方案取消。
-
-原因：如果同一個 Rank 1 Ability 會因角色 Max MP 增加而自動變貴，就會造成：
-
-```text
-角色越強
-→ 同一個低階能力反而越昂貴
-```
-
-這與長期成長方向相反。
-
-Alpha 改用固定 Rank Reference，並使用明顯更大的高階差距：
+Alpha 使用固定 Rank Reference，並以明顯的量級差距拉開高低階能力：
 
 | Ability Rank | Default MP Cost |
 |---:|---:|
@@ -173,36 +156,97 @@ Alpha 改用固定 Rank Reference，並使用明顯更大的高階差距：
 
 這張表是 **Reference，不是所有能力的硬公式**。
 
-其設計目的不是令 MP Cost 與 Damage 線性對應，而是讓不同 Rank 的資源量級明顯分離。
+同一個已批准的低 Rank Ability 不會因角色 Max MP 增加而自動變貴，因此後期角色可以更輕鬆地重複使用低階能力。
 
-重要結果：
-
-```text
-同一個已批准 Rank 1 Ability
-→ 角色 Max MP 變高後仍維持原本 MP Cost
-→ 低階能力在後期自然變得相對便宜
-```
-
-這是預期的角色成長回報，而不是漏洞。
-
-高 Rank Ability 則因固定成本快速上升，自然要求更高 MP Pool；若角色 Current / Max MP 不足，就不能使用該能力，除非 Ability Profile 本身有經 GM 批准的特殊成本規則。
-
-目前角色基礎 `Max MP = INT × 3` 主要適合作為早期角色基準。高 Rank 能力所需的長期 Max MP 成長／Scale 需另行設計，不在本文件硬改角色基礎公式。
+目前角色基礎 `Max MP = INT × 3` 主要適合作為早期角色基準。高 Rank 能力所需的長期 Max MP 成長／Scale 另行設計，不在本文件硬改角色基礎公式。
 
 ---
 
-# 6. MP 成本不等於傷害倍率
+# 6. 新增「特殊」級別：由 MP 反推 Power
+
+除 Rank 1–9 外，Ability 可以被標記為：
+
+```text
+能力階級：特殊
+```
+
+`特殊` **不是 Rank 10**，亦不使用固定的 Default MP Cost。
+
+普通 Rank 1–9 的設計方向是：
+
+```text
+Rank
+→ 提供大概 Power Budget
+→ 再決定合理 MP Cost
+```
+
+`特殊` 則反過來：
+
+```text
+批准使用的 MP Amount
+→ 作為主要 Power Budget 參考
+→ AI / GM 再合理化整個 Effect Package
+```
+
+因此特殊能力的 Power 包括，而不只限於：
+
+```text
+直接傷害
+治療
+控制強度
+控制持續時間
+範圍
+目標數
+射程
+多段／投射物
+位移
+Buff / Debuff
+環境／場地效果
+其他批准的特殊機械效果
+```
+
+例如，一個幾乎沒有傷害、但具有極強範圍控制的特殊能力，仍然可以因其高 MP 成本而取得高 Power Budget；系統不得只用 Damage 數字判斷它是否值得該 MP。
+
+同樣，一個純高傷害的特殊能力亦要把大量 Power Budget 消耗在 Damage 上，因此不能同時免費取得同等級的大範圍、長控制與多目標效果。
+
+## 6.1 Alpha 實作原則
+
+為保持系統容易實作，特殊能力在建立／修改時仍必須產生一個已批准的 Ability Profile：
+
+```text
+ability_rank = SPECIAL
+mp_cost = 已批准整數
+完整 Effect Profile = 已批准結果
+```
+
+AI 只在能力建立／修改時，根據 MP Amount 與能力概念提出 Power Package；Player 確認後交 GM 批准。
+
+正式施放時：
+
+```text
+讀取已批准 mp_cost
+→ 扣 MP
+→ 直接按已保存 Effect Profile 結算
+```
+
+不需要每次施放都即時叫 AI 重新計算 Power。
+
+如果未來需要「同一招可以自由投入不同 MP、威力隨投入量變動」，再另行設計 Variable-MP Profile；Alpha 不預設所有特殊能力都具有動態投入功能。
+
+---
+
+# 7. MP 成本不等於傷害倍率
 
 不可理解為：
 
 ```text
-Rank 9 MP Cost 是 Rank 1 的 640 倍
-→ Rank 9 Damage 就必須剛好是 Rank 1 的 640 倍
+MP Cost 高 X 倍
+→ Damage 必須剛好高 X 倍
 ```
 
-MP Cost 是資源壓力，不是直接 Damage Multiplier。
+MP Cost 是整個 Ability Power Package 的資源壓力，不是單一 Damage Multiplier。
 
-Ability Rank 的總威力仍可來自：
+Ability 的總威力可以分配在：
 
 ```text
 Damage
@@ -219,64 +263,47 @@ Buff / Debuff
 其他效果
 ```
 
-因此高 Rank Ability 的總 Power 差距可以高於或低於單純 MP Cost 倍數，視整個 Ability Package 而定。
-
-例如 Rank 9 可以把大量 Power Budget 放在：
-
-```text
-超大範圍
-多目標
-長持續
-強控制
-高傷害
-複合效果
-```
-
-所以不能只用單體傷害倍率去反推 MP Cost。
+因此高 MP 能力可能主要強在 Damage，也可能主要強在 Control、Area、Duration 或複合效果。
 
 ---
 
-# 7. AI 只在能力建立／修改時決定實際成本
+# 8. AI 只在能力建立／修改時決定實際成本與 Power
 
 為避免系統日後難以實作：
 
 ```text
 每次施放
-≠ 即時叫 AI 計 MP
+≠ 即時叫 AI 計 MP / Power
 ```
 
-正確流程：
+Rank 1–9：
 
 ```text
 建立／修改 Ability
 → AI 參考 Rank Default MP Cost + Ability Power Package
-→ 建議實際 MP Cost 並簡短解釋
+→ 建議實際 MP Cost
 → Player 確認
 → GM 批准／修改
-→ 最終 MP Cost 寫入 D1 Ability Profile
-
-之後實際施放
-→ 直接讀取已批准的 MP Cost
-→ 不需要 AI
+→ 寫入 D1
 ```
 
-AI 可以因能力特性建議比 Default 更高或更低的成本，例如：
+特殊：
 
 ```text
-同 Rank 但大範圍／多目標／長持續
-→ 可建議較高成本
-
-同 Rank 但限制很多／風險很高／用途很窄
-→ 可建議較低成本
+建立／修改 Ability
+→ 先確定／建議 MP Amount
+→ AI 以該 MP Amount 作主要 Power Budget 參考
+→ 生成完整 Damage / Control / Area / Duration 等 Effect Package
+→ Player 確認
+→ GM 批准／修改
+→ 寫入 D1
 ```
 
-但低 Rank Ability 不會因角色 Max MP 增加而被系統自動加價。
-
-GM 為最終裁決者。
+之後實際施放一律直接讀取已批准 Profile，不需要 AI。
 
 ---
 
-# 8. MP 支付時點
+# 9. MP 支付時點
 
 Alpha 預設：
 
@@ -293,7 +320,7 @@ Alpha 預設：
 
 ---
 
-# 9. Alpha 鎖定結論
+# 10. Alpha 鎖定結論
 
 1. 不為普通拳、腳、揮劍等建立大量額外 Ability；合理普通物理行動天然可做。
 2. MP 是「額外輸出／特殊效果」資源，不是角色能否做普通物理動作的開關。
@@ -301,11 +328,12 @@ Alpha 預設：
 4. MP=0 的普通物理輸出以身體／武器 Source Damage Profile + 適用 Damage Bonus 為核心，不取得主動 Ability、附魔或專精的額外 Damage Enhancement。
 5. MP=0 不會全域刪除仍合法存在的 Status；各 Status 是否需要 upkeep 由自身 Profile 決定。
 6. 具名主動物理／元素能力預設共用 MP。
-7. Max MP 百分比成本取消；低 Rank Ability 不會因角色 Max MP 增長而自動變貴。
-8. Alpha Default MP Cost Reference 為：`1, 5, 10, 20, 40, 80, 160, 320, 640`（Rank 1–9）。
-9. MP Cost 不需要與 Damage 倍率一比一；Rank Power 還包括範圍、控制、治療、多段、持續等總效果。
-10. AI 只在 Ability 建立／修改時提出實際 MP Cost；GM 批准後固定保存於 D1，實際每次施放不需要 AI 即時計算。
-11. 角色後期 Max MP 增加後，低階能力自然變得相對便宜，視為成長回報。
-12. 高 Rank 能力所需 Max MP 成長／Scale 另行設計，不在本文件硬改目前 `INT × 3` 的基礎 Max MP 公式。
-13. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
-14. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
+7. Rank 1–9 Default MP Cost Reference 為：`1, 5, 10, 20, 40, 80, 160, 320, 640`。
+8. 新增非數字能力級別 `特殊 / SPECIAL`；它不是 Rank 10。
+9. Rank 1–9 主要由 Rank 提供 Power Budget；特殊能力主要由已批准 MP Amount 反推／合理化 Power Budget。
+10. Power 同時包括 Damage、Healing、Control、Area、Target Count、Duration、Movement、Buff/Debuff 等，不只看傷害。
+11. 特殊能力建立後仍保存固定 `mp_cost + Effect Profile`；施放時不需要 AI 即時計算。
+12. 動態可變 MP 投入不是 Alpha 預設，未來如需要再另行擴充。
+13. 高 Rank 能力所需 Max MP 成長／Scale 另行設計，不在本文件硬改目前 `INT × 3` 的基礎 Max MP 公式。
+14. 不為這套簡化額外新增 Stamina、氣力或另一條普通攻擊技能樹。
+15. 所有正式 Ability、MP Cost、Profile 與 GM 裁決保存於 D1。
