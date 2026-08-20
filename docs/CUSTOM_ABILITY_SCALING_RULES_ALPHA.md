@@ -2,7 +2,7 @@
 
 > Status: Alpha structural specification.
 > Purpose: define how AI-created abilities scale when they contain multiple projectiles, repeated effects, area effects, healing, control or other composite mechanics.
-> Exact numeric Rank budgets, Skill thresholds and effect weights may be tuned during Alpha without changing this structure.
+> Rank 1–9 now uses a canonical ×3 relative Power Index. Exact conversion from Power Index into damage, healing, control, range, area, duration and other effect weights remains Alpha tuning data.
 
 ---
 
@@ -28,7 +28,7 @@ Use different sources of authority:
 Relevant Skill Value
 → reliability / check value / control complexity
 
-Rank 1–9 + Reference Table
+Rank 1–9 + ×3 Power Index + Reference Table
 → normal total power budget
 
 SPECIAL + approved MP amount
@@ -96,7 +96,7 @@ For `SPECIAL`, the approved MP amount becomes the primary budget reference, whil
 
 # 5. Total Power Budget Rule
 
-Every normal Ability Rank has a broad total Power Budget.
+Every normal Ability Rank has one total Power Budget.
 
 The AI spends that budget across mechanical dimensions such as:
 
@@ -127,11 +127,77 @@ Increasing one dimension consumes budget that cannot simultaneously be spent els
 - adding a restriction/cooldown/risk;
 - reducing another output dimension.
 
-Exact numerical weights are Alpha tuning data.
+Exact conversion weights between the abstract Power Index and individual effect dimensions remain Alpha tuning data.
 
 For `SPECIAL`, the same one-budget principle applies, but the approved MP amount is used as the primary scale instead of a fixed Rank budget.
 
 A high-MP control ability can therefore justify strong control even if it deals little or no damage. Likewise, a high-MP damage ability cannot also receive equally extreme area, duration and control for free.
+
+## 5.1 Rank 1–9 Canonical Power Index
+
+Rank 1 is the reference unit:
+
+```text
+Rank 1 Power Index = 1
+```
+
+Each additional Rank multiplies the total Power Index by 3:
+
+```text
+Power Index(Rank) = 3^(Rank - 1)
+```
+
+| Rank | Power Index | Relative to previous Rank |
+|---:|---:|---:|
+| 1 | 1 | — |
+| 2 | 3 | ×3 |
+| 3 | 9 | ×3 |
+| 4 | 27 | ×3 |
+| 5 | 81 | ×3 |
+| 6 | 243 | ×3 |
+| 7 | 729 | ×3 |
+| 8 | 2,187 | ×3 |
+| 9 | 6,561 | ×3 |
+
+This is an abstract **total ability Power Budget index**, not a direct damage multiplier.
+
+Therefore:
+
+```text
+Rank 5 Power Index = 81
+```
+
+may be spent mainly on high single-target damage, or divided among lower damage + area + control + duration + multiple targets.
+
+Likewise:
+
+```text
+Rank 9 Power Index = 6561
+```
+
+does **not** automatically mean `Rank 1 damage × 6561`.
+
+The ×3 rule means the complete mechanical package of the next Rank has approximately three times the available abstract budget before the budget is distributed among its effects.
+
+## 5.2 Relationship to MP Reference
+
+The normal Rank MP Reference remains separate from the Power Index:
+
+| Rank | Default MP | Power Index |
+|---:|---:|---:|
+| 1 | 1 | 1 |
+| 2 | 5 | 3 |
+| 3 | 10 | 9 |
+| 4 | 20 | 27 |
+| 5 | 40 | 81 |
+| 6 | 80 | 243 |
+| 7 | 160 | 729 |
+| 8 | 320 | 2,187 |
+| 9 | 640 | 6,561 |
+
+MP is resource cost; Power Index is total mechanical power budget. They are deliberately not the same curve.
+
+For `SPECIAL`, AI + GM use the approved MP amount together with these normal Rank anchor points to justify an appropriate total Power Budget. `SPECIAL` may sit between normal Rank references or exceed Rank 9 without being renamed Rank 10.
 
 ---
 
@@ -227,7 +293,7 @@ Control Capacity is intentionally not a direct damage multiplier.
 
 Even if the Character can mentally control many projectiles, the Ability's total power budget may not have enough output to make every projectile powerful.
 
-For Rank 1–9, the Rank budget is the main reference.
+For Rank 1–9, the ×3 Rank Power Index is the main total-budget reference.
 
 For `SPECIAL`, the approved MP amount is the main reference.
 
@@ -309,7 +375,7 @@ Conceptually for Rank 1–9:
 ```text
 Reference Output
       ↓
-Ability Rank Budget
+×3 Rank Power Index
       ↓
 Mastery / Character Scaling
       ↓
@@ -464,6 +530,7 @@ Name
 Element / Family
 Relevant Skill
 Suggested Rank or SPECIAL
+Power Index / Special Power Budget Reference
 Source Bonus
 MP Cost
 Target Pattern
@@ -493,6 +560,7 @@ At minimum validate:
 
 ```text
 Rank is 1–9 or SPECIAL
+Rank 1–9 uses the configured ×3 Power Index
 MP/resource values are non-negative
 SPECIAL has an approved/proposed MP amount
 projectile/instance count does not exceed configured caps
@@ -515,6 +583,7 @@ During creation/modification:
 
 ```text
 MP amount
+→ compare against normal Rank MP + Power anchor points
 → AI/GM derives and approves one complete Power Package
 → save mp_cost + Effect Profile in D1
 ```
@@ -536,16 +605,18 @@ Variable-MP SPECIAL abilities can be designed later if needed; they are not the 
 # 19. Alpha Locked Direction
 
 1. Relevant Skill controls reliability and complexity; it is not a raw linear damage multiplier.
-2. Rank 1–9 and canonical references determine the normal total Power Budget.
-3. `SPECIAL` is a separate non-numeric level, not Rank 10.
-4. For `SPECIAL`, approved MP amount is the primary reference used to justify total Power Budget.
-5. Total Power includes Damage, Healing, Control, Area, Target Count, Duration, Movement, Buff/Debuff and other mechanical effects.
-6. Control-heavy SPECIAL abilities can consume large Power Budget without needing high direct damage.
-7. Custom composite abilities divide one total budget among all effects; multiple outputs are never free copies.
-8. Multiple projectiles, targets or ticks are not free copies of the base reference effect.
-9. A derivative spell uses the closest canonical reference as a starting output scale.
-10. One cast uses one Ability check by default.
-11. Player still supplies only Ability Name and Effect Range/Target Pattern.
-12. AI generates the complete mechanical proposal; Player confirms; GM is final authority.
-13. SPECIAL is resolved from stored `mp_cost + Effect Profile` during play; no per-cast AI calculation is required.
-14. Variable-MP SPECIAL abilities are not the Alpha default.
+2. Rank 1–9 uses `Power Index = 3^(Rank - 1)` as the canonical relative total Power Budget curve.
+3. Rank 1–9 Power Index is `1 / 3 / 9 / 27 / 81 / 243 / 729 / 2187 / 6561`.
+4. Power Index is an abstract total mechanical budget, not a direct damage multiplier.
+5. `SPECIAL` is a separate non-numeric level, not Rank 10.
+6. For `SPECIAL`, approved MP amount is the primary reference used to justify total Power Budget against the normal Rank anchor points.
+7. Total Power includes Damage, Healing, Control, Area, Target Count, Duration, Movement, Buff/Debuff and other mechanical effects.
+8. Control-heavy SPECIAL abilities can consume large Power Budget without needing high direct damage.
+9. Custom composite abilities divide one total budget among all effects; multiple outputs are never free copies.
+10. Multiple projectiles, targets or ticks are not free copies of the base reference effect.
+11. A derivative spell uses the closest canonical reference as a starting output scale.
+12. One cast uses one Ability check by default.
+13. Player still supplies only Ability Name and Effect Range/Target Pattern.
+14. AI generates the complete mechanical proposal; Player confirms; GM is final authority.
+15. SPECIAL is resolved from stored `mp_cost + Effect Profile` during play; no per-cast AI calculation is required.
+16. Variable-MP SPECIAL abilities are not the Alpha default.
