@@ -60,7 +60,6 @@ Show:
 
 - Character Name
 - Class / Occupation
-- Alignment
 - Age
 - Gender
 - Level
@@ -68,6 +67,8 @@ Show:
 - EXP to next Level
 - Portrait
 - Background summary
+
+Alignment / 陣營 is removed from the Web Character model and is not shown on Player pages.
 
 Class/Occupation starts Unassigned and is GM-managed.
 
@@ -92,6 +93,7 @@ Show:
 
 Confirmed removals:
 
+- Alignment / 陣營 is not shown.
 - IDEA is not shown.
 - KNOW is not shown.
 
