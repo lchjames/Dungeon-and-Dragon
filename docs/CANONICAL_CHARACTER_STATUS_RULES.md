@@ -3,7 +3,8 @@
 > Status: **Canonical override**  
 > Date: 2026-08-20  
 > Source basis: latest user-provided `人物表.xlsx` plus explicit Web redesign decisions.  
-> This file supersedes any conflicting character-status/resource statements currently remaining in `docs/SITE_SPECIFICATION.md` until that document is consolidated.
+> This file supersedes any conflicting character-status/resource statements currently remaining in `docs/SITE_SPECIFICATION.md` until that document is consolidated.  
+> Core integration behaviour is additionally locked by `docs/ALPHA_CORE_INTEGRATION_RULES.md`.
 
 ## 1. Keep / Remove Decisions
 
@@ -44,6 +45,8 @@ Current Alpha Level Cap = 100
 ```
 
 Level 100 is the current practical maximum. Future versions may extend the cap, but no Level above 100 is granted by the current resolver.
+
+EXP itself is **not** capped at the Level 100 threshold. A Level 100 Character may continue accumulating cumulative EXP; the resolver preserves the full EXP total while returning `Level = 100` until a future rule extends the Level cap.
 
 ### 2.2 Ordinary Monster EXP Reference
 
@@ -149,7 +152,9 @@ Implementation should derive Level from the highest threshold reached, then cap 
 
 Elite, boss, quest and campaign EXP multipliers remain separately tunable and must not silently alter the ordinary-monster baseline.
 
-GM awards EXP. Player cannot directly edit EXP. Level is calculated automatically from EXP.
+Player cannot directly edit EXP or Level. GM may add EXP, subtract EXP, or set Total EXP directly through authorised GM controls; every change is server-side, auditable and followed by automatic Level recalculation.
+
+Normal Player-created Characters begin at `EXP = 1 / Level = 1`. GM-created/imported Characters may be assigned a Starting Level; the server converts that Level into the minimum EXP threshold for that Level so EXP remains authoritative.
 
 When Level increases, the Character receives post-creation Skill Points. The final number of Skill Points granted per Level is still TBD/configurable; the workbook's historical `+5 per level` is reference only, not yet a locked Web rule.
 
@@ -171,6 +176,18 @@ LUCK
 
 Starting generation rules already confirmed elsewhere remain in force unless explicitly changed later.
 
+Alpha creation flow is:
+
+```text
+Server/System Roll
+→ Player may Reroll before finalisation
+→ Player explicitly confirms the final generated set
+```
+
+The Player does not manually enter arbitrary permanent starting Attribute values. The exact reroll cap, if any, remains separately configurable unless explicitly locked later.
+
+Permanent Attribute changes that alter derived Max HP/MP use the same Current-resource delta handling defined below.
+
 ## 4. HP
 
 Character creation keeps the latest-sheet HP basis:
@@ -186,18 +203,25 @@ G(Level)
 = 1 + ((Level - 1) / 21.7)²
 ```
 
-Max HP is:
+Calculated Max HP is:
 
 ```text
-Max HP
+Calculated Max HP
 = ceil(Base HP × G(Level))
 ```
 
-At Level 1:
+Final Max HP supports an explicit GM-managed modifier rather than direct formula replacement:
+
+```text
+Final Max HP
+= Calculated Max HP + HP Max Modifier
+```
+
+At Level 1 with a zero modifier:
 
 ```text
 G(1) = 1
-Max HP = Base HP
+Final Max HP = Base HP
 ```
 
 so the original workbook starting HP is preserved exactly.
@@ -208,6 +232,7 @@ For a representative Character with:
 CON = 12
 SIZ = 13
 Base HP = 13
+HP Max Modifier = 0
 ```
 
 selected values are:
@@ -232,7 +257,33 @@ selected values are:
 
 This multiplicative design preserves the long-term importance of CON and SIZ: a Character with a larger Base HP remains proportionally tougher at high Level rather than having the original attributes drowned out by a large flat Level bonus.
 
-Current HP starts at Max HP at Character creation. Exact healing, recovery and Level-change Current HP handling are resolved separately.
+Current HP starts at Final Max HP at Character creation.
+
+When a permanent Level/Attribute/modifier change raises Final Max HP:
+
+```text
+Current HP += New Final Max HP - Old Final Max HP
+```
+
+This preserves the amount of missing HP rather than performing a full heal. If Final Max HP falls, clamp `Current HP = min(Current HP, New Final Max HP)`.
+
+Ordinary HP recovery does not occur automatically every combat turn.
+
+```text
+Short Rest — HP
+Only outside combat
+2 rounds
+→ recover ceil(Final Max HP × 10%)
+
+Long Rest — HP
+Only outside combat
+5 rounds
+→ recover ceil(Final Max HP × 50%)
+```
+
+A Character at `Current HP = 0` / Down / Dying cannot revive through ordinary rest recovery; they must first be legally restored above 0 HP by healing, treatment, an Item, an Ability or another approved effect.
+
+Current HP cannot be negative and ordinary recovery cannot exceed Final Max HP.
 
 ## 5. MP
 
@@ -248,19 +299,26 @@ Max MP uses the same Level growth multiplier as HP:
 G(Level)
 = 1 + ((Level - 1) / 21.7)²
 
-Max MP
+Calculated Max MP
 = floor(Base MP × G(Level))
 ```
 
-At Level 1 this is exactly the original workbook value:
+Final Max MP supports an explicit GM-managed modifier:
 
 ```text
-Level 1 Max MP = INT × 3
+Final Max MP
+= Calculated Max MP + MP Max Modifier
+```
+
+At Level 1 with a zero modifier this is exactly the original workbook value:
+
+```text
+Level 1 Final Max MP = INT × 3
 ```
 
 The curve is calibrated so a representative `INT = 12` Character reaches the current standard Rank 9 MP cost (`640 MP`) at approximately Level 90 rather than only at the Level cap.
 
-For `INT = 12`:
+For `INT = 12` and zero modifier:
 
 | Level | Max MP |
 |---:|---:|
@@ -291,7 +349,7 @@ Standard Rank 9 MP Cost = 640
 
 INT remains mechanically important because the Level multiplier scales the Character's own Base MP rather than adding a mostly attribute-independent flat amount.
 
-Selected comparisons:
+Selected comparisons with zero modifier:
 
 | INT | Lv90 Max MP | Lv100 Max MP |
 |---:|---:|---:|
@@ -305,7 +363,17 @@ A lower-INT Character may therefore need equipment, Buffs, special progression o
 
 Owning or qualifying for a Rank 9 Ability remains separate from having enough Current / Max MP to activate it.
 
-Current MP starts at Max MP when the Character is created. Exact MP recovery/rest rules are defined separately and are not changed by this formula.
+Current MP starts at Final Max MP when the Character is created.
+
+When a permanent Level/Attribute/modifier change raises Final Max MP:
+
+```text
+Current MP += New Final Max MP - Old Final Max MP
+```
+
+If Final Max MP falls, clamp `Current MP = min(Current MP, New Final Max MP)`.
+
+Exact MP recovery/action rules are defined in `基礎動作與MP資源消耗_ALPHA.md` and the Alpha Core Integration rules. Ordinary MP cannot exceed Final Max MP unless an explicit Temporary MP / Overcharge Profile says otherwise.
 
 This supersedes the short-lived additive `INT × 3 + floor((Level - 1)² / 15)` Web curve, the earlier Web draft that used only `Max MP = INT × 3` at every Level, and the older incorrect draft that used `Max MP = POW`.
 
@@ -388,9 +456,11 @@ Attributes
 
 Status / Resources
 ├── Mind / SAN Current / Max
-├── HP Current / Max
-├── MP Current / Max
+├── HP Current / Final Max
+├── MP Current / Final Max
 └── Damage Bonus
 ```
 
 Do not display IDEA or KNOW as Character status fields.
+
+Player-facing Current HP/MP are not arbitrary edit fields. Ordinary changes are resolved through Damage, Healing, Ability cost, Focus, Rest, Items/effects and other approved server actions. GM may make authorised corrective adjustments. All authoritative values are stored in D1.
