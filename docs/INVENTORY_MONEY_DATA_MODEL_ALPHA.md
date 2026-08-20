@@ -161,8 +161,8 @@ Example active table:
 
 ```text
 Bronze -> Silver     103 Bronze -> 1 Silver
-Silver -> Bronze       1 Silver -> 98 Bronze
-Silver -> Gold       100 Silver -> 95 Gold
+Silver -> Bronze       1 Silver -> 100 Bronze
+Silver -> Gold       106 Silver -> 1 Gold
 Gold -> Silver          1 Gold   -> 101 Silver
 ```
 
@@ -200,6 +200,8 @@ currency_exchange_rate_sets
 ├── effective_from
 ├── effective_until        nullable
 ├── status                 ACTIVE | ARCHIVED | DRAFT
+├── generation_mode        MANUAL | RANDOM
+├── random_seed            nullable
 ├── created_by_gm_id
 ├── created_at
 └── updated_at
@@ -233,7 +235,7 @@ means exactly:
 103 Bronze -> 1 Silver
 ```
 
-The quoted bundle is preserved exactly as entered by GM. The server must not silently simplify `100 -> 95` into `20 -> 19` or otherwise change GM intent.
+The quoted bundle is preserved exactly as entered/generated. The server must not silently simplify or normalize the GM's displayed quote.
 
 Only one normal Exchange Rate Set should be ACTIVE for a Campaign at a time during Alpha.
 
@@ -249,23 +251,31 @@ Recommended control layout:
 CURRENT EXCHANGE RATES
 ──────────────────────────────────────────
 Bronze -> Silver   [103] Bronze -> [1] Silver
-Silver -> Bronze   [1] Silver    -> [98] Bronze
-Silver -> Gold     [100] Silver  -> [95] Gold
+Silver -> Bronze   [1] Silver    -> [100] Bronze
+Silver -> Gold     [106] Silver  -> [1] Gold
 Gold -> Silver     [1] Gold      -> [101] Silver
 
+[Randomise Today's Rates]
+[Randomise Again]
 [Save as Current Rates]
 ```
 
 GM functions:
 
-- edit each directional rate;
+- edit each directional rate manually;
 - enable/disable a direction;
-- add a future Currency pair if new currencies are introduced;
+- set/reference the normal ratio used by the random generator;
+- click `Randomise Today's Rates`;
+- preview generated values before activation;
+- reroll with `Randomise Again`;
+- manually edit a generated value before saving if desired;
 - save a new active Rate Set;
 - automatically archive the previous active Rate Set;
 - see when the current rates were last updated;
 - view previous Rate Sets/history;
 - optionally prepare a DRAFT before activating it.
+
+**Randomising does not immediately publish the rate.** It creates/updates a DRAFT preview. The GM must explicitly save/activate it.
 
 Saving a new active Rate Set is an audited GM action.
 
@@ -273,7 +283,191 @@ The Player never edits exchange-rate values.
 
 ---
 
-# 8. Player-Side Exchange Rate Display
+# 8. Random Exchange-Rate Generator
+
+## 8.1 Economic direction rule
+
+The generator is intentionally asymmetric.
+
+The intended economy is:
+
+```text
+Higher-value Coin -> Lower-value Coin
+= easy / relatively efficient
+
+Lower-value Coin -> Higher-value Coin
+= harder / less efficient
+```
+
+This mimics a real-world currency-exchange spread: acquiring a higher-value denomination costs a premium, while breaking a higher-value denomination into lower currency is easier and closer to the reference value.
+
+The random generator must never simply pick four unrelated numbers.
+
+## 8.2 Reference ratios
+
+The GM General Control Panel stores reference ratios used **only as generation baselines**.
+
+Alpha defaults:
+
+```text
+Reference Bronze per Silver = 100
+Reference Silver per Gold   = 100
+```
+
+These do NOT cause automatic conversion and do NOT alter Character coin stacks.
+
+GM may tune the reference ratios later.
+
+Conceptually:
+
+```text
+currency_exchange_generation_settings
+├── campaign_id
+├── bronze_per_silver_reference
+├── silver_per_gold_reference
+├── low_to_high_premium_min_pct
+├── low_to_high_premium_max_pct
+├── high_to_low_spread_min_pct
+├── high_to_low_spread_max_pct
+├── updated_by_gm_id
+└── updated_at
+```
+
+## 8.3 Alpha random ranges
+
+Initial Alpha defaults:
+
+```text
+LOW -> HIGH premium:
++2% to +10%
+
+HIGH -> LOW spread/haircut:
+0% to 3%
+```
+
+For a reference ratio of:
+
+```text
+100 Bronze ~= 1 Silver
+```
+
+a generated day might become:
+
+```text
+Bronze -> Silver
+106 Bronze -> 1 Silver
+
+Silver -> Bronze
+1 Silver -> 99 Bronze
+```
+
+Another day:
+
+```text
+Bronze -> Silver
+103 Bronze -> 1 Silver
+
+Silver -> Bronze
+1 Silver -> 100 Bronze
+```
+
+Likewise, with:
+
+```text
+100 Silver ~= 1 Gold
+```
+
+the generated day might be:
+
+```text
+Silver -> Gold
+108 Silver -> 1 Gold
+
+Gold -> Silver
+1 Gold -> 98 Silver
+```
+
+The exact percentages are Alpha tuning values and can be adjusted after testing without changing the data model.
+
+## 8.4 Generation formulas
+
+For an adjacent pair with reference ratio `R` lower Coins per 1 higher Coin:
+
+```text
+Low -> High
+required_low = ceil(R × (1 + premium))
+receive_high = 1
+```
+
+where:
+
+```text
+premium ∈ [low_to_high_premium_min_pct, low_to_high_premium_max_pct]
+```
+
+For the reverse direction:
+
+```text
+High -> Low
+required_high = 1
+receive_low = floor(R × (1 - haircut))
+```
+
+where:
+
+```text
+haircut ∈ [high_to_low_spread_min_pct, high_to_low_spread_max_pct]
+```
+
+All generated quantities must be positive integers.
+
+## 8.5 No-free-arbitrage invariant
+
+For each generated adjacent pair, the Worker must enforce:
+
+```text
+high_to_low_receive < low_to_high_required
+```
+
+Example valid pair:
+
+```text
+103 Bronze -> 1 Silver
+1 Silver -> 99 Bronze
+```
+
+A Player cannot repeatedly cycle:
+
+```text
+Bronze -> Silver -> Bronze
+```
+
+and increase their money.
+
+If a random draw would violate this invariant, reroll that pair before showing the DRAFT to GM.
+
+## 8.6 Adjacent-pair rule for Alpha
+
+Alpha random generation covers only:
+
+```text
+Bronze <-> Silver
+Silver <-> Gold
+```
+
+Direct:
+
+```text
+Bronze <-> Gold
+```
+
+is intentionally omitted from the random generator during Alpha to avoid triangular-arbitrage complexity.
+
+A future direct Bronze/Gold market may be added with cross-rate validation.
+
+---
+
+# 9. Player-Side Exchange Rate Display
 
 The Player can see the current active exchange rates near their Currency display.
 
@@ -288,9 +482,9 @@ Gold        4
 Today's Exchange Rate
 ──────────────────────────
 103 Bronze  -> 1 Silver     [Exchange]
-1 Silver    -> 98 Bronze    [Exchange]
-100 Silver  -> 95 Gold      [Exchange]
-1 Gold      -> 101 Silver   [Exchange]
+1 Silver    -> 99 Bronze    [Exchange]
+106 Silver  -> 1 Gold       [Exchange]
+1 Gold      -> 100 Silver   [Exchange]
 
 Updated: 20 Aug / Session 12
 ```
@@ -299,9 +493,11 @@ The Player interface must display the **actual active D1 rate**, not a hard-code
 
 If a direction is disabled by GM, its Exchange button is hidden or disabled.
 
+Rates generated randomly and rates entered manually look the same to the Player; generation provenance is a GM/audit concern.
+
 ---
 
-# 9. Player Currency Exchange Dialog
+# 10. Player Currency Exchange Dialog
 
 Clicking an `Exchange` button opens a modal/dialog.
 
@@ -335,7 +531,7 @@ Silver:    42
 [Cancel] [Confirm Exchange]
 ```
 
-## 9.1 Integer coin rule
+## 10.1 Integer coin rule
 
 Coins are indivisible integer Items.
 
@@ -368,17 +564,9 @@ The UI must not create fractional Coins and must not silently round a Player's r
 
 If an invalid amount is typed, show the required multiple and do not allow confirmation.
 
-For:
-
-```text
-100 Silver -> 95 Gold
-```
-
-valid conversions are whole quoted bundles such as 100 -> 95, 200 -> 190, etc.
-
 ---
 
-# 10. Exchange Validation and Atomic Transaction
+# 11. Exchange Validation and Atomic Transaction
 
 When the Player confirms an exchange, the client sends the selected rate ID and requested bundle/source amount.
 
@@ -403,7 +591,7 @@ A stale-rate response should tell the Player that the exchange rate changed and 
 
 ---
 
-# 11. Currency Exchange Transaction History
+# 12. Currency Exchange Transaction History
 
 Every completed exchange is auditable.
 
@@ -427,21 +615,11 @@ currency_exchange_transactions
 └── metadata
 ```
 
-Example immutable history entry:
-
-```text
-Character: James
-Rate: 103 Bronze -> 1 Silver
-Units: 5
-Paid: 515 Bronze
-Received: 5 Silver
-```
-
 The transaction preserves the rate actually used even after GM changes tomorrow's/current rates.
 
 ---
 
-# 12. Store Item Pricing Is Separate from Currency Exchange
+# 13. Store Item Pricing Is Separate from Currency Exchange
 
 GM-controlled Currency Exchange is a **Campaign-level/general control function**.
 
@@ -465,7 +643,7 @@ The Store system and the Currency Exchange control should not be conflated.
 
 ---
 
-# 13. No Automatic Exchange During Purchase
+# 14. No Automatic Exchange During Purchase
 
 During Alpha, buying an Item does **not** automatically exchange the Player's other Coin types to cover the cost.
 
@@ -491,7 +669,7 @@ This keeps every currency conversion visible, intentional and auditable.
 
 ---
 
-# 14. Item Definitions and Character-Owned Instances
+# 15. Item Definitions and Character-Owned Instances
 
 Standard reusable Item data and Character ownership remain separate:
 
@@ -513,7 +691,7 @@ Rules:
 
 ---
 
-# 15. Weapon Data
+# 16. Weapon Data
 
 Weapon-specific data is attached to a WEAPON definition.
 
@@ -535,7 +713,7 @@ Weapon definitions describe the Item. Actual usable Attack records may reference
 
 ---
 
-# 16. Armour Data
+# 17. Armour Data
 
 Armour-specific data is attached to an ARMOUR definition.
 
@@ -554,7 +732,7 @@ Exact armour combat mathematics remain Alpha-tunable.
 
 ---
 
-# 17. General ITEM Data
+# 18. General ITEM Data
 
 General `ITEM` covers possessions such as:
 
@@ -575,7 +753,7 @@ General Items may later use reusable effect records rather than fixed `Bonus1/Bo
 
 ---
 
-# 18. Relationship with Combat and Skills
+# 19. Relationship with Combat and Skills
 
 Inventory, Attack and Skill remain separate but linkable entities:
 
@@ -593,7 +771,7 @@ Currency normally has no Attack or Skill link.
 
 ---
 
-# 19. Alpha Rules Locked by This Document
+# 20. Alpha Rules Locked by This Document
 
 1. Normal visible currencies begin with Bronze/Brown, Silver and Gold Coins.
 2. Coins are real stackable Items, not display denominations of one hidden base amount.
@@ -601,19 +779,26 @@ Currency normally has no Attack or Skill link.
 4. Bronze, Silver and Gold holdings are stored independently in D1.
 5. There is no automatic inventory normalization between Coin types.
 6. GM controls the current Campaign exchange-rate table from the General Control Panel.
-7. Player can view current rates but cannot edit them.
-8. Exchange directions are independent; reverse rates are not automatically reciprocal.
-9. Player currency exchange is explicit through an Exchange button and confirmation dialog.
-10. Player enters how many source Coins to convert and the UI previews the resulting destination Coins.
-11. Alpha conversions use whole GM-defined bundles; fractional Coins and silent rounding are prohibited.
-12. Worker revalidates the currently active rate before every exchange.
-13. A rate changed by GM invalidates an older Player quote before transaction execution.
-14. Currency exchanges are atomic and auditable.
-15. Store Item prices remain separate from the Campaign exchange-rate table.
-16. Purchases do not automatically convert other Player currencies during Alpha.
-17. Main Item categories remain WEAPON / ARMOUR / ITEM.
-18. Standard Item data lives in `item_definitions`.
-19. Character ownership lives in `character_inventory`.
-20. Weapon and Armour use structured subtype data.
-21. Inventory, Attack and Skill are separate but linkable.
-22. All authoritative data lives in Cloudflare D1; no localStorage persistence.
+7. GM may manually enter rates or generate a random DRAFT using `Randomise Today's Rates`.
+8. Random rates require explicit GM Save/Activate before Players see them.
+9. The random generator uses GM-configurable reference ratios but reference ratios never trigger automatic conversion.
+10. Random generation is asymmetric: low-value -> high-value currency is deliberately less efficient than high-value -> low-value currency.
+11. Alpha random low->high premium is 2–10%; high->low haircut is 0–3%, both configurable.
+12. The generator enforces a no-free-arbitrage invariant for every adjacent currency pair.
+13. Alpha random generation covers Bronze<->Silver and Silver<->Gold only.
+14. Player can view current rates but cannot edit them.
+15. Exchange directions are independent; reverse rates are not automatically reciprocal.
+16. Player currency exchange is explicit through an Exchange button and confirmation dialog.
+17. Player enters how many source Coins to convert and the UI previews the resulting destination Coins.
+18. Alpha conversions use whole GM-defined bundles; fractional Coins and silent rounding are prohibited.
+19. Worker revalidates the currently active rate before every exchange.
+20. A rate changed by GM invalidates an older Player quote before transaction execution.
+21. Currency exchanges are atomic and auditable.
+22. Store Item prices remain separate from the Campaign exchange-rate table.
+23. Purchases do not automatically convert other Player currencies during Alpha.
+24. Main Item categories remain WEAPON / ARMOUR / ITEM.
+25. Standard Item data lives in `item_definitions`.
+26. Character ownership lives in `character_inventory`.
+27. Weapon and Armour use structured subtype data.
+28. Inventory, Attack and Skill are separate but linkable.
+29. All authoritative data lives in Cloudflare D1; no localStorage persistence.
