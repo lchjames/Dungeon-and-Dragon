@@ -61,13 +61,15 @@ If GM requests N Monsters, the server runs the full spawn pipeline N separate ti
 For every instance:
 
 ```text
-1. Roll six natural/base Attributes from the Template ranges
+1. Roll six base Attributes from the Template ranges
 2. Roll that instance's 10% Elite check
 3. If Elite, roll one +1 to +5 Elite Bonus and apply it to all six Attributes
-4. Apply Monster Level Scaling
-5. Recalculate derived values
-6. Save the generated instance
-7. Permit GM final adjustment
+4. Save the post-Elite values as Natural Attributes
+5. Apply Monster Level Scaling to Natural Attributes
+6. Save the calculated outputs as Effective Attributes
+7. Recalculate derived combat/resource values from Effective Attributes
+8. Save the generated instance
+9. Permit GM final adjustment
 ```
 
 A group spawn never clones one generated result across the group.
@@ -76,22 +78,35 @@ A group spawn never clones one generated result across the group.
 
 # 4. Instance Inspection
 
-GM should be able to inspect, for each generated Monster Instance:
+GM must be able to inspect, for each generated Monster Instance:
 
 ```text
 Template source
 Monster Level
-Natural/base rolled STR / DEX / CON / POW / INT / SIZ
+Base rolled STR / DEX / CON / POW / INT / SIZ
 Elite result
 Elite Attribute Bonus
-Post-Elite base state
-Level-adjusted values
+Natural STR / DEX / CON / POW / INT / SIZ
+Effective STR / DEX / CON / POW / INT / SIZ
 Derived values
 GM adjustments
 Final current state
 ```
 
-The UI should make automatic generation and later GM adjustment distinguishable.
+The UI should visually distinguish at least:
+
+```text
+Natural
+→ what this individual Monster naturally rolled after Elite processing
+
+Effective
+→ what the current Monster Level converts those values into
+
+GM Adjustment
+→ later authorised manual changes
+```
+
+This allows the GM to understand why a high-Level version of a weak species has strong final combat values without losing its original rolled identity.
 
 ---
 
@@ -101,14 +116,17 @@ GM may adjust a generated Monster Instance after automatic generation and Level 
 
 This adjustment applies only to that individual instance unless GM explicitly edits the Template.
 
-The system should preserve enough audit data to distinguish:
+The system must preserve enough audit data to distinguish:
 
 ```text
-Generated value
-Level-adjusted value
+Base roll
+Natural Attribute
+Calculated Effective Attribute
 GM adjustment
 Final value
 ```
+
+GM editing must not erase the saved Natural Attribute history.
 
 ---
 
@@ -125,6 +143,18 @@ Goblin Lv100
 
 both begin by rolling from the same Goblin Template ranges.
 
-Only after the natural/base state and any Elite bonus are known does the Monster Level Scaling layer transform the Monster into its level-appropriate final state.
+After the base roll and any Elite bonus are known, those values become the instance's **Natural Attributes**.
+
+Monster Level then calculates a second **Effective Attribute** layer:
+
+```text
+Natural Attribute
+→ Level Scaling
+→ Effective Attribute
+```
+
+Normal live combat calculations use Effective Attributes unless a specific rule explicitly asks for Natural values.
+
+Changing the Monster's Level recalculates Effective Attributes from the preserved Natural Attributes; it must not reroll or destroy the Natural values.
 
 The exact Level Scaling formula is defined separately in `MONSTER_NPC_SYSTEM_ALPHA.md` once locked.
