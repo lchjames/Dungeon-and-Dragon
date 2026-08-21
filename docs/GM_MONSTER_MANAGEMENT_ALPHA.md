@@ -68,9 +68,10 @@ For every instance:
 5. Calculate GlobalGrowth(Level) = ((Level - 1) / 21.7)^2
 6. Apply the Template's six Growth Weights
 7. Calculate Effective Attributes
-8. Recalculate derived combat/resource values from Effective Attributes
-9. Save the generated instance
-10. Permit GM final adjustment
+8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
+9. Recalculate other derived combat/resource values from Effective Attributes
+10. Save the generated instance
+11. Permit GM final adjustment
 ```
 
 A group spawn never clones one generated result across the group.
@@ -101,7 +102,11 @@ Natural STR / DEX / CON / POW / INT / SIZ
 GlobalGrowth(Level)
 STR / DEX / CON / POW / INT / SIZ Growth Weights
 Effective STR / DEX / CON / POW / INT / SIZ
-Derived values
+Calculated Max HP
+HP GM adjustment
+Final Max HP
+Current HP
+Other derived values
 GM adjustments
 Final current state
 ```
@@ -115,24 +120,44 @@ Natural
 Effective
 → current Level-scaled Attribute used by live rules
 
+Calculated HP
+→ automatic result from Effective CON/SIZ
+
 GM Adjustment
 → later authorised manual change
 ```
 
 ---
 
-# 5. Level Principle
+# 5. Locked Monster HP Handling
 
-Monster Level never changes Template Attribute ranges before rolling and never rerolls Natural Attributes.
-
-Example:
+Automatic Simplified Monster Max HP is:
 
 ```text
-Goblin Lv1
-Goblin Lv100
+Max HP
+= ceil((Effective CON + Effective SIZ) / 2)
 ```
 
-both begin from the same Goblin Template ranges.
+The Level curve is already represented inside Effective CON/SIZ and must not be applied to HP again.
+
+GM may adjust the generated Monster Instance's final Max HP or Current HP after automatic calculation.
+
+The UI/audit layer must preserve the distinction between:
+
+```text
+Calculated Max HP
+GM Max HP adjustment
+Final Max HP
+Current HP
+```
+
+A GM instance adjustment does not change the Monster Template or future spawned Monsters unless the GM explicitly edits Template data.
+
+---
+
+# 6. Level Principle
+
+Monster Level never changes Template Attribute ranges before rolling and never rerolls Natural Attributes.
 
 At Level 1:
 
@@ -146,7 +171,7 @@ A standard Weight `1.0` uses the same Level growth shape as Player HP/MP and rea
 
 ---
 
-# 6. GM Final Adjustment
+# 7. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation, Level scaling and derived-stat calculation.
 
@@ -159,15 +184,16 @@ Base roll
 Elite Bonus
 Natural Attribute
 Calculated Effective Attribute
+Calculated Resource / derived value
 GM adjustment
 Final value
 ```
 
-GM editing must not erase Natural Attribute history.
+GM editing must not erase Natural Attribute history or calculated pre-adjustment values.
 
 ---
 
-# 7. Template vs Instance Editing
+# 8. Template vs Instance Editing
 
 ```text
 Edit Template
