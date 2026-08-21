@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule
 > Date: 2026-08-21
-> Scope: Defines the locked conversion from Monster Natural Attributes into Effective Attributes after per-instance generation and Elite adjustment, plus Monster HP derivation from Effective Attributes.
+> Scope: Defines the locked conversion from Monster Natural Attributes into Effective Attributes after per-instance generation and Elite adjustment, plus Monster HP/MP derivation from Effective Attributes.
 > Use together with `MONSTER_NPC_SYSTEM_ALPHA.md` and `GM_MONSTER_MANAGEMENT_ALPHA.md`.
 
 ---
@@ -28,26 +28,22 @@ INT Growth Weight
 SIZ Growth Weight
 ```
 
-This preserves species/template identity at high Level instead of making every Monster scale into the same stat profile.
-
 ---
 
 # 2. Locked Global Monster Level Curve
-
-The Global Monster Level Curve uses the same quadratic growth term already used by Player HP/MP progression:
 
 ```text
 GlobalGrowth(Level)
 = ((Level - 1) / 21.7)^2
 ```
 
-Therefore:
+At Level 1:
 
 ```text
 GlobalGrowth(1) = 0
 ```
 
-and a standard Weight `1.0` produces the same overall Level multiplier shape as the Player resource growth curve:
+At Weight `1.0`, the total multiplier is:
 
 ```text
 1 + GlobalGrowth(Level)
@@ -55,7 +51,7 @@ and a standard Weight `1.0` produces the same overall Level multiplier shape as 
 
 Selected standard-weight multipliers:
 
-| Level | Standard Multiplier at Weight 1.0 |
+| Level | Multiplier |
 |---:|---:|
 | 1 | 1.00× |
 | 10 | ~1.17× |
@@ -73,23 +69,11 @@ Selected standard-weight multipliers:
 | 99 | ~21.40× |
 | 100 | ~21.81× |
 
-The Monster system therefore deliberately permits very large high-Level Effective Attributes when a Template uses standard or high Growth Weights.
-
 ---
 
-# 3. Locked Natural → Effective Formula
+# 3. Natural → Effective Attribute Formula
 
 For each Attribute independently:
-
-```text
-Effective Attribute
-= round(
-    Natural Attribute
-    × [1 + GlobalGrowth(Level) × Attribute Growth Weight]
-  )
-```
-
-Equivalent expanded form:
 
 ```text
 Effective Attribute
@@ -99,7 +83,7 @@ Effective Attribute
   )
 ```
 
-This formula applies independently to:
+Applies to:
 
 ```text
 STR
@@ -110,60 +94,37 @@ INT
 SIZ
 ```
 
-The Template supplies a separate Growth Weight for each Attribute.
+At Level 1:
+
+```text
+Effective Attribute = Natural Attribute
+```
+
+Changing Monster Level recalculates Effective Attributes but never rerolls or overwrites Natural Attributes.
 
 ---
 
 # 4. Growth Weight Meaning
 
-Growth Weight only controls the Level-derived growth component.
-
-Canonical meanings:
-
 ```text
 Weight 0.0
 → no Level-based growth
-→ Effective Attribute remains Natural Attribute
 
 Weight 0.5
-→ half of the standard global Level growth
+→ half standard Level-derived growth
 
 Weight 1.0
-→ standard global Level growth
+→ standard global growth
 
 Weight 1.5
-→ 1.5× the standard Level-derived growth component
+→ 1.5× standard Level-derived growth
 ```
 
-A Template is therefore free to scale different Attributes at different rates.
+Growth Weight affects only the Level-derived component.
 
 ---
 
-# 5. Level 1 Invariant
-
-At Level 1:
-
-```text
-GlobalGrowth(1) = 0
-```
-
-so:
-
-```text
-Effective Attribute
-= round(Natural Attribute × 1)
-= Natural Attribute
-```
-
-for all six Simplified Monster Attributes before any later GM final adjustment.
-
-Template Growth Weight can never make a Level 1 Monster stronger or weaker by itself.
-
----
-
-# 6. Relationship to Natural / Effective Attributes
-
-Generation order remains:
+# 5. Generation / Calculation Order
 
 ```text
 Template Range
@@ -173,165 +134,127 @@ Template Range
 → Natural Attributes
 → Global Level Curve + Template Growth Weights
 → Effective Attributes
-→ Derived Stats
+→ HP / MP / other Derived Stats
 → GM Final Adjustment
 ```
 
-The Level system must never reroll or overwrite stored Natural Attributes.
-
-Changing Monster Level recalculates Effective Attributes from the preserved Natural Attributes and the Template Growth Weights.
-
-All ordinary derived Monster calculations that depend on Attributes use Effective values unless a specific rule explicitly asks for Natural values.
+Elite Bonus is part of the Natural Attribute layer and therefore benefits from later Level scaling.
 
 ---
 
-# 7. Example
+# 6. Locked Monster HP Formula
 
-Assume a Goblin has:
-
-```text
-Natural STR = 3
-Natural DEX = 3
-Level = 100
-```
-
-and its Template uses:
+Simplified Monster Max HP is derived from Effective CON and Effective SIZ:
 
 ```text
-STR Growth Weight = 0.5
-DEX Growth Weight = 1.0
-```
-
-At Level 100:
-
-```text
-GlobalGrowth ≈ 20.81
-```
-
-Therefore:
-
-```text
-Effective STR
-= round(3 × [1 + 20.81 × 0.5])
-≈ 34
-
-Effective DEX
-= round(3 × [1 + 20.81 × 1.0])
-≈ 65
-```
-
----
-
-# 8. Template-Level Configuration
-
-The Monster Template stores six independent Growth Weights:
-
-```text
-STR
-DEX
-CON
-POW
-INT
-SIZ
-```
-
-These are Template configuration values, not per-spawn random rolls.
-
-Two spawned Monsters from the same Template may have different Natural Attributes because of random generation, but normally share the same Growth Weights.
-
-Template editing must not erase existing Monster Instance Natural Attributes or historical generation/audit data.
-
----
-
-# 9. Locked Monster HP Formula
-
-Simplified Monster HP is derived directly from the level-adjusted Effective CON and Effective SIZ.
-
-Canonical formula:
-
-```text
-Max HP
+Calculated Max HP
 = ceil((Effective CON + Effective SIZ) / 2)
 ```
 
 Rules:
 
-1. `Effective CON` and `Effective SIZ` already include Monster Level scaling and Template Growth Weights.
-2. Monster HP therefore does **not** receive the global Level curve a second time.
-3. There is no default Monster HP Weight in the Alpha formula.
-4. At spawn/final recalculation, `Current HP` normally starts at calculated `Max HP` unless the GM intentionally creates an injured instance.
-5. GM may perform an authorised final instance-level HP adjustment after automatic calculation.
-6. GM adjustment must not erase the calculated value or the underlying Effective CON/SIZ history.
+1. Effective CON/SIZ already include Level scaling.
+2. HP does not receive the global Level curve a second time.
+3. No default Monster HP Weight is applied.
+4. Spawned Monsters normally begin with `Current HP = Final Max HP` unless GM deliberately creates an injured instance.
+5. GM may make an authorised final instance-level Max HP or Current HP adjustment.
+6. Calculated Max HP must remain distinguishable from GM adjustment and Final Max HP.
+
+---
+
+# 7. Locked Monster MP Formula
+
+Simplified Monster Max MP is derived directly from Effective INT using the same `INT × 3` basis as the Player resource model:
+
+```text
+Calculated Max MP
+= Effective INT × 3
+```
+
+Rules:
+
+1. Effective INT already includes Monster Level scaling and the Template INT Growth Weight.
+2. MP therefore does **not** receive the global Level curve a second time.
+3. Effective POW is not part of the default Max MP formula.
+4. No default Monster MP Weight is applied.
+5. Spawned Monsters normally begin with `Current MP = Final Max MP` unless GM deliberately sets another state.
+6. GM may make an authorised final instance-level Max MP or Current MP adjustment.
+7. Calculated Max MP must remain distinguishable from GM adjustment and Final Max MP.
 
 Example:
 
 ```text
-Effective CON = 65
-Effective SIZ = 65
-
-Max HP
-= ceil((65 + 65) / 2)
-= 65
+Effective INT = 20
+Calculated Max MP = 20 × 3 = 60
 ```
 
-The resulting HP remains explainable through:
+---
+
+# 8. Resource Adjustment / Recalculation Principle
+
+When Monster Level, Natural Attributes, Template Growth Weights or other upstream inputs change, the server recalculates Effective Attributes and then recalculates Calculated Max HP / MP.
+
+Automatic calculation must not erase GM-authored final adjustments or historical/audit information. The implementation should preserve an explainable chain such as:
 
 ```text
-Natural CON/SIZ
-→ Level + Growth Weights
-→ Effective CON/SIZ
+Effective INT
+→ Calculated Max MP
+→ GM Max MP Adjustment
+→ Final Max MP
+→ Current MP
+```
+
+and:
+
+```text
+Effective CON / SIZ
 → Calculated Max HP
-→ GM final adjustment, if any
+→ GM Max HP Adjustment
+→ Final Max HP
+→ Current HP
 ```
+
+Exact Current-resource reconciliation during later recalculation should follow the project's canonical permanent Max-resource reconciliation rules unless a Monster-specific override is explicitly locked.
 
 ---
 
-# 10. GM Monster Management Requirement
+# 9. GM Monster Management Requirement
 
-The GM Monster Management tab must expose each Attribute range together with its Growth Weight:
-
-```text
-STR min / max + STR Growth Weight
-DEX min / max + DEX Growth Weight
-CON min / max + CON Growth Weight
-POW min / max + POW Growth Weight
-INT min / max + INT Growth Weight
-SIZ min / max + SIZ Growth Weight
-```
-
-For a spawned instance, the GM inspection view should expose:
+For each spawned instance the GM UI should expose:
 
 ```text
-Natural Attribute
+Natural Attributes
 Monster Level
-Template Growth Weight
+Template Growth Weights
 GlobalGrowth(Level)
-Effective Attribute
+Effective Attributes
 Calculated Max HP
-GM HP adjustment
+HP GM adjustment
 Final Max HP / Current HP
+Calculated Max MP
+MP GM adjustment
+Final Max MP / Current MP
 ```
 
-so the final value is explainable and auditable.
+so all final resource values are explainable and auditable.
 
 ---
 
-# 11. Locked Conclusions
+# 10. Locked Conclusions
 
-1. All Simplified Monsters use one global quadratic Level-growth curve.
-2. The global growth term is `((Level - 1) / 21.7)^2`.
-3. Each Template stores six independent Attribute Growth Weights.
-4. Effective Attribute uses `round(Natural × [1 + GlobalGrowth × Weight])`.
-5. Level 1 always preserves `Effective = Natural` before GM adjustment.
-6. Elite Bonus is applied before the Natural layer is finalized and therefore scales with Level afterwards.
-7. Changing Level does not reroll Natural Attributes.
-8. Derived combat/resource values use Effective Attributes unless a specific rule says otherwise.
-9. Monster Max HP is `ceil((Effective CON + Effective SIZ) / 2)`.
-10. HP does not receive a second Level multiplier.
-11. GM may apply an authorised final HP adjustment at instance level.
+1. Global Monster Level growth is `((Level - 1) / 21.7)^2`.
+2. Effective Attribute = `round(Natural × [1 + GlobalGrowth × Weight])`.
+3. Each Template has six independent Attribute Growth Weights.
+4. Level 1 preserves `Effective = Natural`.
+5. Elite Bonus is applied before Level scaling.
+6. Monster Max HP = `ceil((Effective CON + Effective SIZ) / 2)`.
+7. Monster Max MP = `Effective INT × 3`.
+8. Neither HP nor MP receives a second Level multiplier after Effective Attributes are calculated.
+9. Effective POW is not used by the default Max MP formula.
+10. GM may finally adjust Max HP, Current HP, Max MP and Current MP at instance level while calculated values remain auditable.
 
 ---
 
-# 12. Next Unresolved Monster Design Item
+# 11. Next Unresolved Monster Design Item
 
-The next decision is the Monster MP formula: which Effective Attribute(s) determine Max MP, and whether Monster MP follows the Player `INT × 3` basis or another Monster-specific basis.
+The next Monster-system decision is the ordinary Monster Attack / Defence model and how Simplified Monsters participate in D100 combat checks.
