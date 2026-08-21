@@ -44,7 +44,8 @@ Name
 Description / notes
 Default or allowed Level information
 Elite configuration where allowed
-Ability/profile links when later implemented
+Attack Profiles
+Ability/profile links for special actions
 Other approved Monster metadata
 ```
 
@@ -71,8 +72,9 @@ For every instance:
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
 9. Calculate Max MP = Effective INT × 3
 10. Recalculate other derived combat/resource values from Effective Attributes
-11. Save the generated instance
-12. Permit GM final adjustment
+11. Attach/use the Template's approved Attack Profiles
+12. Save the generated instance
+13. Permit GM final adjustment
 ```
 
 A group spawn never clones one generated result across the group.
@@ -111,6 +113,8 @@ Calculated Max MP
 MP GM adjustment
 Final Max MP
 Current MP
+Attack Profiles
+Attack instance overrides, if any
 Other derived values
 GM adjustments
 Final current state
@@ -127,6 +131,12 @@ Effective
 
 Calculated HP / MP
 → automatic resource results from Effective Attributes
+
+Template Attack Profile
+→ reusable approved ordinary-attack definition
+
+Instance Attack Override
+→ later authorised change affecting only this spawned Monster
 
 GM Adjustment
 → later authorised manual change
@@ -172,7 +182,52 @@ GM instance adjustment does not change the Monster Template or future spawned Mo
 
 ---
 
-# 6. Level Principle
+# 6. Monster Attack Profile Management
+
+Simplified Monsters use the Canonical simplified Player-style Monster attack model defined in `MONSTER_ATTACK_PROFILE_ALPHA.md`.
+
+The Monster Management tab must provide a dedicated **Attack Profiles** section for each Monster Template.
+
+A Template may contain multiple ordinary Attack Profiles, for example:
+
+```text
+Goblin Short Sword
+Goblin Short Bow
+```
+
+GM must be able to:
+
+```text
+add an Attack Profile
+edit an Attack Profile
+remove / retire an Attack Profile
+reorder attacks
+edit D100 hit-source / basis fields once the physical Attack Mapping is locked
+edit hit modifier separately from damage
+edit Damage Profile / damage dice
+edit fixed damage modifier
+set whether Effective STR + Effective SIZ Damage Bonus applies
+edit range / reach / targeting fields where relevant
+link exceptional actions to the Ability system instead of forcing them into an ordinary Attack Profile
+```
+
+Monster Attack Profiles use the same core D100 → successful hit → Damage Profile → Defence → Damage Result resolver as Player ordinary attacks, but do not require the full Player Skill-tree, learning, weapon-practice, or specialization-growth administration merely to execute an ordinary Monster attack.
+
+Template and instance editing remain separate:
+
+```text
+Edit Template Attack Profile
+→ changes reusable definition / future use
+
+Edit Spawned Instance Attack Override
+→ changes only that Monster
+```
+
+The system should keep Template attack values and instance overrides distinguishable for audit/debugging.
+
+---
+
+# 7. Level Principle
 
 Monster Level never changes Template Attribute ranges before rolling and never rerolls Natural Attributes.
 
@@ -186,9 +241,11 @@ At higher Levels, Effective Attributes are recalculated from preserved Natural A
 
 A standard Weight `1.0` uses the same Level growth shape as Player HP/MP and reaches about `21.81×` Natural at Level 100.
 
+Attack components that read Effective Attributes naturally receive Level/Elite influence through those Effective values. The global Level curve must not be silently applied a second time to the same attack output.
+
 ---
 
-# 7. GM Final Adjustment
+# 8. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation, Level scaling and derived-stat calculation.
 
@@ -202,6 +259,8 @@ Elite Bonus
 Natural Attribute
 Calculated Effective Attribute
 Calculated Resource / derived value
+Template Attack Profile
+Instance Attack Override
 GM adjustment
 Final value
 ```
@@ -210,14 +269,14 @@ GM editing must not erase Natural Attribute history or calculated pre-adjustment
 
 ---
 
-# 8. Template vs Instance Editing
+# 9. Template vs Instance Editing
 
 ```text
 Edit Template
-→ changes reusable ranges / Growth Weights / future Template behaviour
+→ changes reusable ranges / Growth Weights / Attack Profiles / future Template behaviour
 
 Edit Spawned Instance
 → changes only that individual Monster
 ```
 
-Where persistent instances are recalculated after a deliberate Template Growth Weight change, the operation must be explicit/auditable rather than silently mutating historical values.
+Where persistent instances are recalculated after a deliberate Template Growth Weight or Attack Profile change, the operation must be explicit/auditable rather than silently mutating historical values.
