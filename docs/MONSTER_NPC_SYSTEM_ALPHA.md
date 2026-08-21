@@ -1,8 +1,8 @@
 # Monster / NPC System — Alpha
 
-> Status: Canonical Alpha Working Rule  
+> Status: Canonical Alpha Rule  
 > Date: 2026-08-21  
-> Scope: Defines the structural model used for Monsters and NPCs in the Alpha ruleset. Detailed stat formulas and balance values are decided incrementally in later sections.
+> Scope: Defines the structural model used for Monsters and NPCs in the Alpha ruleset.
 
 ---
 
@@ -10,18 +10,9 @@
 
 Alpha uses a **Hybrid Monster / NPC Model**.
 
-The system does not force every enemy, creature and NPC to use the full Player Character data model.
-
 ## 1.1 Ordinary Monsters / Disposable Combatants
 
-Ordinary Monsters and similarly lightweight combatants use a **Simplified Profile**.
-
-Purpose:
-
-- fast GM creation;
-- low database/UI overhead;
-- suitable for encounters containing many units;
-- avoids requiring irrelevant full Character fields for every minor creature.
+Ordinary Monsters use a **Simplified Profile** for fast GM creation and low database/UI overhead.
 
 Simplified Monster templates use exactly these six core Attributes:
 
@@ -34,39 +25,21 @@ INT
 SIZ
 ```
 
-The following Player-oriented Attributes are not mandatory on the Simplified Monster model:
-
-```text
-APP
-EDU
-LUCK
-```
-
-A richer Elite/Boss profile or Full Character NPC may carry additional fields when required.
+`APP / EDU / LUCK` are not mandatory for Simplified Monsters.
 
 ## 1.2 Elite / Boss Enemies
 
-Elite and Boss enemies may use a **richer Monster Profile** when required by their mechanics.
-
-They are not automatically forced to become full Player-style Characters, but the model must be extensible enough to support additional Attributes, Resources, Abilities, Status rules and encounter-specific mechanics.
-
-The automatic Elite upgrade process for spawned Ordinary Monsters is defined below.
+Elite and Boss enemies may use a richer Monster Profile when required by their mechanics. They are not automatically forced into the full Player Character model.
 
 ## 1.3 Important / Persistent / Growing NPCs
 
 Important NPCs, persistent companions, recurring characters or NPCs that require long-term progression may use the **Full Character Model**.
 
-When Full Character Model is used, the NPC may participate in the same authoritative Character systems as appropriate, including Attributes, derived Resources, Skills, progression and Abilities.
-
-Whether every Full-Model NPC uses EXP/Level progression identically to a Player Character is a separate decision and is not implied by this section.
-
 ---
 
 # 2. Monster Template Attribute Ranges
 
-A Simplified Monster is defined by a reusable **Monster Template**.
-
-Instead of storing one fixed Attribute value for the entire species/type, the template stores an allowed inclusive range for each of the six Simplified Monster Attributes.
+A Simplified Monster Template stores an inclusive min/max range for each of the six core Attributes.
 
 Example:
 
@@ -80,11 +53,7 @@ INT: 1–3
 SIZ: 1–3
 ```
 
-When the system spawns a Monster instance, it rolls each Attribute independently inside that template's configured inclusive range.
-
-Therefore the template describes the normal statistical range of that Monster type, while each spawned creature receives its own concrete values.
-
-The stored template range is not overwritten by generated instance values.
+Every spawned Monster rolls each Attribute independently from the Template range. Template ranges are never overwritten by generated instance values.
 
 ---
 
@@ -94,111 +63,56 @@ Monster Attributes use a two-layer model.
 
 ## 3.1 Natural Attributes
 
-`Natural Attributes` represent the Monster's generated physical/mental baseline before Level scaling.
-
-They are produced from:
+Natural Attributes are the generated baseline after the base Template rolls and any Elite bonus:
 
 ```text
-Template Attribute Roll
-→ plus Elite Attribute Bonus, if that instance becomes Elite
+Base Template Roll
+→ Elite Bonus, if any
+→ Natural STR / DEX / CON / POW / INT / SIZ
 ```
 
-The six Natural Attributes are:
-
-```text
-Natural STR
-Natural DEX
-Natural CON
-Natural POW
-Natural INT
-Natural SIZ
-```
-
-These values preserve the Monster Template/species identity and the individual random roll.
-
-Monster Level does **not** directly overwrite or reroll Natural Attributes.
+Monster Level never rerolls or overwrites Natural Attributes.
 
 ## 3.2 Effective Attributes
 
-`Effective Attributes` are the level-adjusted values used by the live combat/rules calculations.
-
-They are derived after Natural Attributes are finalized:
+Effective Attributes are the Level-adjusted values used by live combat/rules calculations:
 
 ```text
 Natural Attribute
-+ Monster Level Scaling Method
+→ Monster Level Scaling
 → Effective Attribute
 ```
 
-The six Effective Attributes are:
+All ordinary derived Monster calculations use Effective Attributes unless a specific rule explicitly calls for Natural values.
 
-```text
-Effective STR
-Effective DEX
-Effective CON
-Effective POW
-Effective INT
-Effective SIZ
-```
-
-The exact mathematical scaling method is still to be locked in the next design step.
-
-Once that formula is locked, all ordinary derived Monster calculations that depend on these Attributes should use the **Effective** values unless a specific rule explicitly asks for Natural values.
-
-Examples include, where applicable:
+Examples:
 
 ```text
 Initiative basis → Effective DEX
 HP basis → Effective CON / Effective SIZ
-MP basis → Effective INT or other locked MP formula inputs
+MP basis → Effective INT or other locked MP inputs
 physical output → Effective STR / Effective SIZ
 mental / supernatural checks → Effective POW / Effective INT
 ```
-
-Natural values must remain stored and visible to GM even after Effective values are calculated.
-
-## 3.3 Why both layers are retained
-
-This creates an auditable progression chain:
-
-```text
-Goblin Template DEX 1–3
-→ rolled Natural DEX 2
-→ Elite bonus maybe changes Natural DEX
-→ Lv100 scaling calculates Effective DEX
-→ combat uses Effective DEX
-```
-
-Therefore a Lv1 and Lv100 Goblin can begin from the exact same Natural roll while still ending with very different Effective combat statistics.
-
-The system must never silently replace the Natural value with the Effective value.
 
 ---
 
 # 4. Level Does Not Change the Base Roll Range
 
-Monster Level is applied **after** the Monster's natural/base Attribute roll and Elite adjustment have been resolved.
+A Level 1 and Level 100 Monster of the same Template begin from the same natural Attribute ranges.
 
-Canonical principle:
+Example:
 
 ```text
 Goblin Lv1
-and
 Goblin Lv100
 
-→ both begin from the same Goblin Template Attribute ranges
-→ both first roll Natural Attributes from those same ranges
+→ both roll from the same Goblin Template ranges
 ```
 
-Level must not silently widen or replace the template's natural range before the instance is rolled.
+Level is applied only after Natural Attributes are finalized.
 
-This preserves the species/template identity: a Level 100 Goblin is still generated from the same underlying Goblin baseline as a Level 1 Goblin.
-
-After Natural generation, a separate Monster Level Scaling calculation converts the Natural Attributes into Effective Attributes.
-
-The exact Level Scaling formula is **not yet locked** and will be decided separately.
-
-The data model must preserve this full distinction:
+Full chain:
 
 ```text
 Template Attribute Range
@@ -213,250 +127,192 @@ Template Attribute Range
 
 ---
 
-# 5. Per-Instance Spawn Generation
+# 5. Locked Monster Level Scaling
 
-Every spawned Monster instance runs the generation pipeline independently.
+The exact Level scaling formula is defined in `MONSTER_LEVEL_SCALING_ALPHA.md` and is Canonical.
 
-Canonical spawn flow:
+Global growth term:
+
+```text
+GlobalGrowth(Level)
+= ((Level - 1) / 21.7)^2
+```
+
+Each Monster Template stores one independent Growth Weight for each core Attribute:
+
+```text
+STR Growth Weight
+DEX Growth Weight
+CON Growth Weight
+POW Growth Weight
+INT Growth Weight
+SIZ Growth Weight
+```
+
+For each Attribute:
+
+```text
+Effective Attribute
+= round(
+    Natural Attribute
+    × [1 + GlobalGrowth(Level) × Attribute Growth Weight]
+  )
+```
+
+Equivalent:
+
+```text
+Effective Attribute
+= round(
+    Natural Attribute
+    × [1 + ((Level - 1) / 21.7)^2 × Attribute Growth Weight]
+  )
+```
+
+At Level 1:
+
+```text
+Effective Attribute = Natural Attribute
+```
+
+At Weight `1.0`, the growth shape matches the Player HP/MP Level growth multiplier, reaching approximately `21.81×` at Level 100.
+
+Weight changes only the Level-derived growth component:
+
+```text
+0.0 → no Level growth
+0.5 → half standard growth
+1.0 → standard growth
+1.5 → 1.5× standard growth component
+```
+
+This lets Goblins favour DEX while Ogres favour STR/CON, even though every Monster shares the same global Level curve.
+
+---
+
+# 6. Per-Instance Spawn Generation
+
+Every spawned Monster runs the complete generation pipeline independently.
 
 ```text
 1. Read Monster Template
-2. Roll STR / DEX / CON / POW / INT / SIZ independently inside configured ranges
-3. Resolve the concrete base Attribute rolls for this instance
+2. Roll STR / DEX / CON / POW / INT / SIZ independently
+3. Resolve base Attribute rolls
 4. Roll Elite check for this instance
 5. If Elite, apply Elite Attribute Bonus
-6. Save the post-Elite values as this instance's Natural Attributes
-7. Apply Monster Level Scaling to Natural Attributes
-8. Save the outputs as Effective Attributes
-9. Recalculate all derived combat/resource values from Effective Attributes
+6. Save post-Elite values as Natural Attributes
+7. Apply global Level curve + Template Growth Weights
+8. Save Effective Attributes
+9. Recalculate derived combat/resource values
 10. Allow GM final adjustment
 11. Save/use this individual Monster instance
 ```
 
-Spawning multiple Monsters never means rolling once and cloning the same final stats.
-
-Example:
-
-```text
-Spawn 5 Goblins
-→ Goblin #1 runs the full generation pipeline
-→ Goblin #2 runs the full generation pipeline
-→ Goblin #3 runs the full generation pipeline
-→ Goblin #4 runs the full generation pipeline
-→ Goblin #5 runs the full generation pipeline
-```
-
-Each Goblin may therefore have different Natural Attributes, Elite result, Elite bonus and Effective Attributes.
+Spawning 5 Goblins means the full pipeline runs 5 separate times. The system must never roll once and clone the result.
 
 ---
 
-# 6. Automatic Elite Check
+# 7. Automatic Elite Check
 
-After the base Attribute rolls are complete, each spawned Ordinary Monster independently makes an Elite check.
-
-Current Alpha rule:
+Each spawned Ordinary Monster independently makes an Elite check after the base Attribute rolls.
 
 ```text
 Elite Chance = 10%
 ```
 
-This is evaluated separately for every spawned instance.
-
-Example:
-
-```text
-Spawn 5 Goblins
-→ 5 separate Elite checks
-```
-
-The system must not roll one Elite result for the whole group.
-
-## 6.1 Elite Attribute Bonus
-
-If the Monster passes the Elite check:
+If successful:
 
 ```text
 Elite Attribute Bonus = random integer from 1 to 5
 ```
 
-One Elite Bonus value is rolled for that Monster instance and the same bonus is added to all six Simplified Monster Attributes:
-
-```text
-STR
-DEX
-CON
-POW
-INT
-SIZ
-```
+One bonus value is rolled and added to all six core Attributes before Natural Attributes are finalized.
 
 Example:
 
 ```text
-Goblin base roll:
-STR 2
-DEX 3
-CON 1
-POW 2
-INT 1
-SIZ 2
+Base:
+STR 2 / DEX 3 / CON 1 / POW 2 / INT 1 / SIZ 2
 
-Elite check: Success
-Elite Attribute Bonus roll: +4
+Elite Bonus = +4
 
-Natural Attributes after Elite:
-STR 6
-DEX 7
-CON 5
-POW 6
-INT 5
-SIZ 6
+Natural:
+STR 6 / DEX 7 / CON 5 / POW 6 / INT 5 / SIZ 6
 ```
 
-The Elite Bonus is therefore part of the Natural Attribute layer, not part of the Level multiplier.
+Because Elite Bonus becomes part of Natural Attributes, it is subsequently affected by Level scaling.
 
-Level Scaling is applied only after these Natural Attributes are finalized.
-
-Elite status and the rolled Elite Bonus must be stored on the individual instance for audit/debugging and GM visibility.
-
----
-
-# 7. Monster Level Scaling Layer
-
-Monster Level is a separate transformation layer between Natural Attributes and Effective Attributes.
-
-Required order:
-
-```text
-Natural Template Roll
-→ Elite adjustment, if any
-→ Natural Attributes
-→ Level Scaling
-→ Effective Attributes
-→ Derived values
-→ GM Final Adjustment
-```
-
-Consequences:
-
-- Level 1 and Level 100 versions of the same Monster Template use the same natural Attribute ranges.
-- Their Natural Attributes may coincidentally be identical.
-- Their Effective Attributes may be dramatically different because Level Scaling is applied afterwards.
-- Natural Attributes remain unchanged when Level changes; only Effective Attributes and dependent derived values are recalculated.
-- The final Level Scaling method must be deterministic/auditable once the formula is locked.
-
-The exact scaling formula remains the next design decision.
+Elite status and Elite Bonus must be stored per Monster instance.
 
 ---
 
 # 8. GM Final Adjustment
 
-After all automatic generation and Level Scaling are complete, the GM may manually adjust the spawned Monster's final values.
+After automatic generation, Level scaling and derived-stat calculation, GM may manually adjust the spawned Monster's final values.
 
-This is an authorised **instance-level override/adjustment**, not a silent mutation of the base Monster Template.
+This is an authorised instance-level adjustment and must not silently mutate the Monster Template.
 
-Therefore:
+Where practical, D1/audit history should distinguish:
 
 ```text
-Template Range
-→ base roll
-→ optional Elite upgrade
-→ Natural Attributes
-→ Effective Attributes from Level Scaling
-→ derived stat calculation
-→ GM final adjustment
+Base roll
+Elite bonus
+Natural value
+Calculated Effective value
+GM adjustment
+Final value
 ```
-
-GM adjustment must be able to alter the final spawned instance without changing future Monsters of the same template unless the GM explicitly edits the template itself.
-
-Where practical, automatic Natural values, calculated Effective values and GM-adjusted final values should remain distinguishable in D1/audit history.
-
-The exact question of whether GM final Attribute adjustment modifies Natural values, Effective values, or an explicit final modifier layer should be kept auditable and must not erase the original generated data.
 
 ---
 
 # 9. GM Monster Management Tab
 
-The GM workspace must include a dedicated **Monster Management** tab/page for maintaining Monster data.
+The GM workspace must include a dedicated **Monster Management** tab/page.
 
-The GM must be able to manage reusable Monster Templates from this area, including at minimum:
+GM can maintain Monster Templates including:
 
 ```text
-Monster Template identity / name
-STR min / max
-DEX min / max
-CON min / max
-POW min / max
-INT min / max
-SIZ min / max
+Name / description
+STR min / max + STR Growth Weight
+DEX min / max + DEX Growth Weight
+CON min / max + CON Growth Weight
+POW min / max + POW Growth Weight
+INT min / max + INT Growth Weight
+SIZ min / max + SIZ Growth Weight
 Default / allowed Level information
 Elite settings where configurable
-Abilities / profile links when later defined
-Notes / description
+Ability/profile links when later defined
+Notes
 ```
 
-The same area should provide access to spawned Monster instances where persistence is useful, including visibility of:
+GM can also inspect spawned Monster instances including:
 
 ```text
 Template source
 Monster Level
 Base Attribute rolls
-Elite result
-Elite Bonus
+Elite result / Elite Bonus
 Natural STR / DEX / CON / POW / INT / SIZ
+GlobalGrowth(Level)
+Template Growth Weights
 Effective STR / DEX / CON / POW / INT / SIZ
 Derived values
 GM final adjustments
-Final current combat state
+Final current state
 ```
 
-Template editing and instance editing are distinct operations:
-
-```text
-Edit Template
-→ changes future spawns / template definition
-
-Edit Spawned Instance
-→ changes only that individual Monster
-```
-
-The Monster Management tab is a GM-only authoritative interface backed by D1.
+Template editing affects future Template behaviour; instance editing affects only that Monster unless GM explicitly edits the Template.
 
 ---
 
-# 10. Canonical Principle
+# 10. D1 / Alpha Implementation Requirement
 
-```text
-Ordinary Monster
-→ Simplified Template with STR / DEX / CON / POW / INT / SIZ ranges
-→ every spawned instance rolls its own six base Attributes
-→ every instance independently has 10% Elite chance
-→ Elite adds one random +1 to +5 bonus to all six Attributes
-→ post-Elite results become Natural Attributes
-→ Monster Level Scaling converts Natural Attributes into Effective Attributes
-→ derived values use Effective Attributes unless explicitly overridden
-→ GM may finally adjust the individual instance
-
-Elite / Boss
-→ Richer Monster Profile when needed
-
-Important / Persistent / Growing NPC
-→ Full Character Model
-```
-
-The profile type is chosen according to gameplay complexity, not simply whether the entity is friendly or hostile.
-
----
-
-# 11. D1 / Alpha Implementation Requirement
-
-All Monster / NPC Profiles used by the live Alpha remain server-authoritative and persist in D1 where persistence is required.
-
-The data model must distinguish at least:
+D1 must distinguish at least:
 
 ```text
 Monster Template
 → six Attribute min/max ranges
+→ six Attribute Growth Weights
 → spawn/default settings
 
 Monster Instance
@@ -471,17 +327,14 @@ Monster Instance
 → final state
 ```
 
-Changing Monster Level must not destroy or reroll Natural Attributes. The system recalculates Effective Attributes from the preserved Natural values using the locked Level Scaling method.
-
-The Hybrid approach must not duplicate unrelated Player-only fields into every ordinary Monster record.
+Changing Monster Level recalculates Effective Attributes from preserved Natural Attributes. It never rerolls Natural Attributes.
 
 ---
 
-# 12. Still To Be Decided
+# 11. Still To Be Decided
 
-The following are deliberately unresolved and must be decided one by one:
+The remaining Monster/NPC items are:
 
-- exact Natural → Effective Monster Level Scaling formula/method;
 - HP / MP generation and scaling from Effective Attributes;
 - Attack / Defence values;
 - Boss-specific generation/modifiers beyond the automatic Elite rule;
