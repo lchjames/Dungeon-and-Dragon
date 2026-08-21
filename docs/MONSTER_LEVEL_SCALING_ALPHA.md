@@ -1,8 +1,8 @@
 # Monster Level Scaling — Alpha
 
-> Status: Canonical Alpha Working Rule
+> Status: Canonical Alpha Rule
 > Date: 2026-08-21
-> Scope: Defines the architecture for converting Monster Natural Attributes into Effective Attributes after per-instance generation and Elite adjustment. Exact numeric curve/formula is decided incrementally.
+> Scope: Defines the locked conversion from Monster Natural Attributes into Effective Attributes after per-instance generation and Elite adjustment.
 > Use together with `MONSTER_NPC_SYSTEM_ALPHA.md` and `GM_MONSTER_MANAGEMENT_ALPHA.md`.
 
 ---
@@ -17,7 +17,7 @@ Global Monster Level Curve
 Monster Template Attribute Growth Weight
 ```
 
-All Simplified Monsters share one global Level-growth curve, but each Monster Template stores a separate growth weight for each of its six core Attributes:
+All Simplified Monsters share one global Level-growth curve, while each Monster Template stores a separate growth weight for each of its six core Attributes:
 
 ```text
 STR Growth Weight
@@ -28,9 +28,116 @@ INT Growth Weight
 SIZ Growth Weight
 ```
 
-The purpose is to preserve species/template identity at high Level instead of making every Monster scale into the same six-sided stat profile.
+This preserves species/template identity at high Level instead of making every Monster scale into the same stat profile.
 
-Example direction only:
+---
+
+# 2. Locked Global Monster Level Curve
+
+The Global Monster Level Curve uses the same quadratic growth term already used by Player HP/MP progression:
+
+```text
+GlobalGrowth(Level)
+= ((Level - 1) / 21.7)^2
+```
+
+Therefore:
+
+```text
+GlobalGrowth(1) = 0
+```
+
+and a standard Weight `1.0` produces the same overall Level multiplier shape as the Player resource growth curve:
+
+```text
+1 + GlobalGrowth(Level)
+```
+
+Selected standard-weight multipliers:
+
+| Level | Standard Multiplier at Weight 1.0 |
+|---:|---:|
+| 1 | 1.00× |
+| 10 | ~1.17× |
+| 20 | ~1.77× |
+| 30 | ~2.79× |
+| 40 | ~4.23× |
+| 50 | ~6.10× |
+| 60 | ~8.39× |
+| 70 | ~11.11× |
+| 75 | ~12.63× |
+| 80 | ~14.25× |
+| 85 | ~15.98× |
+| 90 | ~17.82× |
+| 95 | ~19.76× |
+| 99 | ~21.40× |
+| 100 | ~21.81× |
+
+The Monster system therefore deliberately permits very large high-Level Effective Attributes when a Template uses standard or high Growth Weights.
+
+---
+
+# 3. Locked Natural → Effective Formula
+
+For each Attribute independently:
+
+```text
+Effective Attribute
+= round(
+    Natural Attribute
+    × [1 + GlobalGrowth(Level) × Attribute Growth Weight]
+  )
+```
+
+Equivalent expanded form:
+
+```text
+Effective Attribute
+= round(
+    Natural Attribute
+    × [1 + ((Level - 1) / 21.7)^2 × Attribute Growth Weight]
+  )
+```
+
+This formula applies independently to:
+
+```text
+STR
+DEX
+CON
+POW
+INT
+SIZ
+```
+
+The Template supplies a separate Growth Weight for each Attribute.
+
+---
+
+# 4. Growth Weight Meaning
+
+Growth Weight only controls the Level-derived growth component.
+
+Canonical meanings:
+
+```text
+Weight 0.0
+→ no Level-based growth
+→ Effective Attribute remains Natural Attribute
+
+Weight 0.5
+→ half of the standard global Level growth
+
+Weight 1.0
+→ standard global Level growth
+
+Weight 1.5
+→ 1.5× the standard Level-derived growth component
+```
+
+A Template is therefore free to scale different Attributes at different rates.
+
+Example direction:
 
 ```text
 Goblin
@@ -50,11 +157,33 @@ INT Weight  = lower
 SIZ Weight  = higher
 ```
 
-Exact default numeric weights are not yet locked.
+Exact default Template weights are defined per Monster Template by GM/data configuration rather than globally hard-coded by species name.
 
 ---
 
-# 2. Relationship to Natural / Effective Attributes
+# 5. Level 1 Invariant
+
+At Level 1:
+
+```text
+GlobalGrowth(1) = 0
+```
+
+so:
+
+```text
+Effective Attribute
+= round(Natural Attribute × 1)
+= Natural Attribute
+```
+
+for all six Simplified Monster Attributes before any later GM final adjustment.
+
+Template Growth Weight can never make a Level 1 Monster stronger or weaker by itself.
+
+---
+
+# 6. Relationship to Natural / Effective Attributes
 
 Generation order remains:
 
@@ -70,44 +199,56 @@ Template Range
 → GM Final Adjustment
 ```
 
-The Level system must never reroll or overwrite the stored Natural Attributes.
+The Level system must never reroll or overwrite stored Natural Attributes.
 
-For every Attribute, the final Effective value must be derived from:
+Changing Monster Level recalculates Effective Attributes from the preserved Natural Attributes and the Template Growth Weights.
 
-```text
-that instance's Natural Attribute
-+
-Monster Level
-+
-that Template's Growth Weight for that Attribute
-```
-
-The exact mathematical combination is still TBD.
+All ordinary derived Monster calculations that depend on Attributes use Effective values unless a specific rule explicitly asks for Natural values.
 
 ---
 
-# 3. Level 1 Invariant
+# 7. Example
 
-A Level 1 Monster must not be artificially changed merely because its Template has non-neutral Growth Weights.
-
-Canonical requirement:
+Assume a Goblin has:
 
 ```text
-At Level 1:
-Effective Attribute = Natural Attribute
+Natural STR = 3
+Natural DEX = 3
+Level = 100
 ```
 
-for all six Simplified Monster Attributes, before any explicit later GM final adjustment.
+and its Template uses:
 
-Therefore the final formula must apply Growth Weight to the **Level-derived growth component**, not use a formula that causes the Template weight alone to increase/decrease Level 1 Attributes.
+```text
+STR Growth Weight = 0.5
+DEX Growth Weight = 1.0
+```
 
-This preserves the previously locked principle that a Level 1 and Level 100 Goblin begin from the same natural Goblin generation system.
+At Level 100:
+
+```text
+GlobalGrowth ≈ 20.81
+```
+
+Therefore:
+
+```text
+Effective STR
+= round(3 × [1 + 20.81 × 0.5])
+≈ 34
+
+Effective DEX
+= round(3 × [1 + 20.81 × 1.0])
+≈ 65
+```
+
+The same Natural roll can therefore become strongly DEX-biased at high Level because the Goblin Template gives DEX a higher growth weight.
 
 ---
 
-# 4. Template-Level Configuration
+# 8. Template-Level Configuration
 
-The Monster Template must store six independent Growth Weights:
+The Monster Template stores six independent Growth Weights:
 
 ```text
 STR
@@ -120,19 +261,15 @@ SIZ
 
 These are Template configuration values, not per-spawn random rolls.
 
-Two spawned Monsters from the same Template may have different Natural Attributes because of random generation, but they normally share the same Attribute Growth Weights because those weights describe the species/template's Level-scaling tendency.
+Two spawned Monsters from the same Template may have different Natural Attributes because of random generation, but normally share the same Growth Weights.
 
-If GM edits a Template Growth Weight, that changes the Template configuration used for future calculation/spawns. Existing persisted Monster Instances must not silently lose their historical Natural values or prior audit data.
-
-How already-spawned persistent instances react to later Template weight changes will be explicitly handled by implementation/audit rules; the system must not silently mutate historical generation data.
+Template editing must not erase existing Monster Instance Natural Attributes or historical generation/audit data.
 
 ---
 
-# 5. GM Monster Management Requirement
+# 9. GM Monster Management Requirement
 
-The GM Monster Management tab must expose the six Template Growth Weights alongside the six Attribute min/max ranges.
-
-GM must be able to maintain, at Template level:
+The GM Monster Management tab must expose each Attribute range together with its Growth Weight:
 
 ```text
 STR min / max + STR Growth Weight
@@ -143,31 +280,35 @@ INT min / max + INT Growth Weight
 SIZ min / max + SIZ Growth Weight
 ```
 
-For a spawned instance, the GM inspection view should be able to show the calculation chain:
+For a spawned instance, the GM inspection view should expose the calculation chain:
 
 ```text
 Natural Attribute
 Monster Level
 Template Growth Weight
-Global Level Curve output
+GlobalGrowth(Level)
 Effective Attribute
 GM final adjustment
 ```
 
-so the final value is explainable rather than appearing as an opaque generated number.
+so the final value is explainable and auditable.
 
 ---
 
-# 6. Still To Be Decided
+# 10. Locked Conclusions
 
-The next decision is the exact **Global Monster Level Curve / Natural-to-Effective formula**.
+1. All Simplified Monsters use one global quadratic Level-growth curve.
+2. The global growth term is `((Level - 1) / 21.7)^2`.
+3. Each Template stores six independent Attribute Growth Weights.
+4. Effective Attribute uses `round(Natural × [1 + GlobalGrowth × Weight])`.
+5. Level 1 always preserves `Effective = Natural` before GM adjustment.
+6. Elite Bonus is applied before the Natural layer is finalized and therefore scales with Level afterwards.
+7. Changing Level does not reroll Natural Attributes.
+8. Derived combat/resource values use Effective Attributes unless a specific rule says otherwise.
+9. GM may still apply an authorised final instance adjustment after automatic calculation.
 
-The final formula must satisfy at least:
+---
 
-1. `Level 1 Effective = Natural` before GM adjustment.
-2. Level increase never rerolls Natural Attributes.
-3. Template Growth Weight affects only the Level-growth behaviour.
-4. The same global Level curve is used by all Simplified Monster Templates.
-5. Each Attribute can scale differently through its Template Growth Weight.
-6. The calculation is deterministic and auditable.
-7. GM can still perform a final authorised instance adjustment after automatic calculation.
+# 11. Next Unresolved Monster Design Item
+
+The next decision is how Monster HP and MP are derived from the six Effective Attributes and whether those Resources receive any additional Monster-specific scaling beyond the Effective Attribute layer.
