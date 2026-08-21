@@ -69,9 +69,10 @@ For every instance:
 6. Apply the Template's six Growth Weights
 7. Calculate Effective Attributes
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
-9. Recalculate other derived combat/resource values from Effective Attributes
-10. Save the generated instance
-11. Permit GM final adjustment
+9. Calculate Max MP = Effective INT × 3
+10. Recalculate other derived combat/resource values from Effective Attributes
+11. Save the generated instance
+12. Permit GM final adjustment
 ```
 
 A group spawn never clones one generated result across the group.
@@ -106,6 +107,10 @@ Calculated Max HP
 HP GM adjustment
 Final Max HP
 Current HP
+Calculated Max MP
+MP GM adjustment
+Final Max MP
+Current MP
 Other derived values
 GM adjustments
 Final current state
@@ -120,8 +125,8 @@ Natural
 Effective
 → current Level-scaled Attribute used by live rules
 
-Calculated HP
-→ automatic result from Effective CON/SIZ
+Calculated HP / MP
+→ automatic resource results from Effective Attributes
 
 GM Adjustment
 → later authorised manual change
@@ -129,29 +134,41 @@ GM Adjustment
 
 ---
 
-# 5. Locked Monster HP Handling
+# 5. Locked Monster Resource Handling
 
-Automatic Simplified Monster Max HP is:
+## HP
 
 ```text
-Max HP
+Calculated Max HP
 = ceil((Effective CON + Effective SIZ) / 2)
 ```
 
-The Level curve is already represented inside Effective CON/SIZ and must not be applied to HP again.
+## MP
 
-GM may adjust the generated Monster Instance's final Max HP or Current HP after automatic calculation.
+```text
+Calculated Max MP
+= Effective INT × 3
+```
 
-The UI/audit layer must preserve the distinction between:
+Neither resource receives the global Level curve a second time because the relevant Effective Attributes already include Level scaling.
+
+GM may adjust a generated Monster Instance's final Max HP, Current HP, Max MP or Current MP after automatic calculation.
+
+The UI/audit layer must preserve:
 
 ```text
 Calculated Max HP
 GM Max HP adjustment
 Final Max HP
 Current HP
+
+Calculated Max MP
+GM Max MP adjustment
+Final Max MP
+Current MP
 ```
 
-A GM instance adjustment does not change the Monster Template or future spawned Monsters unless the GM explicitly edits Template data.
+GM instance adjustment does not change the Monster Template or future spawned Monsters unless GM explicitly edits Template data.
 
 ---
 
