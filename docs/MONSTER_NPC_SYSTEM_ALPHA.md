@@ -148,8 +148,6 @@ Effective Accuracy
 = min(100, Modified Accuracy)
 ```
 
-Only Effective Accuracy enters the ordinary D100 threshold.
-
 Accuracy above 100 acts as reserve against future negative modifiers.
 
 Raw D100 extremes remain:
@@ -159,13 +157,35 @@ Raw D100 extremes remain:
 100 → Great Success
 ```
 
-These extreme results take precedence over the ordinary threshold.
+These extreme faces take precedence over the ordinary threshold.
 
 Monster Level is not an Accuracy-growth source in the standard Simplified Monster model.
 
 ---
 
-# 7. Damage Attribute Links
+# 7. Monster Critical Follow-Up — Deferred
+
+Monster Great Success / Great Failure remains conceptually aligned with the shared Player-side D100 critical framework where a generic Canonical rule already applies.
+
+No new universal Monster-only follow-up is locked at this stage.
+
+In particular, do not assume:
+
+```text
+Great Success = maximum Spread
+Great Success = fixed extra damage
+Great Success = automatic defence bypass
+Great Success = automatic Status
+Great Failure = automatic self-damage
+```
+
+The system must preserve the raw extreme state for later resolution / audit.
+
+The exact Monster-specific post-extreme behaviour is **DEFERRED until Monster Combat AI / behavioural AI design**, together with AI Skill selection and any Profile-specific critical behaviour.
+
+---
+
+# 8. Damage Attribute Links
 
 Skill damage may explicitly link to Monster Attributes.
 
@@ -201,9 +221,7 @@ This basis contributes to damage, not Skill Accuracy.
 
 ---
 
-# 8. Locked Skill Base-Damage Level Scaling
-
-The Monster Skill Base Damage retains one dedicated Level-growth term:
+# 9. Locked Skill Base-Damage Level Scaling
 
 ```text
 MonsterDamageGrowth(Level)
@@ -224,7 +242,7 @@ Standard `Damage Growth Weight = 1.0` gives 1× at Lv1 and 8× at Lv100.
 
 ---
 
-# 9. Locked Damage Center Model
+# 10. Locked Damage Center Model
 
 For an Attribute-linked Skill:
 
@@ -242,7 +260,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 10. Level-Linked Signed Spread Range
+# 11. Level-Linked Signed Spread Range
 
 Spread is one signed interval:
 
@@ -288,7 +306,7 @@ Calculated Maximum Raw Damage
 
 ---
 
-# 11. Spread Design Intent and Balance Authority
+# 12. Spread Design Intent and Balance Authority
 
 The generated Spread Range is deliberately approximate.
 
@@ -305,30 +323,15 @@ GM
 Conceptually, standard progression may look like:
 
 ```text
-low Level  → roughly symmetric, e.g. about [-2, +2]
-high Level → more positive-skewed, e.g. about [-5, +15]
+low Level  → roughly symmetric, e.g. about [-2,+2]
+high Level → more positive-skewed, e.g. about [-5,+15]
 ```
 
 These are examples of shape only, not locked values.
 
 Actual values are expected to be tuned when real Monster, encounter, and campaign content is created and play-tested.
 
----
-
-# 12. Spread Numeric Formula Is Alpha Tuning
-
-The exact Level-to-Spread formula / table is not part of the locked core combat law yet.
-
-It may later use Level bands, reference-point interpolation, curve-based generation, or another approved data-driven tuning model.
-
-The invariant is:
-
-```text
-Monster Level
-→ System Suggested Spread
-→ GM correction
-→ Final Spread
-```
+The exact Level-to-Spread formula remains **Alpha Tuning** and should be data-driven / easy to rebalance.
 
 ---
 
@@ -348,8 +351,6 @@ Calculated Base Damage
 + Damage Attribute Basis
 + signed Spread Roll
 ```
-
-The Spread value is an offset inside one signed Level-generated range, not a separate Lower / Upper mechanic.
 
 ---
 
@@ -373,10 +374,12 @@ The Spread value is an offset inside one signed Level-generated range, not a sep
 15. Generate Suggested Spread Min / Max from Monster Level
 16. Apply GM Spread correction / override
 17. Save Final Spread Min / Max
-18. On hit, roll one signed Spread Roll inside the Final range
-19. Calculate Raw Monster Damage
-20. Apply defence / resistance / other combat resolution
-21. Save/use instance state
+18. Resolve D100 hit and preserve Great Success / Great Failure state
+19. Apply only already-Canonical shared critical handling; do not invent Monster-specific follow-up
+20. On ordinary damaging hit, roll one signed Spread Roll inside the Final range
+21. Calculate Raw Monster Damage
+22. Apply defence / resistance / other combat resolution
+23. Save/use instance state
 ```
 
 Group spawn runs the generation pipeline independently for every Monster.
@@ -404,6 +407,7 @@ Monster Instance / generated Skill state
 → calculated HP / MP
 → fixed per-Skill Stored Accuracy / authorised override
 → per-Skill Accuracy modifiers and Effective Accuracy
+→ raw D100 / Great Success / Great Failure state
 → per-Skill linked Attribute values / Basis
 → calculated Base Damage
 → calculated Damage Center
@@ -415,7 +419,9 @@ Monster Instance / generated Skill state
 → final state
 ```
 
-Changing Level recalculates Effective Attributes and regenerates the suggested Spread range, but **must not recalculate Stored Accuracy**. GM overrides must remain auditable rather than being silently lost.
+Changing Level recalculates Effective Attributes and regenerates the suggested Spread range, but **must not recalculate Stored Accuracy**.
+
+Great Success / Great Failure state must remain auditable while Monster-specific follow-up remains deferred.
 
 ---
 
@@ -429,15 +435,22 @@ System suggested values, GM corrections and final runtime values should remain a
 
 ---
 
-# 17. Current Unresolved Items
+# 17. Current Deferred / Unresolved Items
 
-Monster Skill Accuracy Level scaling is resolved: **no automatic Level scaling**.
+Resolved:
 
-Resolve separately:
+```text
+Monster Skill Accuracy Level scaling
+→ no automatic Level scaling
+```
 
-1. numeric Spread-generation tuning during actual game-content creation / play balance;
-2. Boss-specific generation / modifiers beyond the ordinary Elite rule;
-3. Skill status / Resistance / Immunity details;
-4. Monster EXP rewards;
-5. NPC progression behaviour;
-6. encounter difficulty contribution.
+Deferred / tuning:
+
+1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to future Monster AI design**;
+2. Monster AI Skill selection / behavioural logic — future AI design pass;
+3. numeric Spread-generation tuning — actual game-content creation / play balance;
+4. Boss-specific generation / modifiers beyond the ordinary Elite rule;
+5. Skill status / Resistance / Immunity details;
+6. Monster EXP rewards;
+7. NPC progression behaviour;
+8. encounter difficulty contribution.
