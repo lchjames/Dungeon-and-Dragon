@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, one dedicated Skill Base-Damage Level curve, locked lower/upper Attribute ratios, and instance overrides.
+> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, one dedicated Skill Base-Damage Level curve, strongly asymmetric lower/upper Attribute ratios, and instance overrides.
 
 ---
 
@@ -54,11 +54,11 @@ For every spawned instance:
 9. Calculate Max MP = Effective INT × 3
 10. Attach approved Monster Skill Profiles
 11. Preserve each Skill's Stored Accuracy, including values above 100
-12. Resolve each Skill's Damage Attribute Links against current Effective Attributes
-13. Calculate Damage Attribute Basis for linked Skills
+12. Resolve Damage Attribute Links against current Effective Attributes
+13. Calculate Damage Attribute Basis
 14. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
-15. Calculate each damaging Skill's Level-adjusted Base Damage
-16. Calculate Attribute-derived Lower / Upper Contributions from the Skill ratios
+15. Calculate Level-adjusted Base Damage
+16. Calculate Attribute-derived Lower / Upper Contributions
 17. Calculate Minimum / Maximum Raw Damage
 18. Save instance
 19. Permit GM final adjustments
@@ -112,7 +112,7 @@ Lower Variance Growth Weight
 Upper Variance Growth Weight
 ```
 
-are superseded and must not be required by the current Simplified Monster Skill editor.
+are superseded and must not be required.
 
 ---
 
@@ -141,23 +141,7 @@ These extreme results take precedence over the ordinary threshold.
 
 ---
 
-# 7. Accuracy Is Not Attribute-Derived
-
-Standard Simplified Monster Skills do not calculate Accuracy from STR / DEX / CON / POW / INT / SIZ, Effective Attributes, Attack Proficiency or Player weapon specialization.
-
-The older fields are superseded:
-
-```text
-Primary Effective Attribute for Accuracy
-Attack Proficiency
-Attribute-Derived Hit Value
-```
-
-Attributes may instead be explicitly linked to damage or other Skill effects.
-
----
-
-# 8. Damage Attribute Links — GM Multi-Select
+# 7. Damage Attribute Links — GM Multi-Select
 
 Each damaging Skill may provide:
 
@@ -169,8 +153,6 @@ Each damaging Skill may provide:
 ☐ INT
 ☐ SIZ
 ```
-
-The selected set is stored as `Damage Attribute Links`.
 
 Selecting no Attribute is valid for a purely Profile-defined damage Skill.
 
@@ -189,15 +171,11 @@ Damage Attribute Basis
   / selected Attribute count
 ```
 
-Use **Effective Attributes** so Elite and Monster Level effects flow naturally into linked Skill damage.
-
-This basis does not modify Accuracy.
+This basis modifies damage only, not Accuracy.
 
 ---
 
-# 9. Locked Skill Base-Damage Level Curve
-
-The Monster Skill's dedicated Base-Damage Level curve remains:
+# 8. Locked Skill Base-Damage Level Curve
 
 ```text
 MonsterDamageGrowth(Level)
@@ -216,11 +194,11 @@ Calculated Base Damage
 
 Standard Weight `1.0` reaches 8× Template Base Damage at Level 100.
 
-This remains the only dedicated Monster Level curve inside the Skill damage-range subsystem.
+This is the only dedicated Monster Level curve inside the Skill damage-range subsystem.
 
 ---
 
-# 10. Locked Attribute-Ratio Damage Range
+# 9. Locked Attribute-Ratio Damage Range
 
 Each damaging Skill stores:
 
@@ -260,11 +238,47 @@ Calculated Maximum Raw Damage
   + Attribute-derived Upper Contribution
 ```
 
-If a Skill has no Damage Attribute Links, its Attribute-derived contributions are `0`.
+If no Damage Attribute Links are selected, both Attribute-derived contributions are `0`.
 
-The two ratios remain independent so Skill design may intentionally widen the upper ceiling more than the lower side.
+---
 
-Default ratio values remain a separate unresolved tuning decision.
+# 10. Locked Standard Asymmetry Principle
+
+For ordinary damaging Monster Skills, the lower-side reduction and upper-side bonus are **not meant to scale comparably**.
+
+Canonical design intent:
+
+```text
+low roll
+→ can still deal less than Calculated Base Damage
+
+higher Monster power
+→ lower-side penalty grows only modestly
+→ upper-side bonus grows much more strongly
+```
+
+Therefore standard Skill tuning should satisfy:
+
+```text
+Upper Attribute Ratio > Lower Attribute Ratio
+```
+
+with the intended normal relationship being:
+
+```text
+Upper Attribute Contribution ≫ Lower Attribute Contribution
+```
+
+The earlier near-symmetric tuning examples such as `0.30 / 0.45` are not suitable standard defaults because they make the low-end damage fall too far below Base Damage at high Level.
+
+The exact default pair is still unresolved.
+
+The GM editor should:
+
+- display Lower and Upper Ratios side by side;
+- visually explain that Lower controls the **low-roll penalty** while Upper controls the **high-roll bonus**;
+- warn when a standard Skill is configured with `Lower Attribute Ratio >= Upper Attribute Ratio`;
+- allow GM to override this warning for intentionally unusual Skills.
 
 ---
 
@@ -277,7 +291,7 @@ Lower Spread × MonsterDamageGrowth(Level)
 Upper Spread × MonsterDamageGrowth(Level)
 ```
 
-and do not use the former standard variance-growth defaults:
+and do not use the former variance-growth defaults:
 
 ```text
 Lower Growth Weight = 1.50
@@ -291,7 +305,7 @@ Level → Calculated Base Damage
 Level → Effective Attributes → Damage Attribute Basis
 ```
 
-No third Lower / Upper Level curve is permitted in the standard Simplified Monster Skill model.
+No third Lower / Upper Level curve is permitted.
 
 ---
 
@@ -352,43 +366,10 @@ Persistent instances must not silently lose historical calculated values or over
 
 ---
 
-# 14. Superseded Simplified Monster Fields
-
-Do not require:
-
-```text
-Primary Effective Attribute for Accuracy
-Attack Proficiency
-Attribute-Derived Hit Value
-damage dice
-Player STR + SIZ Damage Bonus
-single symmetric Damage Variance
-Lower Variance Growth Weight
-Upper Variance Growth Weight
-```
-
-The current model uses:
-
-```text
-independent Stored Accuracy
-Effective Accuracy capped at 100 after modifiers
-raw D100 extreme handling
-Damage Attribute Links
-Damage Attribute Basis from Effective Attributes
-one Skill Base-Damage Level curve
-static Template Lower / Upper Spread
-Lower / Upper Attribute Ratio
-Attribute-derived lower / upper contribution
-GM adjustments
-final damage range
-```
-
----
-
-# 15. Current Unresolved Items
+# 14. Current Unresolved Items
 
 Resolve separately:
 
-1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for a new standard damaging Monster Skill;
+1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for a new standard damaging Monster Skill, under the locked requirement that the lower penalty be much smaller than the upper bonus;
 2. whether Monster Skill Accuracy itself automatically scales with Level;
 3. later Elite / Boss / richer-profile exceptions where needed.
