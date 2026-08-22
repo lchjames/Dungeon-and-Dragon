@@ -149,6 +149,15 @@ The former single symmetric `Damage Variance` field is superseded for Simplified
 
 Simplified Monster offensive Profiles do not require Player-style `damage_dice` fields and do not use the Player STR + SIZ Damage Bonus table by default.
 
+For a normal new Profile, the GM UI must prefill:
+
+```text
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
+```
+
+GM may override either default before saving the Template/Profile.
+
 ---
 
 # 7. D100 Hit Architecture
@@ -234,11 +243,34 @@ Calculated Upper Variance
   )
 ```
 
-The two Growth Weights are independent.
+Canonical defaults for standard Monster Profiles:
 
-This deliberately supports a higher upper damage ceiling and a lower relative bottom limit as Monster Level rises.
+```text
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
+```
 
-The exact default relationship between the two weights remains an Alpha tuning decision.
+The two Growth Weights remain independent and can be overridden per Profile.
+
+This deliberately supports a substantially lower bottom relative to the Level-scaled Base Damage while the upper ceiling expands even faster.
+
+Example with:
+
+```text
+Template Base Damage = 8
+Damage Growth Weight = 1.0
+Template Lower Variance = 2
+Template Upper Variance = 2
+```
+
+At Level 100:
+
+```text
+Calculated Base Damage = 64
+Calculated Lower Variance = 23
+Calculated Upper Variance = 30
+Damage Range = 41–94
+```
 
 ---
 
@@ -269,7 +301,7 @@ The GM UI should show the actual range, for example:
 
 ```text
 Base Damage: 64
-Damage Range: 42–91
+Damage Range: 41–94
 ```
 
 rather than an inaccurate symmetric `64 ± X` display.
@@ -332,7 +364,14 @@ Base Damage Weight meaning:
 1.5 → 1.5× standard Level-derived Base Damage growth component
 ```
 
-Lower and Upper Variance weights follow the same "growth component only" principle but independently control the two sides of the final damage range.
+Variance default behaviour:
+
+```text
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
+```
+
+These default weights intentionally produce high volatility and stronger upper-end expansion. They are prefilled values rather than locked mandatory values for every Monster attack.
 
 At Level 1, all Growth Weights leave their Template baseline values unchanged.
 
@@ -421,6 +460,5 @@ Player Character damage configuration remains unaffected.
 
 Still to be decided separately:
 
-1. default relationship between Lower Variance Growth Weight and Upper Variance Growth Weight;
-2. exact Effective Attribute → D100 hit conversion;
-3. later Elite/Boss/richer-profile exceptions where needed.
+1. exact Effective Attribute → D100 hit conversion;
+2. later Elite/Boss/richer-profile exceptions where needed.
