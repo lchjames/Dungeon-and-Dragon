@@ -64,7 +64,7 @@
         <div id="tab-overview" class="tab-panel">
           <div class="split-grid">
             <section class="panel"><div class="panel-heading"><h3>Attributes</h3><span class="muted">Read only</span></div><div id="attribute-grid" class="stat-grid"></div></section>
-            <section class="panel"><div class="panel-heading"><h3>Resources</h3><span class="muted">Current values editable</span></div><div id="resource-list" class="resource-list"></div></section>
+            <section class="panel"><div class="panel-heading"><h3>Resources</h3><span class="muted">HP / MP are resolver controlled</span></div><div id="resource-list" class="resource-list"></div></section>
           </div>
           <section class="panel"><div class="panel-heading"><h3>Summary</h3></div><p id="character-summary" class="prose muted">No summary.</p></section>
         </div>
@@ -82,29 +82,32 @@
         <div><p class="eyebrow">NEW CHARACTER</p><h2>建立角色</h2></div>
         <button id="close-character-create" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
-      <p class="muted">角色會直接綁定到目前登入嘅 User，唔需要 GM 再分配。</p>
+      <p class="muted">新 Player 角色固定由 <strong>EXP 1 / Level 1</strong> 開始；職業由 GM 後續管理。角色屬性由伺服器擲骰，你可以喺確認前重新擲骰。</p>
       <div class="form-grid">
         <label class="field">
           <span>Character Name</span>
           <input class="input" name="name" maxlength="80" required autofocus placeholder="例如 Silver Wolf">
         </label>
-        <label class="field">
-          <span>Role</span>
-          <input class="input" name="role" maxlength="80" placeholder="例如 Frontline / Support">
-        </label>
-        <label class="field">
-          <span>Level</span>
-          <input class="input" name="level" type="number" min="0" max="999" step="1" value="1">
-        </label>
       </div>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div><h3>Core Attributes</h3><span id="creation-primary-total" class="muted">Rolling…</span></div>
+          <button id="reroll-attributes" class="button button-small button-ghost" type="button">Reroll</button>
+        </div>
+        <div id="creation-attribute-grid" class="stat-grid"><p class="muted">正在擲骰…</p></div>
+      </section>
+
       <label class="field">
         <span>Summary</span>
         <textarea class="textarea" name="summary" rows="4" maxlength="2000" placeholder="簡單角色概念，可留空。"></textarea>
       </label>
+
+      <p class="muted">建立後會先成為 Draft Character，23 個基礎技能會初始化為 0，並保留 200 Creation Skill Points；下一步完成技能分配後先完成建角。</p>
       <div id="character-create-status" class="auth-status" hidden role="status" aria-live="polite"></div>
       <div class="form-actions dialog-actions">
         <button id="cancel-character-create" class="button button-ghost" type="button">Cancel</button>
-        <button id="submit-character-create" class="button" type="submit">Create Character</button>
+        <button id="submit-character-create" class="button" type="submit" disabled>Create Draft Character</button>
       </div>
     </form>
   </dialog>
