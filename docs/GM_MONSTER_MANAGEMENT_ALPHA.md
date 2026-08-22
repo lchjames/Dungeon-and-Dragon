@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including fixed-damage Attack / Skill Profiles, independent Base Damage scaling, and asymmetric Level-scaled damage variance.
+> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including independent Monster Skill Accuracy, fixed-damage Skill Profiles, independent Base Damage scaling, and asymmetric Level-scaled damage variance.
 
 ---
 
@@ -16,7 +16,7 @@ Monster Management
 
 tab/page.
 
-This is the central GM interface for maintaining reusable Monster Templates and inspecting or adjusting spawned Monster Instances.
+This is the central GM interface for maintaining reusable Monster Templates, their dedicated Monster Skills, and spawned Monster Instances.
 
 All persistent Monster data is D1-authoritative.
 
@@ -44,8 +44,7 @@ Name
 Description / notes
 Default or allowed Level information
 Elite configuration
-Attack / Skill Profiles
-Ability/profile links for exceptional actions
+Monster Skill Profiles
 Other approved Monster metadata
 ```
 
@@ -67,12 +66,13 @@ For every requested Monster instance, the server independently runs:
 7. Calculate Effective Attributes
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
 9. Calculate Max MP = Effective INT × 3
-10. Attach approved Attack / Skill Profiles
-11. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
-12. Calculate each Profile's Level-adjusted Base Damage
-13. Calculate each Profile's Level-adjusted Lower Variance and Upper Variance independently
-14. Save generated instance
-15. Permit GM final adjustment
+10. Attach approved Monster Skill Profiles
+11. Preserve each Skill's independent Accuracy value
+12. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
+13. Calculate each damaging Skill's Level-adjusted Base Damage
+14. Calculate each damaging Skill's Level-adjusted Lower Variance and Upper Variance independently
+15. Save generated instance
+16. Permit GM final adjustment
 ```
 
 Requesting N Monsters runs the full generation pipeline N separate times. A group spawn never clones one generated result across the group.
@@ -121,18 +121,29 @@ GM may adjust Final Max HP, Current HP, Final Max MP and Current MP at instance 
 
 ---
 
-# 6. Attack / Skill Profile Management
+# 6. Monster Skill Profile Management
 
-The Monster Management tab must provide a dedicated **Attack / Skill Profiles** section for each Monster Template.
+The Monster Management tab must provide a dedicated **Monster Skills** section for each Monster Template.
 
-Each offensive Profile must expose at least:
+A Simplified Monster offensive action is represented as a dedicated Monster Skill Profile rather than borrowing the Player weapon-proficiency progression model.
+
+Examples:
 
 ```text
-Name
-Attack / Damage Type
-Primary Effective Attribute
-Attack Proficiency
-Additional Hit Modifier
+Goblin Slash
+Goblin Short Bow Shot
+Wolf Bite
+Ogre Heavy Smash
+Poison Spit
+Fire Breath
+```
+
+Each Skill Profile should be able to expose as applicable:
+
+```text
+Skill Name
+Accuracy
+Damage Type
 Template Base Damage
 Damage Growth Weight
 Template Lower Variance
@@ -141,45 +152,141 @@ Template Upper Variance
 Upper Variance Growth Weight
 Range / Reach
 Targeting
-Optional Status / special-effect links
-Optional MP / cooldown / usage restrictions
+Status / special-effect links
+MP cost
+Cooldown
+Usage restrictions
+Other approved flags
 ```
 
-The former single symmetric `Damage Variance` field is superseded for Simplified Monsters.
-
-Simplified Monster offensive Profiles do not require Player-style `damage_dice` fields and do not use the Player STR + SIZ Damage Bonus table by default.
-
-For a normal new Profile, the GM UI must prefill:
+For a normal new damaging Skill, the UI must prefill:
 
 ```text
 Lower Variance Growth Weight = 1.50
 Upper Variance Growth Weight = 2.00
 ```
 
-GM may override either default before saving the Template/Profile.
+GM may override either default before saving the Template Skill.
 
 ---
 
-# 7. D100 Hit Architecture
+# 7. Locked Independent Skill Accuracy
 
-Monster ordinary attacks and offensive Skills use:
+Each Monster Skill has its own independent `Accuracy` value.
+
+Canonical:
 
 ```text
-D100 Attack Base
-= Attribute-Derived Hit Value
+Monster Skill Accuracy
+= stored directly on the Skill Profile
+```
+
+Accuracy is not automatically calculated from:
+
+```text
+STR
+DEX
+CON
+POW
+INT
+SIZ
+Natural Attributes
+Effective Attributes
+Attack Proficiency
+Player weapon specialization
+Player Skill Point progression
+```
+
+Two Skills on the same Monster can therefore have different Accuracy values by design.
+
+Example:
+
+```text
+Goblin Slash
+Accuracy = 80
+
+Goblin Wild Lunge
+Accuracy = 55
+
+Goblin Aimed Shot
+Accuracy = 70
+```
+
+This supersedes the earlier Monster hit architecture based on:
+
+```text
+Attribute-Derived Hit Value
 + Attack Proficiency
 + Additional Hit Modifier
 ```
 
-Each Profile explicitly chooses its `Primary Effective Attribute`.
+The standard Simplified Monster Skill UI must no longer require:
 
-`Attack Proficiency` is a direct Template/Profile value; ordinary Monsters do not need Player weapon-practice EXP, specialization growth history, or a learning workflow.
-
-The exact Effective Attribute → `Attribute-Derived Hit Value` formula remains unresolved and must be defined separately.
+```text
+Primary Effective Attribute
+Attack Proficiency
+Attribute-Derived Hit Value
+```
 
 ---
 
-# 8. Locked Base Damage Level Curve
+# 8. D100 Skill Hit Resolution
+
+When a Monster Skill requires a hit check, its stored Accuracy is the base D100 success value.
+
+Canonical integration with the existing D100 core:
+
+```text
+D100 Result
+= Roll - [100 - (Skill Accuracy + Total Hit Modifier)]
+```
+
+where `Total Hit Modifier` may contain approved effects such as:
+
+```text
+Buff
+Debuff
+Status
+Environment
+GM modifier
+other explicit Skill / encounter modifiers
+```
+
+STR / DEX / other Attributes are not inserted into Skill Accuracy unless a specific exceptional Skill explicitly defines a separate additional mechanic.
+
+If the target uses an opposed Dodge / Defence check, continue using the Canonical opposed D100 resolver and compare final Results.
+
+---
+
+# 9. Accuracy and Damage Must Remain Separate
+
+Canonical Monster Skill runtime:
+
+```text
+Declare Skill
+→ resolve D100 using Skill Accuracy
+→ miss: no normal hit damage
+→ hit: resolve final damage range
+→ Defence / Resistance
+→ Damage Result
+→ HP loss only when Damage Result > 0
+→ resolve approved secondary effects according to Skill Profile
+```
+
+A Skill may intentionally be:
+
+```text
+high damage + low Accuracy
+low damage + high Accuracy
+high Accuracy + utility/status focused
+low Accuracy + powerful control/effect
+```
+
+The UI and storage model must never collapse Accuracy and Damage into one generic Attack number.
+
+---
+
+# 10. Locked Base Damage Level Curve
 
 Monster fixed Base Damage uses its own Level-growth layer:
 
@@ -188,7 +295,7 @@ MonsterDamageGrowth(Level)
 = 7 × ((Level - 1) / 99)^1.5
 ```
 
-Per Profile:
+Per damaging Skill:
 
 ```text
 Calculated Base Damage
@@ -209,15 +316,13 @@ Level 90  → ~6.97×
 Level 100 → 8.00× Template Base Damage
 ```
 
-The GM UI should expose the formula rather than showing only the final result.
+Accuracy does not automatically use this damage-growth curve.
 
 ---
 
-# 9. Locked Asymmetric Damage Variance Scaling
+# 11. Locked Asymmetric Damage Variance Scaling
 
-Damage variance is not a single symmetric `±` value.
-
-Each Profile separately stores and scales:
+Each damaging Skill separately stores and scales:
 
 ```text
 Template Lower Variance
@@ -243,18 +348,16 @@ Calculated Upper Variance
   )
 ```
 
-Canonical defaults for standard Monster Profiles:
+Canonical defaults:
 
 ```text
 Lower Variance Growth Weight = 1.50
 Upper Variance Growth Weight = 2.00
 ```
 
-The two Growth Weights remain independent and can be overridden per Profile.
+The two weights remain independent and can be overridden per Skill.
 
-This deliberately supports a substantially lower bottom relative to the Level-scaled Base Damage while the upper ceiling expands even faster.
-
-Example with:
+Example:
 
 ```text
 Template Base Damage = 8
@@ -274,7 +377,7 @@ Damage Range = 41–94
 
 ---
 
-# 10. Final Damage Range
+# 12. Final Damage Range
 
 After automatic calculations and GM adjustments:
 
@@ -293,32 +396,27 @@ Raw Monster Damage
 = random integer from Minimum Raw Damage to Maximum Raw Damage
 ```
 
-The random damage selection is not a D100 action check and has no Great Success / Great Failure meaning.
+This random damage selection is not a second D100 action check and has no Great Success / Great Failure meaning.
 
 The `0` floor prevents negative raw damage or accidental healing.
 
-The GM UI should show the actual range, for example:
-
-```text
-Base Damage: 64
-Damage Range: 41–94
-```
-
-rather than an inaccurate symmetric `64 ± X` display.
-
 ---
 
-# 11. GM Damage Adjustment
+# 13. GM Skill Adjustment and Inspection
 
-GM may perform final authorised per-instance damage adjustments after automatic Level scaling.
+GM may perform authorised per-instance Skill adjustments after automatic calculations.
 
-For each spawned offensive Profile, the UI/audit layer must preserve:
+For each spawned Skill, the UI/audit layer should preserve:
 
 ```text
+Template Skill Accuracy
+GM Accuracy Adjustment / Override
+Final Skill Accuracy
+
 Template Base Damage
 Monster Level
 MonsterDamageGrowth(Level)
-Template Damage Growth Weight
+Damage Growth Weight
 Calculated Base Damage
 GM Base Damage Adjustment
 Final Base Damage
@@ -337,128 +435,94 @@ Final Upper Variance
 
 Final Minimum Raw Damage
 Final Maximum Raw Damage
+Damage Type
+Status / effect references
+MP / cooldown / usage state where relevant
 ```
-
-A GM instance adjustment affects only that Monster unless GM explicitly edits the reusable Template/Profile.
 
 Template values, calculated values and instance overrides must not be collapsed into one number internally.
 
 ---
 
-# 12. Growth Weight Editing
+# 14. Attributes Still Matter Outside Accuracy
 
-GM must be able to edit independently for each Attack / Skill Profile:
+Removing Attribute-derived Accuracy does not remove Monster Attributes from the rules.
 
-```text
-Damage Growth Weight
-Lower Variance Growth Weight
-Upper Variance Growth Weight
-```
-
-Base Damage Weight meaning:
+Examples of existing uses remain:
 
 ```text
-0.0 → no Level-derived Base Damage growth
-0.5 → half standard Base Damage growth component
-1.0 → standard Base Damage growth; 8× total at Level 100
-1.5 → 1.5× standard Level-derived Base Damage growth component
+Effective DEX → Initiative basis
+Effective CON / SIZ → Max HP basis
+Effective INT → Max MP basis
+Effective POW / INT → mental or supernatural checks where relevant
 ```
 
-Variance default behaviour:
+A specific Monster Skill may explicitly reference an Attribute for:
 
 ```text
-Lower Variance Growth Weight = 1.50
-Upper Variance Growth Weight = 2.00
+secondary effect strength
+forced movement
+status potency
+special opposed checks
+requirements
+other approved mechanics
 ```
 
-These default weights intentionally produce high volatility and stronger upper-end expansion. They are prefilled values rather than locked mandatory values for every Monster attack.
-
-At Level 1, all Growth Weights leave their Template baseline values unchanged.
+Such explicit references do not automatically modify that Skill's Accuracy.
 
 ---
 
-# 13. Spawned Attack / Skill Inspection
-
-For each offensive Profile on a spawned Monster, GM should be able to inspect:
+# 15. Template vs Instance Editing
 
 ```text
-Primary Effective Attribute
-Current Effective Attribute value
-Attribute-Derived Hit Value
-Attack Proficiency
-Additional Hit Modifier
-Final D100 attack basis
+Edit Monster Skill on Template
+→ changes reusable Skill definition / future use
 
-Template Base Damage
-MonsterDamageGrowth(Level)
-Damage Growth Weight
-Calculated Base Damage
-GM Base Damage Adjustment
-Final Base Damage
-
-Template Lower Variance
-Lower Variance Growth Weight
-Calculated / GM-adjusted / Final Lower Variance
-
-Template Upper Variance
-Upper Variance Growth Weight
-Calculated / GM-adjusted / Final Upper Variance
-
-Final Minimum Raw Damage
-Final Maximum Raw Damage
-Damage Type
-Special-effect references
-```
-
-This keeps both accuracy and the full damage band explainable.
-
----
-
-# 14. Template vs Instance Editing
-
-```text
-Edit Template
-→ changes reusable ranges / Growth Weights / Profiles / future Template behaviour
-
-Edit Spawned Instance
-→ changes only that individual Monster
+Edit Spawned Monster Skill Override
+→ changes only that Monster instance
 ```
 
 Any recalculation of persistent instances after a deliberate Template change must be explicit and auditable rather than silently mutating historical values.
 
 ---
 
-# 15. Superseded Simplified Monster Damage Fields
+# 16. Superseded Simplified Monster Fields
 
-The GM UI should not require the older Simplified Monster fields:
+The GM UI should no longer require the older standard Simplified Monster fields:
 
 ```text
+Primary Effective Attribute for hit chance
+Attack Proficiency
+Attribute-Derived Hit Value
 Damage Profile / damage dice
 Apply STR + SIZ Character Damage Bonus
 single symmetric Damage Variance
 ```
 
-These are replaced by:
+These are replaced by the self-contained Monster Skill model:
 
 ```text
+Accuracy
 Template Base Damage
 Damage Growth Weight
 Template Lower Variance
 Lower Variance Growth Weight
 Template Upper Variance
 Upper Variance Growth Weight
+Skill effects / restrictions
 Calculated values
 GM adjustments
 Final damage range
 ```
 
-Player Character damage configuration remains unaffected.
+Player Character attack configuration remains unaffected.
 
 ---
 
-# 16. Current Unresolved Items
+# 17. Current Unresolved Items
 
 Still to be decided separately:
 
-1. exact Effective Attribute → D100 hit conversion;
-2. later Elite/Boss/richer-profile exceptions where needed.
+1. whether Monster Skill Accuracy stays fixed across Monster Levels by default or has its own Level scaling;
+2. exact allowed Accuracy range / interaction with the D100 natural extreme rules if further tuning is needed;
+3. later Elite/Boss/richer-profile exceptions where needed.
