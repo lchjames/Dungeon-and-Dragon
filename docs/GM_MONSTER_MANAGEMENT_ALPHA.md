@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, the `Base Damage + Attribute Basis ± Spread` model, and instance overrides.
+> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, signed Damage Spread Ranges, and instance overrides.
 
 ---
 
@@ -59,13 +59,14 @@ For every spawned instance:
 14. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
 15. Calculate Level-adjusted Base Damage
 16. Calculate Damage Center = Calculated Base Damage + Damage Attribute Basis
-17. Resolve Final Lower Spread / Final Upper Spread once their scaling rule is locked
-18. Calculate Minimum / Maximum Raw Damage
-19. Save instance
-20. Permit GM final adjustments
+17. Resolve Final Spread Min / Final Spread Max once the scaling rule is locked
+18. Resolve signed Spread Roll when the Skill hits
+19. Calculate Raw Damage
+20. Save instance / combat state
+21. Permit GM final adjustments
 ```
 
-Group spawn runs the complete pipeline independently for every Monster.
+Group spawn runs the complete generation pipeline independently for every Monster.
 
 ---
 
@@ -92,9 +93,9 @@ Stored Accuracy
 Damage Type
 Template Base Damage
 Damage Growth Weight
-Template Lower Spread
-Template Upper Spread
 Damage Attribute Links
+Template Spread Min
+Template Spread Max
 Range / Reach
 Targeting
 Status / special-effect links
@@ -104,9 +105,13 @@ Usage restrictions
 Other approved flags
 ```
 
-The former fields are superseded and must not be required:
+The former standard fields are superseded and must not be required:
 
 ```text
+Template Lower Spread
+Template Upper Spread
+Final Lower Spread
+Final Upper Spread
 Lower Attribute Ratio
 Upper Attribute Ratio
 Lower Variance Growth Weight
@@ -197,8 +202,6 @@ Standard Weight `1.0` reaches 8× Template Base Damage at Level 100.
 
 # 9. Locked Damage Center Formula
 
-The Attribute Ratio damage-band model is superseded.
-
 For an Attribute-linked Skill:
 
 ```text
@@ -213,23 +216,49 @@ Damage Attribute Basis = 0
 Calculated Damage Center = Calculated Base Damage
 ```
 
-The linked Attribute value therefore raises the central damage directly rather than widening the band indirectly.
-
 ---
 
-# 10. Spread Applied Around the Damage Center
+# 10. Signed Damage Spread Range
 
-Canonical damage limits:
+Spread is one signed interval:
+
+```text
+[Final Spread Min, Final Spread Max]
+```
+
+Examples:
+
+```text
+[-2, +2]
+[-5, +15]
+```
+
+Canonical validation:
+
+```text
+Template Spread Min <= Template Spread Max
+Final Spread Min <= Final Spread Max
+```
+
+Runtime:
+
+```text
+Spread Roll
+= random integer from Final Spread Min to Final Spread Max, inclusive
+
+Raw Monster Damage
+= max(0, Calculated Damage Center + Spread Roll)
+```
+
+Displayed range:
 
 ```text
 Calculated Minimum Raw Damage
-= max(0, Calculated Damage Center - Final Lower Spread)
+= max(0, Calculated Damage Center + Final Spread Min)
 
 Calculated Maximum Raw Damage
-= Calculated Damage Center + Final Upper Spread
+= max(0, Calculated Damage Center + Final Spread Max)
 ```
-
-The damage roll after a successful hit is a random integer inside that range.
 
 Spread randomisation is not a second D100 check.
 
@@ -237,32 +266,28 @@ Spread randomisation is not a second D100 check.
 
 # 11. Locked Spread Design Intent
 
-The spread subsystem must preserve:
+The standard spread shape may begin roughly symmetric and become increasingly positive-skewed as Monster power rises.
+
+Conceptually:
 
 ```text
-low roll
-→ can deal less than Damage Center
-
-high roll
-→ can deal more than Damage Center
-
-higher Monster progression
-→ Lower Spread may increase modestly
-→ Upper Spread may increase more strongly
+low Level  → [-2, +2]
+high Level → [-5, +15]
 ```
 
-Late-game downside must remain substantially smaller than the available upside.
-
-Conceptual design example:
+Meaning:
 
 ```text
-Lv1 low roll: 64 + 15 - 2 = 77
-Lv2 low roll: 64 + 18 - 3 = 79
+negative edge
+→ may expand modestly
+
+positive edge
+→ may expand much more strongly
 ```
 
-The exact formula that turns Template Lower / Upper Spread into Final Lower / Upper Spread remains unresolved.
+This preserves low-roll damage below the Damage Center while allowing substantially greater high-roll upside later.
 
-Implementation must not reintroduce the removed Attribute Ratios or invent another hidden Level curve.
+The exact formula that turns Template Spread Min / Max into Final Spread Min / Max remains unresolved and must not be invented by implementation.
 
 ---
 
@@ -287,17 +312,16 @@ MonsterDamageGrowth(Level)
 Damage Growth Weight
 Calculated Base Damage
 Calculated Damage Center
-GM Base Damage / center adjustments where authorised
 
-Template Lower Spread
-Template Upper Spread
-Final Lower Spread
-Final Upper Spread
+Template Spread Min
+Template Spread Max
+Final Spread Min
+Final Spread Max
 Calculated Minimum Raw Damage
 Calculated Maximum Raw Damage
-GM lower / upper damage adjustments
-Final Minimum Raw Damage
-Final Maximum Raw Damage
+Spread Roll when resolved
+GM spread / damage adjustments
+Final Raw Damage
 
 Damage Type
 Status / special-effect references
@@ -308,7 +332,27 @@ Automatic, Template and GM-adjusted values must remain visually distinguishable.
 
 ---
 
-# 13. Template vs Instance Editing
+# 13. GM Skill Editor Requirements
+
+The editor should show:
+
+```text
+Template Spread Min
+Template Spread Max
+```
+
+as signed numeric inputs and render a compact preview such as:
+
+```text
+Spread: -2 to +2
+Spread: -5 to +15
+```
+
+Do not split this into separate Lower / Upper subsystems.
+
+---
+
+# 14. Template vs Instance Editing
 
 ```text
 Edit Template Skill
@@ -322,10 +366,10 @@ Persistent instances must not silently lose historical calculated values or over
 
 ---
 
-# 14. Current Unresolved Items
+# 15. Current Unresolved Items
 
 Resolve separately:
 
-1. exact scaling rule for `Final Lower Spread` and `Final Upper Spread`, preserving much smaller late-game downside than upside;
+1. exact scaling rule for `Final Spread Min` and `Final Spread Max`, preserving much smaller negative growth than positive growth;
 2. whether Monster Skill Accuracy itself automatically scales with Level;
 3. later Elite / Boss / richer-profile exceptions where needed.
