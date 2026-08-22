@@ -2,8 +2,8 @@
 
 > Status: Canonical Alpha Override  
 > Date: 2026-08-22  
-> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked damage, and the current `Base Damage + Attribute Basis ± Spread` damage-band architecture.  
-> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, used Attribute Ratios to widen damage, or gave Lower / Upper spread their own Monster Level curves.
+> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked damage, and the signed `Damage Spread Range` model.  
+> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, used Attribute Ratios to widen damage, or split spread into separate Lower / Upper mechanisms.
 
 ---
 
@@ -17,9 +17,9 @@ Stored Accuracy
 Damage Type
 Template Base Damage
 Damage Growth Weight
-Template Lower Spread
-Template Upper Spread
 Damage Attribute Links
+Template Spread Min
+Template Spread Max
 Range / Reach
 Targeting
 Status / special effects
@@ -105,7 +105,7 @@ Damage Attribute Basis
   / number of selected Attributes
 ```
 
-The selected Attribute identifiers and their current Effective values must be preserved for audit/debugging.
+The selected Attribute identifiers and current Effective values must be preserved for audit/debugging.
 
 Damage Attribute Basis affects damage only and does not alter Skill Accuracy by default.
 
@@ -141,28 +141,13 @@ Lv90  → ~6.97×
 Lv100 → 8.00× Template Base Damage
 ```
 
-`Calculated Base Damage` is the Level-adjusted Skill base component used by the damage center formula below.
-
 ---
 
 # 6. Locked Damage Center — Base Damage + Attribute Basis
 
 The previous Attribute Ratio model is superseded.
 
-Do **not** calculate Attribute-derived Lower / Upper Contributions using:
-
-```text
-Lower Attribute Ratio
-Upper Attribute Ratio
-```
-
-and do not use the former default pair:
-
-```text
-0.10 / 0.50
-```
-
-Instead, for an Attribute-linked damaging Skill:
+For an Attribute-linked damaging Skill:
 
 ```text
 Calculated Damage Center
@@ -176,130 +161,167 @@ Damage Attribute Basis = 0
 Calculated Damage Center = Calculated Base Damage
 ```
 
-This means the Monster's relevant Effective Attribute value contributes directly to the Skill's central damage value rather than indirectly widening the damage band.
+The Monster's relevant Effective Attribute value therefore contributes directly to the Skill's central damage.
 
 ---
 
-# 7. Lower / Upper Spread Is Applied After the Damage Center
+# 7. Signed Damage Spread Range
 
-Canonical damage-band structure:
+Spread is one signed interval, not separate Lower / Upper systems.
+
+Each damaging Skill stores a Profile-side range:
+
+```text
+Template Spread Min
+Template Spread Max
+```
+
+Examples:
+
+```text
+[-2, +2]
+[-5, +15]
+[0, +8]
+[-6, -1]   // allowed for an intentionally downside-only exceptional Skill
+```
+
+Canonical constraints:
+
+```text
+Template Spread Min <= Template Spread Max
+Final Spread Min <= Final Spread Max
+```
+
+For a normal standard damaging Skill, `0` will usually lie inside the range, but this is not an absolute requirement for exceptional Skill design.
+
+The runtime spread result is:
+
+```text
+Spread Roll
+= random integer from Final Spread Min to Final Spread Max, inclusive
+```
+
+Then:
+
+```text
+Raw Monster Damage
+= max(0, Calculated Damage Center + Spread Roll)
+```
+
+Equivalent range display:
 
 ```text
 Calculated Minimum Raw Damage
-= max(0, Calculated Damage Center - Final Lower Spread)
+= max(0, Calculated Damage Center + Final Spread Min)
 
 Calculated Maximum Raw Damage
-= Calculated Damage Center + Final Upper Spread
+= max(0, Calculated Damage Center + Final Spread Max)
 ```
 
-The actual raw damage after a successful hit is a random integer within:
-
-```text
-Calculated Minimum Raw Damage
-...
-Calculated Maximum Raw Damage
-```
-
-The spread roll is not a second D100 action check and has no Great Success / Great Failure meaning.
+Spread randomisation is not a second D100 action check and has no Great Success / Great Failure meaning.
 
 ---
 
-# 8. Locked Design Intent for Spread
+# 8. Locked Spread Design Intent
 
-The spread exists to allow a successful hit to produce damage below or above the central value.
+The signed range exists to allow a successful hit to fluctuate around the Damage Center.
 
-Canonical intent:
-
-```text
-Base Damage + Attribute Basis
-→ central damage
-
-low roll
-→ central damage - Lower Spread
-
-high roll
-→ central damage + Upper Spread
-```
-
-At higher Monster power / Level:
+Example at low Level:
 
 ```text
-Lower Spread
-→ may increase, but only modestly
-
-Upper Spread
-→ may increase more strongly
+Damage Center = Base Damage + Attribute Basis
+Spread Range = [-2, +2]
 ```
 
-Therefore late-game low rolls can still deal less than the central damage, but the downside should be substantially smaller than the potential upside.
+A low roll applies `-2`; a high roll applies `+2`.
 
-This asymmetry belongs to the Spread subsystem itself, not to an Attribute Ratio subsystem.
+At higher progression, the same Skill may evolve conceptually toward a positively skewed range such as:
+
+```text
+[-5, +15]
+```
+
+The intended late-game shape is therefore:
+
+```text
+negative edge
+→ may move farther below 0, but only modestly
+
+positive edge
+→ may extend much farther above 0
+```
+
+So low rolls remain possible, while the potential upside grows substantially more than the downside.
+
+This asymmetry is a property of the **single signed Spread Range**.
 
 ---
 
-# 9. User-Confirmed Calculation Shape Example
+# 9. User-Confirmed Calculation Shape
 
-Conceptual low-roll examples supplied during design:
+Examples supplied during design:
 
 ```text
-Lv1:
+Lv1 low roll:
 64 + 15 - 2
 = 77
 
-Lv2:
+Lv2 low roll:
 64 + 18 - 3
 = 79
 ```
 
-Read as:
+These are read as:
 
 ```text
-Base Damage
+Calculated Base Damage
 + current Damage Attribute Basis
-- current Lower Spread
++ signed Spread Roll
 ```
 
-The important locked structure is the order of operations:
+For the first example:
 
 ```text
-Base Damage
-+ Attribute Basis
-± Spread
+Spread Roll = -2
 ```
 
-The exact formula by which Lower Spread and Upper Spread themselves change with Level / Attributes is not yet locked.
+For the second:
+
+```text
+Spread Roll = -3
+```
+
+The exact formula by which `Template Spread Min / Max` become `Final Spread Min / Max` as the Monster progresses is not yet locked.
+
+Implementation must not invent that scaling rule.
 
 ---
 
-# 10. Superseded Damage-Band Models
+# 10. Superseded Damage-Band Terms
 
-The following are superseded for standard Simplified Monster Skills:
+The following standard Simplified Monster fields / concepts are superseded:
 
 ```text
-Lower Variance Growth Weight
-Upper Variance Growth Weight
-
+Template Lower Spread
+Template Upper Spread
+Final Lower Spread
+Final Upper Spread
 Lower Attribute Ratio
 Upper Attribute Ratio
-
+Lower Variance Growth Weight
+Upper Variance Growth Weight
 Attribute-derived Lower Contribution
 Attribute-derived Upper Contribution
 ```
 
-The current model instead uses:
+Use instead:
 
 ```text
-Calculated Base Damage
-+ Damage Attribute Basis
-→ Calculated Damage Center
-
-Calculated Damage Center
-- Final Lower Spread
-→ Minimum Raw Damage
-
-Calculated Damage Center
-+ Final Upper Spread
-→ Maximum Raw Damage
+Template Spread Min
+Template Spread Max
+Final Spread Min
+Final Spread Max
+Spread Roll
 ```
 
 ---
@@ -316,8 +338,10 @@ Declare Monster Skill
 → raw 100: Great Success
 → otherwise resolve ordinary hit / opposed threshold
 → miss: no normal hit damage
-→ hit: use calculated / final Skill damage range
-→ random integer inside Minimum–Maximum range
+→ hit: calculate / read Damage Center
+→ resolve Final Spread Range
+→ roll one signed integer Spread Roll inside that range
+→ Raw Damage = max(0, Damage Center + Spread Roll)
 → Defence / Resistance
 → Damage Result
 → HP loss only when Damage Result > 0
@@ -345,16 +369,17 @@ Template Base Damage
 MonsterDamageGrowth(Level)
 Damage Growth Weight
 Calculated Base Damage
-
 Calculated Damage Center
 
-Template / calculated Lower Spread inputs
-Template / calculated Upper Spread inputs
+Template Spread Min
+Template Spread Max
+Final Spread Min
+Final Spread Max
+Spread Roll when resolved
 Calculated Minimum Raw Damage
 Calculated Maximum Raw Damage
-GM lower / upper damage adjustments
-Final Minimum Raw Damage
-Final Maximum Raw Damage
+GM spread / damage adjustments
+Final Raw Damage
 ```
 
 Template, calculated and GM-adjusted values must remain distinguishable.
@@ -371,9 +396,9 @@ Stored Accuracy — may exceed 100
 Damage Type
 Template Base Damage
 Damage Growth Weight
-Template Lower Spread
-Template Upper Spread
 Damage Attribute Links — multi-select STR / DEX / CON / POW / INT / SIZ
+Template Spread Min — signed integer
+Template Spread Max — signed integer
 Range / Reach
 Targeting
 Status / special-effect links
@@ -383,14 +408,14 @@ Usage restrictions
 Other approved flags
 ```
 
-The UI must no longer require:
+The UI should display the spread compactly as, for example:
 
 ```text
-Lower Attribute Ratio
-Upper Attribute Ratio
-Lower Variance Growth Weight
-Upper Variance Growth Weight
+Spread: -2 to +2
+Spread: -5 to +15
 ```
+
+and validate only that Min does not exceed Max unless a future stronger constraint is explicitly locked.
 
 ---
 
@@ -403,23 +428,29 @@ Upper Variance Growth Weight
 5. Skill damage may link to zero, one or multiple STR / DEX / CON / POW / INT / SIZ values.
 6. Multiple linked Attributes use arithmetic mean of current Effective Attributes.
 7. Skill Base Damage retains the locked Monster damage Level curve.
-8. The previous Lower / Upper Attribute Ratio model is superseded.
-9. Attribute-linked damage center is `Calculated Base Damage + Damage Attribute Basis`.
-10. Minimum damage is `max(0, Damage Center - Final Lower Spread)`.
-11. Maximum damage is `Damage Center + Final Upper Spread`.
-12. Lower Spread may grow modestly; Upper Spread is intended to have substantially stronger upside growth.
-13. Exact Lower / Upper Spread scaling remains unresolved and must not be invented by implementation.
-14. GM may perform final instance adjustments while preserving all calculation layers.
+8. Attribute-linked Damage Center is `Calculated Base Damage + Damage Attribute Basis`.
+9. Spread is one signed inclusive interval `[Final Spread Min, Final Spread Max]`.
+10. Spread Roll is one random integer drawn from that signed interval after a successful hit.
+11. Raw Monster Damage is `max(0, Damage Center + Spread Roll)`.
+12. Standard late-game design may shift from ranges such as `[-2,+2]` toward positively skewed ranges such as `[-5,+15]`.
+13. Negative spread growth should remain materially smaller than positive spread growth for the standard intended damage shape.
+14. Exact Spread Min / Max progression remains unresolved and must not be invented by implementation.
+15. GM may perform final instance adjustments while preserving calculation layers.
 
 ---
 
 # 15. Next Decision
 
-The next Monster damage decision is the exact rule for calculating:
+The next Monster damage decision is the exact rule that converts:
 
 ```text
-Final Lower Spread
-Final Upper Spread
+Template Spread Min / Template Spread Max
 ```
 
-from their Template values and Monster progression, while preserving the locked design intent that the late-game downside grows much more slowly than the upside.
+into:
+
+```text
+Final Spread Min / Final Spread Max
+```
+
+as Monster Level / Effective Attribute progression increases, while preserving the intended transition from roughly symmetric low-Level spread toward a strongly positive-skewed high-Level spread.
