@@ -10,9 +10,7 @@
 
 Alpha uses a **Hybrid Monster / NPC Model**.
 
-## Ordinary / Disposable Monsters
-
-Use the Simplified Monster Profile with exactly six mandatory core Attributes:
+Ordinary / disposable Monsters use the Simplified Monster Profile with exactly six mandatory core Attributes:
 
 ```text
 STR
@@ -25,13 +23,7 @@ SIZ
 
 `APP / EDU / LUCK` are not mandatory.
 
-## Elite / Boss
-
-May use richer Monster Profiles where mechanics require them; they are not automatically forced into the full Player model.
-
-## Important / Persistent NPCs
-
-May use the Full Character Model.
+Elite and Boss enemies may use richer Monster Profiles where mechanics require them. Important / persistent NPCs may use the Full Character Model.
 
 ---
 
@@ -39,21 +31,7 @@ May use the Full Character Model.
 
 Each Simplified Monster Template stores inclusive min/max ranges for all six Attributes.
 
-Example:
-
-```text
-Goblin
-STR 1–3
-DEX 1–3
-CON 1–3
-POW 1–3
-INT 1–3
-SIZ 1–3
-```
-
-Every spawn rolls all six independently.
-
-Monster Level never widens or replaces these natural Template ranges.
+Every spawn rolls all six independently. Monster Level never widens or replaces these natural Template ranges.
 
 ---
 
@@ -66,10 +44,6 @@ Template Roll
 → Monster Level Scaling
 → Effective Attribute
 ```
-
-Natural Attributes preserve generated identity.
-
-Effective Attributes are the Level-adjusted live values.
 
 Canonical Level scaling:
 
@@ -84,11 +58,7 @@ Effective Attribute
   )
 ```
 
-Each Template has independent Growth Weights for:
-
-```text
-STR / DEX / CON / POW / INT / SIZ
-```
+Each Template has independent Growth Weights for STR / DEX / CON / POW / INT / SIZ.
 
 At Level 1:
 
@@ -112,24 +82,16 @@ If Elite:
 Elite Attribute Bonus = one random integer +1..+5
 ```
 
-The same rolled bonus is added to all six base Attributes before Natural Attributes are finalized.
-
-Because the Elite Bonus becomes part of Natural Attributes, it is subsequently Level-scaled.
+The same rolled bonus is added to all six base Attributes before Natural Attributes are finalized, then Level-scaled normally.
 
 ---
 
 # 5. Locked Monster Resources
 
-Simplified Monster HP:
-
 ```text
 Calculated Max HP
 = ceil((Effective CON + Effective SIZ) / 2)
-```
 
-Simplified Monster MP:
-
-```text
 Calculated Max MP
 = Effective INT × 3
 ```
@@ -166,9 +128,7 @@ Usage restrictions
 
 # 7. Independent Accuracy with Over-100 Storage
 
-Monster Skill Accuracy is an independent Skill property.
-
-It is not derived from Monster STR / DEX / other Attributes.
+Monster Skill Accuracy is an independent Skill property and is not derived from Monster Attributes.
 
 Stored Accuracy may exceed `100`.
 
@@ -182,34 +142,44 @@ Effective Accuracy
 = min(100, Modified Accuracy)
 ```
 
-Only Effective Accuracy enters the D100 threshold.
+Only Effective Accuracy enters the ordinary D100 threshold.
 
-This means Accuracy above 100 acts as reserve against future penalties.
-
-Example:
-
-```text
-Stored Accuracy 130
-Penalty -40
-→ Effective Accuracy 90
-```
-
-Example:
-
-```text
-Stored Accuracy 130
-Penalty -20
-→ Modified 110
-→ Effective Accuracy 100
-```
+Accuracy above 100 therefore acts as reserve against future negative modifiers.
 
 Monster Skill Accuracy is not subject to the Player natural Skill cap of 98.
 
-Whether raw D100 `1` still forces Great Failure when Effective Accuracy reaches 100 remains a separate unresolved D100 interaction.
+---
+
+# 8. Locked D100 Great Failure / Great Success Interaction
+
+Monster Skills preserve the global raw D100 extreme rules:
+
+```text
+raw D100 = 1   → Great Failure
+raw D100 = 100 → Great Success
+```
+
+These extreme results take precedence over the ordinary threshold.
+
+Therefore when:
+
+```text
+Effective Accuracy = 100
+```
+
+resolution is:
+
+```text
+raw 1     → Great Failure
+raw 2–99  → ordinary success
+raw 100   → Great Success
+```
+
+Accuracy above 100 does not create absolute success by itself. Its normal role is to absorb negative Accuracy modifiers before the Effective Accuracy cap.
 
 ---
 
-# 8. Damage Attribute Links
+# 9. Damage Attribute Links
 
 Monster Skill Accuracy is independent, but **Skill damage may explicitly link to Monster Attributes**.
 
@@ -241,25 +211,13 @@ Damage Attribute Basis
   / number of selected Attributes
 ```
 
-Examples:
-
-```text
-STR 40 + DEX 20
-→ Basis 30
-```
-
-```text
-STR 30 + DEX 24 + SIZ 36
-→ Basis 30
-```
-
 This basis contributes to Skill damage, not Skill Accuracy.
 
-The exact numerical lower/upper damage contribution formula is still unresolved.
+The exact numerical lower/upper damage contribution formula remains unresolved.
 
 ---
 
-# 9. Template-Side Monster Damage Scaling
+# 10. Template-Side Monster Damage Scaling
 
 Locked global damage growth term:
 
@@ -280,11 +238,11 @@ Calculated Base Damage
 
 Standard `Damage Growth Weight = 1.0` gives 1× at Lv1 and 8× at Lv100.
 
-This is now the **Template-side damage component**. It is not the complete final damage-range formula where Damage Attribute Links are present.
+This is the Template-side damage component and is not the complete final damage-range formula where Damage Attribute Links are present.
 
 ---
 
-# 10. Asymmetric Variance
+# 11. Asymmetric Variance
 
 Each damaging Skill stores independent lower and upper variance values.
 
@@ -309,13 +267,11 @@ Lower Variance Growth Weight = 1.50
 Upper Variance Growth Weight = 2.00
 ```
 
-This intentionally allows high-Level Skills to have a higher ceiling and a lower relative floor.
-
 Final raw damage can never be below 0.
 
 ---
 
-# 11. Current Skill Damage Pipeline
+# 12. Current Skill Damage Pipeline
 
 ```text
 Template damage values
@@ -337,7 +293,7 @@ The exact formula joining the Attribute Basis to the lower / upper limits remain
 
 ---
 
-# 12. Full Spawn Pipeline
+# 13. Full Spawn Pipeline
 
 ```text
 1. Read Template
@@ -362,7 +318,7 @@ Group spawn runs the full pipeline independently for every Monster.
 
 ---
 
-# 13. GM / D1 Requirements
+# 14. GM / D1 Requirements
 
 D1 must preserve enough data to distinguish:
 
@@ -382,6 +338,7 @@ Monster Instance
 → Effective Attributes
 → calculated HP / MP
 → per-Skill Accuracy calculations
+→ per-Skill raw D100 / extreme-result state when resolved
 → per-Skill linked Attribute values / Basis
 → calculated damage components
 → GM overrides
@@ -392,7 +349,7 @@ Changing Level recalculates Effective Attributes from preserved Natural values a
 
 ---
 
-# 14. GM Final Adjustment
+# 15. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation and calculation.
 
@@ -402,15 +359,14 @@ Template, calculated and GM-adjusted layers should remain auditable.
 
 ---
 
-# 15. Current Unresolved Items
+# 16. Current Unresolved Items
 
 Resolve separately:
 
-1. Effective Accuracy 100 vs raw D100 `1` / Great Failure interaction;
-2. exact Damage Attribute Basis → lower / upper damage formula;
-3. whether Monster Skill Accuracy itself automatically scales with Level;
-4. Boss-specific generation / modifiers beyond the ordinary Elite rule;
-5. Skill status / Resistance / Immunity details;
-6. Monster EXP rewards;
-7. NPC progression behaviour;
-8. encounter difficulty contribution.
+1. exact Damage Attribute Basis → lower / upper damage formula;
+2. whether Monster Skill Accuracy itself automatically scales with Level;
+3. Boss-specific generation / modifiers beyond the ordinary Elite rule;
+4. Skill status / Resistance / Immunity details;
+5. Monster EXP rewards;
+6. NPC progression behaviour;
+7. encounter difficulty contribution.
