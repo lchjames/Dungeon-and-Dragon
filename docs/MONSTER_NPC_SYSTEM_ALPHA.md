@@ -114,7 +114,84 @@ Standard damage Spread is generated from Monster Level and then corrected by GM.
 
 ---
 
-# 6. Independent Accuracy with Over-100 Storage — Fixed Across Level
+# 6. Common Monster Skill Library
+
+The Monster system may maintain a reusable Common Monster Skill Library.
+
+Each Common Monster Skill is a normal Monster Skill Profile and may be attached to multiple Monster / Elite / Boss Templates.
+
+This library is intended for repeatable ordinary actions and basic attacks so the GM does not need to recreate the same Skill every time.
+
+Example content may include:
+
+```text
+Bite
+Claw
+Charge
+Tail Swipe
+Basic weapon strike
+Simple projectile
+Basic elemental attack
+```
+
+---
+
+# 7. Boss Skill Architecture — Common + GM-Authored Unique Skills
+
+Bosses do **not** use a separate Boss-only Skill engine.
+
+A Boss may combine:
+
+```text
+Common Monster Skills
++ GM-authored unique Boss Skills
+```
+
+Typical loadout:
+
+```text
+Boss
+├─ Common / basic Monster Skills
+│  ├─ normal attack
+│  ├─ common movement / attack pattern
+│  └─ reusable utility action
+│
+└─ Unique Boss Skills
+   ├─ signature attack
+   ├─ unique control / area effect
+   ├─ phase-specific action
+   └─ other GM-designed mechanic
+```
+
+A GM-authored unique Boss Skill is still a Monster Skill Profile and uses the same Monster Skill resolver unless an explicit later subsystem introduces a specific exception.
+
+The GM may use a Common Monster Skill directly as a Boss basic action or use it as an authoring reference / starting point for a distinct unique Skill.
+
+Boss uniqueness therefore comes from the selected Skill loadout and GM-authored Skill content, not from duplicating the entire Skill engine.
+
+---
+
+# 8. Separation from Player Skill System
+
+Player Characters retain their own Skill / Ability / progression systems.
+
+A standard Simplified Monster or Boss does not automatically use:
+
+```text
+Player Creation Skill Points
+Player basic-skill progression
+Player natural Skill cap progression
+Player weapon-specialisation progression
+Player Ability learning progression
+```
+
+A Boss-specific Skill remains a Monster Skill Profile even when it is narratively complex or unique.
+
+An important / persistent NPC may instead use the Full Character Model. In that case Player-like rules may apply because of the selected NPC model, not because every Boss inherits the Player ruleset.
+
+---
+
+# 9. Independent Accuracy with Over-100 Storage — Fixed Across Level
 
 Monster Skill Accuracy is independent and is not derived from Monster Attributes.
 
@@ -163,7 +240,7 @@ Monster Level is not an Accuracy-growth source in the standard Simplified Monste
 
 ---
 
-# 7. Monster Critical Follow-Up — Deferred
+# 10. Monster Critical Follow-Up — Deferred
 
 Monster Great Success / Great Failure remains conceptually aligned with the shared Player-side D100 critical framework where a generic Canonical rule already applies.
 
@@ -185,7 +262,7 @@ The exact Monster-specific post-extreme behaviour is **DEFERRED until Monster Co
 
 ---
 
-# 8. Damage Attribute Links
+# 11. Damage Attribute Links
 
 Skill damage may explicitly link to Monster Attributes.
 
@@ -202,14 +279,14 @@ SIZ
 
 Use current Effective Attributes.
 
-For one selection:
+For one selected Attribute:
 
 ```text
 Damage Attribute Basis
 = selected Effective Attribute
 ```
 
-For multiple selections:
+For multiple selected Attributes:
 
 ```text
 Damage Attribute Basis
@@ -221,7 +298,7 @@ This basis contributes to damage, not Skill Accuracy.
 
 ---
 
-# 9. Locked Skill Base-Damage Level Scaling
+# 12. Locked Skill Base-Damage Level Scaling
 
 ```text
 MonsterDamageGrowth(Level)
@@ -242,7 +319,7 @@ Standard `Damage Growth Weight = 1.0` gives 1× at Lv1 and 8× at Lv100.
 
 ---
 
-# 10. Locked Damage Center Model
+# 13. Locked Damage Center Model
 
 For an Attribute-linked Skill:
 
@@ -260,7 +337,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 11. Level-Linked Signed Spread Range
+# 14. Level-Linked Signed Spread Range
 
 Spread is one signed interval:
 
@@ -306,7 +383,7 @@ Calculated Maximum Raw Damage
 
 ---
 
-# 12. Spread Design Intent and Balance Authority
+# 15. Spread Design Intent and Balance Authority
 
 The generated Spread Range is deliberately approximate.
 
@@ -335,7 +412,7 @@ The exact Level-to-Spread formula remains **Alpha Tuning** and should be data-dr
 
 ---
 
-# 13. User-Confirmed Damage Shape
+# 16. User-Confirmed Damage Shape
 
 Conceptual low-roll examples:
 
@@ -354,7 +431,7 @@ Calculated Base Damage
 
 ---
 
-# 14. Full Spawn Pipeline
+# 17. Full Spawn Pipeline
 
 ```text
 1. Read Template
@@ -365,7 +442,7 @@ Calculated Base Damage
 6. Apply Level curve + six Attribute Growth Weights
 7. Save Effective Attributes
 8. Calculate HP / MP
-9. Attach Monster Skills
+9. Attach Monster Skills from Common Library and/or Template/Boss-specific Skill authoring
 10. Preserve Stored Accuracy exactly; do not Level-scale it
 11. Resolve selected Damage Attribute Links
 12. Calculate Damage Attribute Basis
@@ -386,14 +463,15 @@ Group spawn runs the generation pipeline independently for every Monster.
 
 ---
 
-# 15. GM / D1 Requirements
+# 18. GM / D1 Requirements
 
 D1 must preserve enough data to distinguish:
 
 ```text
 Monster Template
 → Attribute ranges / Growth Weights
-→ Skill definitions
+→ Skill definitions / references
+→ Skill source where available: Common Library / Template-specific / Boss-specific
 → Stored Accuracy
 → Template Base Damage / Damage Growth Weight
 → Damage Attribute Links
@@ -425,23 +503,28 @@ Great Success / Great Failure state must remain auditable while Monster-specific
 
 ---
 
-# 16. GM Final Adjustment
+# 19. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation and calculation.
 
-Instance adjustment does not mutate the reusable Template or global Spread tuning rule unless GM explicitly edits those sources.
+Instance adjustment does not mutate the reusable Template, Common Skill Library entry, or global Spread tuning rule unless GM explicitly edits those sources.
 
-System suggested values, GM corrections and final runtime values should remain auditable.
+System suggested values, Skill source, GM corrections and final runtime values should remain auditable.
 
 ---
 
-# 17. Current Deferred / Unresolved Items
+# 20. Current Deferred / Unresolved Items
 
 Resolved:
 
 ```text
 Monster Skill Accuracy Level scaling
 → no automatic Level scaling
+
+Boss Skill authoring architecture
+→ use same Monster Skill Profile system
+→ may mix Common Monster Skills and GM-authored unique Boss Skills
+→ does not automatically use Player Skill progression
 ```
 
 Deferred / tuning:
@@ -449,7 +532,7 @@ Deferred / tuning:
 1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to future Monster AI design**;
 2. Monster AI Skill selection / behavioural logic — future AI design pass;
 3. numeric Spread-generation tuning — actual game-content creation / play balance;
-4. Boss-specific generation / modifiers beyond the ordinary Elite rule;
+4. Boss stat / resource / phase / generation modifiers beyond the resolved Skill-loadout architecture;
 5. Skill status / Resistance / Immunity details;
 6. Monster EXP rewards;
 7. NPC progression behaviour;
