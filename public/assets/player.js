@@ -3,6 +3,8 @@ import { $, $$, escapeHtml, downloadText, toast, bindThemeToggle, emptyState } f
 let bootstrap = null;
 let selectedCharacterId = '';
 let selectedCharacter = null;
+let creationDraftId = '';
+let creationAttributes = null;
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -60,7 +62,7 @@ function renderCharacterCards() {
       <div class="character-card-body">
         <div class="row-inline"><span class="status-pill">${escapeHtml(character.status)}</span><span class="muted">Lv ${escapeHtml(character.level)}</span></div>
         <h3>${escapeHtml(character.name)}</h3>
-        <p>${escapeHtml(character.role || 'No role')}</p>
+        <p>${escapeHtml(character.role || 'Unassigned')}</p>
       </div>
     </button>`;
   }).join('');
@@ -92,16 +94,19 @@ function renderResources(character) {
     const max = Number(resource.max) || 0;
     const current = Number(resource.current) || 0;
     const ratio = max > 0 ? Math.max(0, Math.min(100, (current / max) * 100)) : 0;
+    const resolverControlled = ['HP', 'MP'].includes(String(resource.key || '').toUpperCase());
     return `<div class="resource-row">
       <div class="resource-meta">
         <div><strong>${escapeHtml(resource.label)}</strong>${resource.description ? `<small>${escapeHtml(resource.description)}</small>` : ''}</div>
         <span>${current}${max ? ` / ${max}` : ''}</span>
       </div>
       ${max ? `<div class="meter"><span style="width:${ratio}%"></span></div>` : ''}
-      <div class="row-inline">
-        <input class="input input-compact" type="number" value="${current}" data-resource-current="${escapeHtml(resource.id)}">
-        <button class="button button-small button-ghost" type="button" data-resource-save="${escapeHtml(resource.id)}">Update</button>
-      </div>
+      ${resolverControlled
+        ? '<div class="row-inline"><span class="tag">Resolver controlled</span></div>'
+        : `<div class="row-inline">
+          <input class="input input-compact" type="number" value="${current}" data-resource-current="${escapeHtml(resource.id)}">
+          <button class="button button-small button-ghost" type="button" data-resource-save="${escapeHtml(resource.id)}">Update</button>
+        </div>`}
     </div>`;
   }).join('');
 
@@ -193,8 +198,8 @@ function renderCharacterDetail(character) {
 
   detail.classList.remove('hidden');
   $('#character-name').textContent = character.name;
-  $('#character-role').textContent = character.role || 'No role';
-  $('#character-level').textContent = `Level ${character.level}`;
+  $('#character-role').textContent = character.role || 'Unassigned';
+  $('#character-level').textContent = `Level ${character.level}${character.exp ? ` · EXP ${character.exp}` : ''}`;
   $('#character-status').textContent = character.status;
   $('#character-summary').textContent = character.summary || 'No summary.';
   $('#character-notes').value = character.notes || '';
@@ -235,16 +240,66 @@ function switchTab(name) {
   $(`#tab-${name}`)?.classList.remove('hidden');
 }
 
-function openCreateDialog() {
+function renderCreationRoll(draft) {
+  creationDraftId = draft?.id || '';
+  creationAttributes = draft?.attributes || null;
+  const grid = $('#creation-attribute-grid');
+  const total = $('#creation-primary-total');
+  const submit = $('#submit-character-create');
+
+  if (!creationAttributes) {
+    grid.innerHTML = '<p class="muted">Unable to load Attribute roll.</p>';
+    total.textContent = 'No valid roll';
+    submit.disabled = true;
+    return;
+  }
+
+  const order = ['STR', 'DEX', 'CON', 'APP', 'POW', 'INT', 'SIZ', 'EDU', 'LUCK'];
+  grid.innerHTML = order.map(key => `<div class="stat-card"><span>${key}</span><strong>${escapeHtml(creationAttributes[key])}</strong></div>`).join('');
+  total.textContent = `Primary total: ${draft.primaryTotal} · accepted range 84–100`;
+  submit.disabled = false;
+}
+
+async function loadCreationRoll() {
+  const reroll = $('#reroll-attributes');
+  const submit = $('#submit-character-create');
+  reroll.disabled = true;
+  submit.disabled = true;
+  setCreateStatus('正在擲角色屬性…');
+  try {
+    const payload = await api('/api/player/character-creation/roll', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    renderCreationRoll(payload.draft);
+    setCreateStatus('屬性已生成；你可以 Reroll，或者建立 Draft Character。', 'success');
+  } catch (error) {
+    creationDraftId = '';
+    creationAttributes = null;
+    renderCreationRoll(null);
+    setCreateStatus(error.message || 'Unable to roll Attributes.', 'error');
+  } finally {
+    reroll.disabled = false;
+  }
+}
+
+async function openCreateDialog() {
   const form = $('#character-create-form');
   form?.reset();
-  if (form?.elements.level) form.elements.level.value = '1';
+  creationDraftId = '';
+  creationAttributes = null;
+  $('#creation-attribute-grid').innerHTML = '<p class="muted">正在擲骰…</p>';
+  $('#creation-primary-total').textContent = 'Rolling…';
+  $('#submit-character-create').disabled = true;
   setCreateStatus('');
   $('#character-create-dialog')?.showModal();
+  await loadCreationRoll();
 }
 
 function closeCreateDialog() {
   $('#character-create-dialog')?.close();
+  creationDraftId = '';
+  creationAttributes = null;
   setCreateStatus('');
 }
 
@@ -260,14 +315,19 @@ async function boot() {
   }
 }
 
-$('#new-character')?.addEventListener('click', openCreateDialog);
+$('#new-character')?.addEventListener('click', () => { openCreateDialog(); });
 $('#close-character-create')?.addEventListener('click', closeCreateDialog);
 $('#cancel-character-create')?.addEventListener('click', closeCreateDialog);
+$('#reroll-attributes')?.addEventListener('click', loadCreationRoll);
 
 $('#character-create-form')?.addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget;
   const submit = $('#submit-character-create');
+  if (!creationDraftId) {
+    setCreateStatus('請先完成角色屬性擲骰。', 'error');
+    return;
+  }
   submit.disabled = true;
   setCreateStatus('');
 
@@ -277,16 +337,15 @@ $('#character-create-form')?.addEventListener('submit', async event => {
       method: 'POST',
       body: JSON.stringify({
         name: data.get('name'),
-        role: data.get('role'),
-        level: data.get('level'),
-        summary: data.get('summary')
+        summary: data.get('summary'),
+        draftId: creationDraftId
       })
     });
 
     closeCreateDialog();
     await refreshBootstrap();
     await openCharacter(payload.character.id);
-    toast('Character created.', 'success');
+    toast('Draft Character created. 200 Creation Skill Points are waiting for allocation.', 'success');
     $('#character-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
     setCreateStatus(error.message || 'Unable to create character.', 'error');
