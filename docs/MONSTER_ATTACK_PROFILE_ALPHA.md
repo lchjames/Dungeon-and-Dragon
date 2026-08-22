@@ -2,16 +2,14 @@
 
 > Status: Canonical Alpha Override  
 > Date: 2026-08-22  
-> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked fixed-range damage, one dedicated Base-Damage Level curve, and strongly asymmetric lower/upper Attribute contribution.  
-> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, gave Lower / Upper damage spread their own Monster Level growth curves, or treated the lower-side reduction as growing at a similar scale to the upper-side bonus.
+> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked damage, and the current `Base Damage + Attribute Basis ± Spread` damage-band architecture.  
+> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, used Attribute Ratios to widen damage, or gave Lower / Upper spread their own Monster Level curves.
 
 ---
 
-# 1. Core Model — Dedicated Monster Skills
+# 1. Core Monster Skill Profile
 
-Simplified Monsters use dedicated **Monster Skill Profiles**.
-
-A Monster Skill may define:
+A Simplified Monster Skill may define:
 
 ```text
 Skill Name
@@ -22,8 +20,6 @@ Damage Growth Weight
 Template Lower Spread
 Template Upper Spread
 Damage Attribute Links
-Lower Attribute Ratio
-Upper Attribute Ratio
 Range / Reach
 Targeting
 Status / special effects
@@ -33,7 +29,7 @@ Usage restrictions
 Other approved Skill flags
 ```
 
-Accuracy and damage are separate properties.
+Accuracy and damage remain separate properties.
 
 ---
 
@@ -54,7 +50,7 @@ Effective Accuracy
 = min(100, Modified Accuracy)
 ```
 
-Accuracy above 100 acts as reserve against future negative Accuracy modifiers.
+Accuracy above 100 acts as reserve against later negative Accuracy modifiers.
 
 Accuracy is not automatically calculated from STR / DEX / CON / POW / INT / SIZ, Natural Attributes, Effective Attributes, Attack Proficiency, Player weapon specialization, or Player Skill Point progression.
 
@@ -62,30 +58,20 @@ Accuracy is not automatically calculated from STR / DEX / CON / POW / INT / SIZ,
 
 # 3. Locked D100 Extreme Results
 
-Monster Skill hit checks preserve the global raw D100 extreme rules:
-
 ```text
 raw D100 = 1   → Great Failure
 raw D100 = 100 → Great Success
 ```
 
-These extreme results take precedence over the ordinary threshold.
+These raw extremes take precedence over the ordinary success threshold.
 
-Therefore even when:
-
-```text
-Effective Accuracy = 100
-```
-
-resolution remains:
+Even when `Effective Accuracy = 100`:
 
 ```text
 raw 1     → Great Failure
 raw 2–99  → ordinary success
 raw 100   → Great Success
 ```
-
-Accuracy above 100 never removes the normal Great Failure / Great Success extreme faces by itself.
 
 ---
 
@@ -104,14 +90,14 @@ SIZ
 
 Use current **Effective Attributes**.
 
-For exactly one selected Attribute:
+One selected Attribute:
 
 ```text
 Damage Attribute Basis
 = selected Effective Attribute
 ```
 
-For multiple selected Attributes:
+Multiple selected Attributes:
 
 ```text
 Damage Attribute Basis
@@ -119,15 +105,15 @@ Damage Attribute Basis
   / number of selected Attributes
 ```
 
-The resolver must preserve the selected Attribute identifiers and current Effective values, not only the final average.
+The selected Attribute identifiers and their current Effective values must be preserved for audit/debugging.
 
-Damage Attribute Basis affects damage only. It does not modify Skill Accuracy by default.
+Damage Attribute Basis affects damage only and does not alter Skill Accuracy by default.
 
 ---
 
 # 5. Locked Base-Damage Level Curve
 
-Monster Skill Base Damage retains one dedicated Monster damage Level curve:
+The Monster Skill Base Damage retains the dedicated Monster damage Level curve:
 
 ```text
 MonsterDamageGrowth(Level)
@@ -155,168 +141,166 @@ Lv90  → ~6.97×
 Lv100 → 8.00× Template Base Damage
 ```
 
-This is the Skill's only dedicated Monster Level damage-growth curve.
+`Calculated Base Damage` is the Level-adjusted Skill base component used by the damage center formula below.
 
 ---
 
-# 6. Static Template Lower / Upper Spread
+# 6. Locked Damage Center — Base Damage + Attribute Basis
 
-A damaging Skill may store:
+The previous Attribute Ratio model is superseded.
 
-```text
-Template Lower Spread
-Template Upper Spread
-```
-
-These are Profile-defined baseline spread values.
-
-They do **not** have their own Level Growth Weights and must not independently apply `MonsterDamageGrowth(Level)`.
-
-The former fields and defaults:
-
-```text
-Lower Variance Growth Weight
-Upper Variance Growth Weight
-Lower = 1.50
-Upper = 2.00
-```
-
-are superseded.
-
-For a Skill with no Damage Attribute Links, Attribute-derived contributions are `0`, so the ordinary band is based on Calculated Base Damage plus/minus the static Template Spread.
-
----
-
-# 7. Locked Attribute-Ratio Damage Formula
-
-Each damaging Skill stores two independent ratios:
+Do **not** calculate Attribute-derived Lower / Upper Contributions using:
 
 ```text
 Lower Attribute Ratio
 Upper Attribute Ratio
 ```
 
-Canonical Attribute contributions:
+and do not use the former default pair:
 
 ```text
-Attribute-derived Lower Contribution
-= round(Damage Attribute Basis × Lower Attribute Ratio)
-
-Attribute-derived Upper Contribution
-= round(Damage Attribute Basis × Upper Attribute Ratio)
+0.10 / 0.50
 ```
 
-Canonical damage limits:
+Instead, for an Attribute-linked damaging Skill:
+
+```text
+Calculated Damage Center
+= Calculated Base Damage + Damage Attribute Basis
+```
+
+If no Damage Attribute Links are selected:
+
+```text
+Damage Attribute Basis = 0
+Calculated Damage Center = Calculated Base Damage
+```
+
+This means the Monster's relevant Effective Attribute value contributes directly to the Skill's central damage value rather than indirectly widening the damage band.
+
+---
+
+# 7. Lower / Upper Spread Is Applied After the Damage Center
+
+Canonical damage-band structure:
 
 ```text
 Calculated Minimum Raw Damage
-= max(
-    0,
-    Calculated Base Damage
-    - Template Lower Spread
-    - Attribute-derived Lower Contribution
-  )
+= max(0, Calculated Damage Center - Final Lower Spread)
 
 Calculated Maximum Raw Damage
-= Calculated Base Damage
-  + Template Upper Spread
-  + Attribute-derived Upper Contribution
+= Calculated Damage Center + Final Upper Spread
 ```
 
-No separate Lower / Upper Monster Level curve is applied.
+The actual raw damage after a successful hit is a random integer within:
+
+```text
+Calculated Minimum Raw Damage
+...
+Calculated Maximum Raw Damage
+```
+
+The spread roll is not a second D100 action check and has no Great Success / Great Failure meaning.
 
 ---
 
-# 8. Locked Standard Asymmetry and Default Ratios
+# 8. Locked Design Intent for Spread
 
-The lower and upper sides are **not intended to expand symmetrically**.
+The spread exists to allow a successful hit to produce damage below or above the central value.
 
-Canonical design intent:
-
-```text
-successful hit
-→ may roll below Calculated Base Damage
-→ may roll above Calculated Base Damage
-
-higher Monster power / Effective Attributes
-→ lower-side reduction may increase slightly
-→ upper-side bonus may increase substantially
-```
-
-For ordinary damaging Monster Skills, the Canonical default pair is:
+Canonical intent:
 
 ```text
-Lower Attribute Ratio = 0.10
-Upper Attribute Ratio = 0.50
+Base Damage + Attribute Basis
+→ central damage
+
+low roll
+→ central damage - Lower Spread
+
+high roll
+→ central damage + Upper Spread
 ```
 
-These are defaults, not mandatory values for every Skill. GM may override either ratio per Skill/Profile or by authorised instance adjustment.
-
-The normal relationship is therefore:
+At higher Monster power / Level:
 
 ```text
-Upper Attribute Contribution ≫ Lower Attribute Contribution
+Lower Spread
+→ may increase, but only modestly
+
+Upper Spread
+→ may increase more strongly
 ```
 
-The lower side remains a real low-roll penalty, but it must not scale at a similar magnitude to the upper-side reward.
+Therefore late-game low rolls can still deal less than the central damage, but the downside should be substantially smaller than the potential upside.
 
-The earlier near-symmetric examples such as `0.30 / 0.45` are superseded as standard tuning examples.
+This asymmetry belongs to the Spread subsystem itself, not to an Attribute Ratio subsystem.
 
 ---
 
-# 9. Canonical Standard Example
+# 9. User-Confirmed Calculation Shape Example
+
+Conceptual low-roll examples supplied during design:
 
 ```text
-Calculated Base Damage = 64
-Damage Attribute Basis = 65
-Template Lower Spread = 2
-Template Upper Spread = 2
-Lower Attribute Ratio = 0.10
-Upper Attribute Ratio = 0.50
+Lv1:
+64 + 15 - 2
+= 77
+
+Lv2:
+64 + 18 - 3
+= 79
 ```
 
-Then:
+Read as:
 
 ```text
-Lower Contribution = round(65 × 0.10) = 7
-Upper Contribution = round(65 × 0.50) = 33
-
-Minimum = 64 - 2 - 7 = 55
-Maximum = 64 + 2 + 33 = 99
+Base Damage
++ current Damage Attribute Basis
+- current Lower Spread
 ```
 
-Final calculated range:
+The important locked structure is the order of operations:
 
 ```text
-55–99
+Base Damage
++ Attribute Basis
+± Spread
 ```
 
-This preserves the intended shape: low rolls can still fall below Base Damage, while the late-game upside is much larger than the downside.
+The exact formula by which Lower Spread and Upper Spread themselves change with Level / Attributes is not yet locked.
 
 ---
 
-# 10. Why This Uses Attributes Instead of Another Range Level Curve
+# 10. Superseded Damage-Band Models
 
-Monster Level already affects Skill damage through two explicit paths:
-
-```text
-Monster Level
-→ MonsterDamageGrowth(Level)
-→ Calculated Base Damage
-```
-
-and:
+The following are superseded for standard Simplified Monster Skills:
 
 ```text
-Monster Level
-→ Effective Attributes
-→ Damage Attribute Basis
-→ Attribute-derived Lower / Upper Contribution
+Lower Variance Growth Weight
+Upper Variance Growth Weight
+
+Lower Attribute Ratio
+Upper Attribute Ratio
+
+Attribute-derived Lower Contribution
+Attribute-derived Upper Contribution
 ```
 
-Therefore Lower / Upper Spread does not need a third independent Monster Level growth curve.
+The current model instead uses:
 
-This avoids hidden triple-scaling while still allowing high-Level Monsters to develop a larger upside and only a modestly larger downside.
+```text
+Calculated Base Damage
++ Damage Attribute Basis
+→ Calculated Damage Center
+
+Calculated Damage Center
+- Final Lower Spread
+→ Minimum Raw Damage
+
+Calculated Damage Center
++ Final Upper Spread
+→ Maximum Raw Damage
+```
 
 ---
 
@@ -333,18 +317,16 @@ Declare Monster Skill
 → otherwise resolve ordinary hit / opposed threshold
 → miss: no normal hit damage
 → hit: use calculated / final Skill damage range
-→ random integer inside Final Minimum–Maximum range
+→ random integer inside Minimum–Maximum range
 → Defence / Resistance
 → Damage Result
 → HP loss only when Damage Result > 0
 → resolve approved secondary effects
 ```
 
-Damage-range randomisation is not a second D100 action check and has no Great Success / Great Failure meaning.
-
 ---
 
-# 12. GM Final Adjustment / Audit
+# 12. GM / Audit Requirements
 
 For each spawned Skill, preserve at least:
 
@@ -363,14 +345,11 @@ Template Base Damage
 MonsterDamageGrowth(Level)
 Damage Growth Weight
 Calculated Base Damage
-GM Base Damage Adjustment
 
-Template Lower Spread
-Template Upper Spread
-Lower Attribute Ratio
-Upper Attribute Ratio
-Attribute-derived Lower Contribution
-Attribute-derived Upper Contribution
+Calculated Damage Center
+
+Template / calculated Lower Spread inputs
+Template / calculated Upper Spread inputs
 Calculated Minimum Raw Damage
 Calculated Maximum Raw Damage
 GM lower / upper damage adjustments
@@ -384,7 +363,7 @@ Template, calculated and GM-adjusted values must remain distinguishable.
 
 # 13. GM Skill Editor Requirements
 
-For each Monster Skill Profile, GM UI must allow:
+For each Monster Skill Profile, the GM UI must support:
 
 ```text
 Skill Name
@@ -395,8 +374,6 @@ Damage Growth Weight
 Template Lower Spread
 Template Upper Spread
 Damage Attribute Links — multi-select STR / DEX / CON / POW / INT / SIZ
-Lower Attribute Ratio
-Upper Attribute Ratio
 Range / Reach
 Targeting
 Status / special-effect links
@@ -406,40 +383,43 @@ Usage restrictions
 Other approved flags
 ```
 
-For a new standard damaging Skill, the UI should prefill:
+The UI must no longer require:
 
 ```text
-Lower Attribute Ratio = 0.10
-Upper Attribute Ratio = 0.50
+Lower Attribute Ratio
+Upper Attribute Ratio
+Lower Variance Growth Weight
+Upper Variance Growth Weight
 ```
-
-The UI should make the asymmetry visible and may warn, rather than silently prevent, when a standard Skill is configured with `Lower Attribute Ratio >= Upper Attribute Ratio`. GM may deliberately configure exceptional Skills differently.
 
 ---
 
 # 14. Locked Conclusions
 
 1. Simplified Monster offensive actions use dedicated Monster Skill Profiles.
-2. Each Skill has independent Stored Accuracy; storage may exceed 100.
-3. Effective Accuracy used by the ordinary threshold is capped at 100 after modifiers.
-4. Raw D100 `1` is Great Failure and raw D100 `100` is Great Success.
-5. Accuracy is not Attribute-derived.
-6. Skill damage may link to zero, one or multiple STR / DEX / CON / POW / INT / SIZ values.
-7. Linked damage uses Effective Attributes; multiple links use arithmetic mean.
-8. Skill Base Damage retains the locked `7 × ((Level - 1) / 99)^1.5` Monster damage curve.
-9. Lower / Upper Spread is static Profile baseline and has no independent Monster Level curve.
-10. Each Skill stores `Lower Attribute Ratio` and `Upper Attribute Ratio`.
-11. Lower contribution is `round(Damage Attribute Basis × Lower Attribute Ratio)`.
-12. Upper contribution is `round(Damage Attribute Basis × Upper Attribute Ratio)`.
-13. Minimum damage is `max(0, Base - Lower Spread - Lower Contribution)`.
-14. Maximum damage is `Base + Upper Spread + Upper Contribution`.
-15. Standard Skill design requires strong asymmetry: the upper-side Attribute bonus should be substantially larger than the lower-side reduction.
-16. Canonical standard defaults are `Lower Attribute Ratio = 0.10` and `Upper Attribute Ratio = 0.50`.
-17. GM may override these defaults for exceptional Skills.
-18. GM may perform final instance adjustments while all calculation layers remain auditable.
+2. Stored Accuracy is independent, may exceed 100, and only Effective Accuracy is capped at 100 after modifiers.
+3. Raw D100 `1` is Great Failure and raw D100 `100` is Great Success.
+4. Skill Accuracy is not Attribute-derived.
+5. Skill damage may link to zero, one or multiple STR / DEX / CON / POW / INT / SIZ values.
+6. Multiple linked Attributes use arithmetic mean of current Effective Attributes.
+7. Skill Base Damage retains the locked Monster damage Level curve.
+8. The previous Lower / Upper Attribute Ratio model is superseded.
+9. Attribute-linked damage center is `Calculated Base Damage + Damage Attribute Basis`.
+10. Minimum damage is `max(0, Damage Center - Final Lower Spread)`.
+11. Maximum damage is `Damage Center + Final Upper Spread`.
+12. Lower Spread may grow modestly; Upper Spread is intended to have substantially stronger upside growth.
+13. Exact Lower / Upper Spread scaling remains unresolved and must not be invented by implementation.
+14. GM may perform final instance adjustments while preserving all calculation layers.
 
 ---
 
 # 15. Next Decision
 
-The next unresolved Monster Skill decision is whether Stored Skill Accuracy itself receives automatic Monster-Level scaling, or normally remains a Profile value changed only by explicit modifiers / GM changes.
+The next Monster damage decision is the exact rule for calculating:
+
+```text
+Final Lower Spread
+Final Upper Spread
+```
+
+from their Template values and Monster progression, while preserving the locked design intent that the late-game downside grows much more slowly than the upside.
