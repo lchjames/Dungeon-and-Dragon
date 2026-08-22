@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, signed Damage Spread Ranges, and instance overrides.
+> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, Level-generated signed Damage Spread Ranges, and GM correction / overrides.
 
 ---
 
@@ -59,11 +59,12 @@ For every spawned instance:
 14. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
 15. Calculate Level-adjusted Base Damage
 16. Calculate Damage Center = Calculated Base Damage + Damage Attribute Basis
-17. Resolve Final Spread Min / Final Spread Max once the scaling rule is locked
-18. Resolve signed Spread Roll when the Skill hits
-19. Calculate Raw Damage
-20. Save instance / combat state
-21. Permit GM final adjustments
+17. Generate System Suggested Spread Min / Max from Monster Level
+18. Apply GM Spread Min / Max correction or override
+19. Save Final Spread Min / Max
+20. On hit, roll one signed Spread Roll inside the Final range
+21. Calculate Raw Damage
+22. Save instance / combat state
 ```
 
 Group spawn runs the complete generation pipeline independently for every Monster.
@@ -94,8 +95,6 @@ Damage Type
 Template Base Damage
 Damage Growth Weight
 Damage Attribute Links
-Template Spread Min
-Template Spread Max
 Range / Reach
 Targeting
 Status / special-effect links
@@ -117,6 +116,8 @@ Upper Attribute Ratio
 Lower Variance Growth Weight
 Upper Variance Growth Weight
 ```
+
+Standard Spread is generated from Monster Level and then corrected by GM rather than being fully dictated by fixed Skill-side Min / Max inputs.
 
 ---
 
@@ -218,7 +219,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 10. Signed Damage Spread Range
+# 10. Level-Generated Signed Damage Spread Range
 
 Spread is one signed interval:
 
@@ -226,17 +227,30 @@ Spread is one signed interval:
 [Final Spread Min, Final Spread Max]
 ```
 
-Examples:
+The system first generates an approximate range from Monster Level:
 
 ```text
-[-2, +2]
-[-5, +15]
+Monster Level
+→ Spread Generation Rule / Tuning Table
+→ System Suggested Spread Min
+→ System Suggested Spread Max
+```
+
+The GM then corrects the generated range:
+
+```text
+System Suggested Spread Min
++ GM Min Adjustment / Override
+→ Final Spread Min
+
+System Suggested Spread Max
++ GM Max Adjustment / Override
+→ Final Spread Max
 ```
 
 Canonical validation:
 
 ```text
-Template Spread Min <= Template Spread Max
 Final Spread Min <= Final Spread Max
 ```
 
@@ -250,7 +264,7 @@ Raw Monster Damage
 = max(0, Calculated Damage Center + Spread Roll)
 ```
 
-Displayed range:
+Displayed limits:
 
 ```text
 Calculated Minimum Raw Damage
@@ -260,38 +274,79 @@ Calculated Maximum Raw Damage
 = max(0, Calculated Damage Center + Final Spread Max)
 ```
 
-Spread randomisation is not a second D100 check.
+---
+
+# 11. Spread Generation Is a Starting Point, Not Final Authority
+
+Canonical responsibility split:
+
+```text
+System
+→ gives GM a quick Level-appropriate approximate Spread Range
+
+GM
+→ reviews the actual Monster / Skill context
+→ manually corrects either boundary where needed
+```
+
+The system-generated values are not expected to replace encounter design or content balancing.
+
+Examples such as:
+
+```text
+low Level  → about [-2, +2]
+high Level → about [-5, +15]
+```
+
+represent the intended qualitative direction only. They are not a locked Level table.
 
 ---
 
-# 11. Locked Spread Design Intent
+# 12. Alpha Tuning / Future Balance
 
-The standard spread shape may begin roughly symmetric and become increasingly positive-skewed as Monster power rises.
+The exact Level-to-Spread formula is intentionally deferred until actual Monster and encounter content is being created and play-tested.
 
-Conceptually:
+The implementation should therefore keep Spread generation **data-driven and easy to rebalance**.
+
+Acceptable future tuning implementations may include:
 
 ```text
-low Level  → [-2, +2]
-high Level → [-5, +15]
+Level band table
+interpolated reference points
+curve-based generator
+other explicitly approved tuning model
 ```
 
-Meaning:
+provided the Canonical architecture remains:
+
+```text
+Level
+→ Suggested Spread
+→ GM correction
+→ Final Spread
+```
+
+Do not hard-code temporary Alpha numbers as if they were permanent combat law.
+
+---
+
+# 13. Spread Design Intent
+
+Standard progression may shift from roughly symmetric low-Level ranges toward increasingly positive-skewed high-Level ranges.
 
 ```text
 negative edge
 → may expand modestly
 
 positive edge
-→ may expand much more strongly
+→ may expand more strongly
 ```
 
-This preserves low-roll damage below the Damage Center while allowing substantially greater high-roll upside later.
-
-The exact formula that turns Template Spread Min / Max into Final Spread Min / Max remains unresolved and must not be invented by implementation.
+This preserves low-roll outcomes while allowing substantially larger high-end variation later.
 
 ---
 
-# 12. Spawned Skill Inspection
+# 14. Spawned Skill Inspection
 
 For every spawned Monster Skill, GM should be able to inspect:
 
@@ -313,14 +368,16 @@ Damage Growth Weight
 Calculated Base Damage
 Calculated Damage Center
 
-Template Spread Min
-Template Spread Max
+Monster Level used for Spread generation
+System Suggested Spread Min
+System Suggested Spread Max
+GM Spread Min Adjustment / Override
+GM Spread Max Adjustment / Override
 Final Spread Min
 Final Spread Max
 Calculated Minimum Raw Damage
 Calculated Maximum Raw Damage
 Spread Roll when resolved
-GM spread / damage adjustments
 Final Raw Damage
 
 Damage Type
@@ -328,31 +385,29 @@ Status / special-effect references
 MP / cooldown / usage state
 ```
 
-Automatic, Template and GM-adjusted values must remain visually distinguishable.
+Automatic, suggested, GM-corrected and runtime values must remain visually distinguishable.
 
 ---
 
-# 13. GM Skill Editor Requirements
+# 15. GM UI Requirements
 
-The editor should show:
-
-```text
-Template Spread Min
-Template Spread Max
-```
-
-as signed numeric inputs and render a compact preview such as:
+The editor / inspection view should display something like:
 
 ```text
-Spread: -2 to +2
-Spread: -5 to +15
+Level: 1
+Suggested Spread: -2 to +2
+GM Min Adjustment / Override: ...
+GM Max Adjustment / Override: ...
+Final Spread: -2 to +2
 ```
 
-Do not split this into separate Lower / Upper subsystems.
+At a higher Level, the generated suggestion may instead be visibly skewed upward.
+
+GM must be able to edit the final boundaries without changing the global Spread-generation tuning data.
 
 ---
 
-# 14. Template vs Instance Editing
+# 16. Template vs Instance Editing
 
 ```text
 Edit Template Skill
@@ -366,10 +421,10 @@ Persistent instances must not silently lose historical calculated values or over
 
 ---
 
-# 15. Current Unresolved Items
+# 17. Current Unresolved Items
 
 Resolve separately:
 
-1. exact scaling rule for `Final Spread Min` and `Final Spread Max`, preserving much smaller negative growth than positive growth;
-2. whether Monster Skill Accuracy itself automatically scales with Level;
+1. whether Monster Skill Accuracy itself automatically scales with Level;
+2. later Spread-generation numeric tuning during actual content creation / play balance;
 3. later Elite / Boss / richer-profile exceptions where needed.
