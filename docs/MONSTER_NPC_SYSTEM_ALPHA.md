@@ -114,6 +114,15 @@ Cooldown
 Usage restrictions
 ```
 
+For standard damaging Skills, the default ratios are:
+
+```text
+Lower Attribute Ratio = 0.10
+Upper Attribute Ratio = 0.50
+```
+
+GM may override either value per Skill.
+
 ---
 
 # 6. Independent Accuracy with Over-100 Storage
@@ -252,9 +261,16 @@ If no Damage Attribute Links are selected, both Attribute-derived contributions 
 
 ---
 
-# 10. Locked Damage-Band Asymmetry
+# 10. Locked Damage-Band Asymmetry and Defaults
 
 The fixed/base damage is intended to have both downward and upward fluctuation, but the two directions do not scale equally.
+
+Canonical standard defaults:
+
+```text
+Lower Attribute Ratio = 0.10
+Upper Attribute Ratio = 0.50
+```
 
 Canonical intent:
 
@@ -270,23 +286,16 @@ as Monster power rises
 → high-roll bonus grows much more strongly
 ```
 
-For standard damaging Skills:
+Example with `Damage Attribute Basis = 65`:
 
 ```text
-Upper Attribute Ratio > Lower Attribute Ratio
+Lower Contribution = 7
+Upper Contribution = 33
 ```
 
-and the normal target relationship is:
+This means late-game damage can still roll low, but the reduction below Base Damage remains far smaller than the possible increase above Base Damage.
 
-```text
-Upper Attribute Contribution ≫ Lower Attribute Contribution
-```
-
-This means late-game damage may still roll low, but the reduction below Base Damage should be far smaller than the possible increase above Base Damage.
-
-Earlier near-symmetric ratio examples are superseded as standard tuning examples.
-
-The exact default pair remains unresolved.
+GM may override the default ratios for intentionally unusual Skills.
 
 ---
 
@@ -390,10 +399,9 @@ Template, calculated and GM-adjusted layers should remain auditable.
 
 Resolve separately:
 
-1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for standard damaging Monster Skills, under the locked rule that the lower penalty must be much smaller than the upper bonus;
-2. whether Monster Skill Accuracy itself automatically scales with Level;
-3. Boss-specific generation / modifiers beyond the ordinary Elite rule;
-4. Skill status / Resistance / Immunity details;
-5. Monster EXP rewards;
-6. NPC progression behaviour;
-7. encounter difficulty contribution.
+1. whether Monster Skill Accuracy itself automatically scales with Level;
+2. Boss-specific generation / modifiers beyond the ordinary Elite rule;
+3. Skill status / Resistance / Immunity details;
+4. Monster EXP rewards;
+5. NPC progression behaviour;
+6. encounter difficulty contribution.
