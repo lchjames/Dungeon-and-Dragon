@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Structural model for Simplified Monsters, Elite/Boss profiles and Full Character NPCs. Read with `MONSTER_LEVEL_SCALING_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, and `GM_MONSTER_MANAGEMENT_ALPHA.md`.
+> Scope: Structural model for Simplified Monsters, Elite/Boss profiles and Full Character NPCs. Read with `MONSTER_LEVEL_SCALING_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, and `BOSS_DESIGN_PROFILE_ALPHA.md`.
 
 ---
 
@@ -23,13 +23,17 @@ SIZ
 
 `APP / EDU / LUCK` are not mandatory.
 
-Elite and Boss enemies may use richer Monster Profiles where mechanics require them. Important / persistent NPCs may use the Full Character Model.
+Elite enemies remain extensions of the ordinary Monster model.
+
+Bosses use a dedicated **Boss Design Profile / GM interface**, while still using ordinary Monster rules as their baseline calculation framework unless a later explicit subsystem overrides one part.
+
+Important / persistent NPCs may use the Full Character Model.
 
 ---
 
 # 2. Natural / Effective Attribute Layers
 
-Each spawn rolls the six Template ranges independently.
+Each ordinary Monster spawn rolls the six Template ranges independently.
 
 ```text
 Template Roll
@@ -54,6 +58,8 @@ Effective Attribute
 
 Each Template has independent Growth Weights for STR / DEX / CON / POW / INT / SIZ.
 
+Boss baseline Attributes may use this same pipeline, after which the Boss Design Profile permits bespoke GM correction / override while preserving the calculated baseline.
+
 ---
 
 # 3. Elite Generation
@@ -72,9 +78,13 @@ Elite Attribute Bonus = one random integer +1..+5
 
 The same rolled bonus is added to all six base Attributes before Natural Attributes are finalized, then Level-scaled normally.
 
+Bosses are not defined by this random Elite rule. Boss design is deliberate and GM-authored through the Boss Design Profile.
+
 ---
 
 # 4. Locked Monster Resources
+
+Ordinary calculated Monster resources:
 
 ```text
 Calculated Max HP
@@ -86,7 +96,9 @@ Calculated Max MP
 
 Neither receives a second application of the global Attribute Level curve.
 
-GM may perform final instance-level Max / Current HP and MP adjustments while calculated values remain preserved.
+For ordinary Monsters, GM may perform final instance-level Max / Current HP and MP adjustments while calculated values remain preserved.
+
+For Bosses, these formulas provide the default baseline where applicable, then the dedicated Boss Final Adjustment Layer may set different Final HP / MP values. Baseline and Final values must remain separate and auditable.
 
 ---
 
@@ -118,7 +130,7 @@ Standard damage Spread is generated from Monster Level and then corrected by GM.
 
 The Monster system may maintain a reusable Common Monster Skill Library.
 
-Each Common Monster Skill is a normal Monster Skill Profile and may be attached to multiple Monster / Elite / Boss Templates.
+Each Common Monster Skill is a normal Monster Skill Profile and may be attached to multiple Monster / Elite / Boss Templates or Profiles.
 
 This library is intended for repeatable ordinary actions and basic attacks so the GM does not need to recreate the same Skill every time.
 
@@ -171,7 +183,95 @@ Boss uniqueness therefore comes from the selected Skill loadout and GM-authored 
 
 ---
 
-# 8. Separation from Player Skill System
+# 8. Dedicated Boss Design Profile
+
+Every Boss is designed through a dedicated Boss Design Profile and dedicated GM-facing design interface.
+
+Canonical Boss architecture:
+
+```text
+Boss identity / Level
+→ apply ordinary Monster canonical rules as baseline
+→ calculate / suggest baseline values
+→ GM performs bespoke Boss-specific correction / override
+→ Final Boss Profile
+```
+
+The Boss Design Profile exists because Bosses are expected to receive individual GM tuning.
+
+It must not be interpreted as a second mathematical Monster engine.
+
+---
+
+# 9. Boss Baseline First, GM Final Authority Second
+
+Before bespoke tuning, the system should calculate a coherent baseline using existing Monster rules where applicable.
+
+Possible baseline values include:
+
+```text
+Natural / Effective STR / DEX / CON / POW / INT / SIZ
+Calculated Max HP
+Calculated Max MP
+Skill loadout references
+Stored Accuracy
+Damage Attribute Basis
+Calculated Base Damage
+Calculated Damage Center
+System Suggested Spread Min / Max
+other already-Canonical Monster calculations
+```
+
+Then GM may manually tune the Boss.
+
+The system must preserve separate layers:
+
+```text
+Calculated / Suggested Baseline
+GM Boss Adjustment / Override
+Final Boss Value
+```
+
+No universal Boss multiplier is locked for:
+
+```text
+HP
+MP
+Attributes
+Damage
+Accuracy
+```
+
+Exact Boss numbers are encounter/content design decisions.
+
+---
+
+# 10. Boss GM Adjustment Scope
+
+Where the underlying subsystem exists, the dedicated Boss interface may allow authorised adjustment of:
+
+```text
+final Attributes / Attribute overrides
+Max / Current HP
+Max / Current MP
+Skill loadout
+Skill Accuracy / explicit Accuracy override
+Skill damage tuning
+Final Spread Min / Max
+Damage Type
+Range / targeting
+Status / special effects
+Resistance / Immunity once locked
+Phase behaviour / triggers once locked
+special Boss mechanics
+other approved Boss-facing fields
+```
+
+GM Boss adjustment does not mutate the global Monster rules, Common Skill Library, or global tuning data unless the GM explicitly edits those sources.
+
+---
+
+# 11. Separation from Player Skill System
 
 Player Characters retain their own Skill / Ability / progression systems.
 
@@ -191,7 +291,7 @@ An important / persistent NPC may instead use the Full Character Model. In that 
 
 ---
 
-# 9. Independent Accuracy with Over-100 Storage — Fixed Across Level
+# 12. Independent Accuracy with Over-100 Storage — Fixed Across Level
 
 Monster Skill Accuracy is independent and is not derived from Monster Attributes.
 
@@ -238,9 +338,11 @@ These extreme faces take precedence over the ordinary threshold.
 
 Monster Level is not an Accuracy-growth source in the standard Simplified Monster model.
 
+Boss-specific GM Accuracy override is permitted only as an explicit override; it is not automatic Boss Level scaling.
+
 ---
 
-# 10. Monster Critical Follow-Up — Deferred
+# 13. Monster Critical Follow-Up — Deferred
 
 Monster Great Success / Great Failure remains conceptually aligned with the shared Player-side D100 critical framework where a generic Canonical rule already applies.
 
@@ -262,7 +364,7 @@ The exact Monster-specific post-extreme behaviour is **DEFERRED until Monster Co
 
 ---
 
-# 11. Damage Attribute Links
+# 14. Damage Attribute Links
 
 Skill damage may explicitly link to Monster Attributes.
 
@@ -279,14 +381,14 @@ SIZ
 
 Use current Effective Attributes.
 
-For one selected Attribute:
+For one selection:
 
 ```text
 Damage Attribute Basis
 = selected Effective Attribute
 ```
 
-For multiple selected Attributes:
+For multiple selections:
 
 ```text
 Damage Attribute Basis
@@ -298,7 +400,7 @@ This basis contributes to damage, not Skill Accuracy.
 
 ---
 
-# 12. Locked Skill Base-Damage Level Scaling
+# 15. Locked Skill Base-Damage Level Scaling
 
 ```text
 MonsterDamageGrowth(Level)
@@ -317,9 +419,11 @@ Calculated Base Damage
 
 Standard `Damage Growth Weight = 1.0` gives 1× at Lv1 and 8× at Lv100.
 
+Bosses use this as the normal Skill baseline before any explicit GM Boss tuning.
+
 ---
 
-# 13. Locked Damage Center Model
+# 16. Locked Damage Center Model
 
 For an Attribute-linked Skill:
 
@@ -335,9 +439,11 @@ Damage Attribute Basis = 0
 Calculated Damage Center = Calculated Base Damage
 ```
 
+Boss-specific Skill tuning may explicitly override final Boss Skill values while preserving this calculated baseline for audit.
+
 ---
 
-# 14. Level-Linked Signed Spread Range
+# 17. Level-Linked Signed Spread Range
 
 Spread is one signed interval:
 
@@ -381,9 +487,11 @@ Calculated Maximum Raw Damage
 = max(0, Calculated Damage Center + Final Spread Max)
 ```
 
+Bosses specifically expose the Suggested and Final Spread values in the Boss Design Profile so the GM can tune them deliberately.
+
 ---
 
-# 15. Spread Design Intent and Balance Authority
+# 18. Spread Design Intent and Balance Authority
 
 The generated Spread Range is deliberately approximate.
 
@@ -406,32 +514,13 @@ high Level → more positive-skewed, e.g. about [-5,+15]
 
 These are examples of shape only, not locked values.
 
-Actual values are expected to be tuned when real Monster, encounter, and campaign content is created and play-tested.
+Actual values are expected to be tuned when real Monster, encounter, Boss and campaign content is created and play-tested.
 
 The exact Level-to-Spread formula remains **Alpha Tuning** and should be data-driven / easy to rebalance.
 
 ---
 
-# 16. User-Confirmed Damage Shape
-
-Conceptual low-roll examples:
-
-```text
-Lv1: 64 + 15 - 2 = 77
-Lv2: 64 + 18 - 3 = 79
-```
-
-Read as:
-
-```text
-Calculated Base Damage
-+ Damage Attribute Basis
-+ signed Spread Roll
-```
-
----
-
-# 17. Full Spawn Pipeline
+# 19. Full Ordinary Monster Spawn Pipeline
 
 ```text
 1. Read Template
@@ -442,7 +531,7 @@ Calculated Base Damage
 6. Apply Level curve + six Attribute Growth Weights
 7. Save Effective Attributes
 8. Calculate HP / MP
-9. Attach Monster Skills from Common Library and/or Template/Boss-specific Skill authoring
+9. Attach Monster Skills from Common Library and/or Template-specific Skill authoring
 10. Preserve Stored Accuracy exactly; do not Level-scale it
 11. Resolve selected Damage Attribute Links
 12. Calculate Damage Attribute Basis
@@ -459,11 +548,11 @@ Calculated Base Damage
 23. Save/use instance state
 ```
 
-Group spawn runs the generation pipeline independently for every Monster.
+Boss creation reuses relevant calculation steps as a **baseline-generation pass**, then moves through the dedicated Boss GM Final Adjustment Layer before Final Boss values are locked for the encounter.
 
 ---
 
-# 18. GM / D1 Requirements
+# 20. GM / D1 Requirements
 
 D1 must preserve enough data to distinguish:
 
@@ -476,7 +565,7 @@ Monster Template
 → Template Base Damage / Damage Growth Weight
 → Damage Attribute Links
 
-Monster Instance / generated Skill state
+Ordinary Monster Instance
 → Level
 → base rolls
 → Elite result / bonus
@@ -495,25 +584,36 @@ Monster Instance / generated Skill state
 → Spread Roll when resolved
 → calculated / final Raw Damage
 → final state
+
+Boss Design Profile
+→ Boss identity / Level
+→ baseline calculated Attribute / resource / Skill values
+→ System Suggested Spread values
+→ GM Boss adjustments / overrides
+→ Common and unique Boss Skill loadout
+→ special Boss-design data
+→ Final Boss values
 ```
 
 Changing Level recalculates Effective Attributes and regenerates the suggested Spread range, but **must not recalculate Stored Accuracy**.
 
-Great Success / Great Failure state must remain auditable while Monster-specific follow-up remains deferred.
+Boss baseline values must remain auditable after GM tuning.
 
 ---
 
-# 19. GM Final Adjustment
+# 21. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation and calculation.
 
-Instance adjustment does not mutate the reusable Template, Common Skill Library entry, or global Spread tuning rule unless GM explicitly edits those sources.
+Bosses go further: bespoke GM adjustment is an expected part of the Boss authoring workflow, not merely an emergency correction.
+
+Boss adjustment does not mutate the reusable Common Skill Library or global tuning rules unless GM explicitly edits those sources.
 
 System suggested values, Skill source, GM corrections and final runtime values should remain auditable.
 
 ---
 
-# 20. Current Deferred / Unresolved Items
+# 22. Resolved / Deferred Items
 
 Resolved:
 
@@ -525,6 +625,12 @@ Boss Skill authoring architecture
 → use same Monster Skill Profile system
 → may mix Common Monster Skills and GM-authored unique Boss Skills
 → does not automatically use Player Skill progression
+
+Boss design architecture
+→ dedicated Boss Design Profile and GM interface
+→ ordinary Monster rules calculate baseline values first
+→ GM manually tunes / overrides Boss-specific final values
+→ no universal Boss multiplier
 ```
 
 Deferred / tuning:
@@ -532,8 +638,9 @@ Deferred / tuning:
 1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to future Monster AI design**;
 2. Monster AI Skill selection / behavioural logic — future AI design pass;
 3. numeric Spread-generation tuning — actual game-content creation / play balance;
-4. Boss stat / resource / phase / generation modifiers beyond the resolved Skill-loadout architecture;
+4. exact Boss Profile vs spawned Boss Instance persistence semantics;
 5. Skill status / Resistance / Immunity details;
-6. Monster EXP rewards;
-7. NPC progression behaviour;
-8. encounter difficulty contribution.
+6. Boss Phase / trigger / special-mechanic details;
+7. Monster EXP rewards;
+8. NPC progression behaviour;
+9. encounter difficulty contribution.
