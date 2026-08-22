@@ -2,132 +2,169 @@
 
 > Status: Canonical Alpha Override  
 > Date: 2026-08-22  
-> Scope: Defines how Simplified Monsters resolve offensive Attacks / Skills after the fixed-damage redesign. This file supersedes older Monster-specific wording that used damage dice, Character Damage Bonus, or Player-style damage scaling for ordinary Simplified Monster attacks.
-> Use together with `D100判定核心_ALPHA.md`, `對抗判定與極端結果_ALPHA.md`, `COMBAT_DAMAGE_MODEL_ALPHA.md`, `MONSTER_NPC_SYSTEM_ALPHA.md`, and `GM_MONSTER_MANAGEMENT_ALPHA.md`.
+> Scope: Defines how Simplified Monsters resolve offensive Attacks / Skills after the fixed-damage redesign, including the locked independent Monster damage-scaling architecture.  
+> This file supersedes older Monster-specific wording that used damage dice, Character Damage Bonus, or Player-style damage scaling for ordinary Simplified Monster attacks.
 
 ---
 
 # 1. Core Decision — Hit Check + Fixed-Band Damage
 
-Simplified Monster offensive actions use a deliberately lightweight model:
+Simplified Monster offensive actions use:
 
 ```text
 Declare Monster Attack / Skill
 → resolve D100 hit / opposed check
 → if miss: no damage
-→ if hit: resolve fixed damage ± configured variance
+→ if hit: resolve Level-adjusted fixed damage ± configured variance
 → apply defence / resistance
 → calculate Damage Result
 → apply HP loss only when Damage Result > 0
 ```
 
-The Monster system therefore keeps the meaningful uncertainty on **whether the attack hits**, instead of rolling a second damage-dice package after a successful hit.
+The meaningful combat check is whether the Monster hits. Simplified Monsters do not roll a Player-style damage-dice package after a successful hit.
 
-This is a Monster-specific simplification. Player Character damage rules are not changed by this override.
+Player Character damage rules are unaffected.
 
 ---
 
-# 2. No Damage Dice for Simplified Monster Offensive Profiles
+# 2. Fixed-Band Damage Profile
 
-A Simplified Monster Attack / Skill Profile does not use ordinary damage dice such as:
-
-```text
-1D4
-1D6
-1D8
-2D6
-```
-
-for its standard damage output.
-
-Instead it stores:
+A Simplified Monster offensive Profile stores at minimum:
 
 ```text
-Base Damage
+Template Base Damage
 Damage Variance
+Damage Growth Weight
 ```
+
+Example Level-1 Template values:
+
+```text
+Goblin Short Sword
+Template Base Damage = 8
+Damage Variance = 2
+Damage Growth Weight = 1.0
+```
+
+At Level 1, before GM adjustment:
+
+```text
+Calculated Base Damage = Template Base Damage
+```
+
+The final damage band is based on the calculated Level-adjusted Base Damage plus/minus the configured variance rule.
+
+`Damage Variance = 0` remains valid and means fully fixed damage.
+
+---
+
+# 3. Locked Independent Monster Damage Scaling
+
+Monster fixed damage does **not** use:
+
+```text
+Global Monster Attribute Curve
+Player HP/MP curve applied a second time
+Effective STR + SIZ Character Damage Bonus
+Player weapon-specialization damage scaling
+```
+
+Instead it has its own dedicated progression layer:
+
+```text
+Template Base Damage
+→ Monster Damage Level Curve
+→ Attack / Skill Damage Growth Weight
+→ Calculated Base Damage
+→ GM Final Damage Adjustment
+→ Final Base Damage
+```
+
+Canonical architecture:
+
+```text
+Calculated Base Damage
+= round(
+    Template Base Damage
+    × [1 + MonsterDamageGrowth(Level) × Damage Growth Weight]
+  )
+```
+
+where:
+
+```text
+MonsterDamageGrowth(Level)
+→ one shared global Monster damage-growth curve
+
+Damage Growth Weight
+→ per Attack / Skill Profile scaling weight
+```
+
+The exact numerical formula for `MonsterDamageGrowth(Level)` is still unresolved and must be locked separately.
+
+---
+
+# 4. Level 1 Invariant
+
+The future Monster Damage Level Curve must satisfy:
+
+```text
+MonsterDamageGrowth(1) = 0
+```
+
+Therefore:
+
+```text
+Level 1
+→ Calculated Base Damage = Template Base Damage
+```
+
+A Damage Growth Weight must only affect Level-derived growth; it must not alter the Level-1 baseline by itself.
+
+---
+
+# 5. Damage Growth Weight Meaning
+
+Each Attack / Skill Profile has its own Damage Growth Weight.
+
+Conceptually:
+
+```text
+Weight 0
+→ no Level-derived damage growth
+
+Weight 0.5
+→ half of standard Monster damage growth
+
+Weight 1.0
+→ standard Monster damage growth
+
+Weight 1.5
+→ 1.5× the Level-derived damage-growth component
+```
+
+This permits attacks on the same Monster Template to scale differently without changing their Level-1 damage.
 
 Example:
 
 ```text
 Goblin Short Sword
-Base Damage = 8
-Damage Variance = 2
+Damage Growth Weight = 1.0
+
+Goblin Short Bow
+Damage Growth Weight = 0.8
+
+Goblin Poison Spit
+Damage Growth Weight = 0.5
 ```
 
-means a successful hit produces a pre-defence raw damage value from:
-
-```text
-8 - 2
-through
-8 + 2
-```
-
-therefore:
-
-```text
-6–10 raw damage
-```
+Exact default weights remain Template/Profile configuration, not globally hard-coded by attack name.
 
 ---
 
-# 3. Damage Variance Resolution
+# 6. Hit Architecture Remains Separate
 
-Canonical formula after a successful D100 hit:
-
-```text
-Variance Roll
-= random integer from -Damage Variance to +Damage Variance
-
-Raw Monster Damage
-= Base Damage + Variance Roll
-```
-
-Example:
-
-```text
-Base Damage = 12
-Damage Variance = 3
-```
-
-possible raw damage values are:
-
-```text
-9, 10, 11, 12, 13, 14, 15
-```
-
-`Damage Variance = 0` is valid and means completely fixed damage:
-
-```text
-Base Damage 12 ± 0
-→ always 12 raw damage on a successful hit
-```
-
-The variance randomisation is not a D100 action check and has no Great Success / Great Failure meaning.
-
----
-
-# 4. Hit Check Remains the Main Random Combat Check
-
-Monster offensive actions still require the normal D100 hit / opposed resolution unless the specific Profile explicitly defines an unavoidable or non-attack effect.
-
-For an ordinary attack:
-
-```text
-D100 attack succeeds
-→ resolve fixed-band damage
-
-D100 attack fails
-→ no damage resolution
-```
-
-No second D100 roll is made for damage.
-
----
-
-# 5. Existing Hit Architecture Remains Locked
-
-The previously selected Monster hit architecture remains:
+The Monster hit architecture remains:
 
 ```text
 D100 Attack Base
@@ -136,7 +173,7 @@ D100 Attack Base
 + Additional Hit Modifier
 ```
 
-Each Attack / Skill Profile explicitly stores:
+Each offensive Profile explicitly stores:
 
 ```text
 Primary Effective Attribute
@@ -144,92 +181,37 @@ Attack Proficiency
 Additional Hit Modifier
 ```
 
-Examples:
+Monster Level and Elite status may improve accuracy through Effective Attributes.
 
-```text
-Goblin Short Sword
-Primary Effective Attribute = DEX
-Attack Proficiency = 20
-Additional Hit Modifier = +5
+The exact shared Effective Attribute → D100 `Attribute-Derived Hit Value` conversion remains unresolved and is a separate decision from damage scaling.
 
-Ogre Heavy Club
-Primary Effective Attribute = STR
-Attack Proficiency = 15
-Additional Hit Modifier = 0
-```
-
-Monster Level and Elite status can therefore improve accuracy through the Effective Attribute layer.
-
-The exact shared Effective Attribute → D100 `Attribute-Derived Hit Value` conversion is still unresolved and must be decided separately.
+Accuracy and damage must never be merged into one vague Attack Bonus.
 
 ---
 
-# 6. Fixed Damage Is Separate From Hit Chance
+# 7. Damage Variance
 
-The following fields have separate jobs:
-
-```text
-Primary Effective Attribute
-Attack Proficiency
-Additional Hit Modifier
-→ hit resolution only
-
-Base Damage
-Damage Variance
-→ damage output only after a hit
-```
-
-A single vague `Attack Bonus` must not be reused for both accuracy and damage.
-
-Example:
+After a successful D100 hit:
 
 ```text
-Goblin Short Sword
-Primary Effective Attribute = DEX
-Attack Proficiency = 20
-Additional Hit Modifier = +5
-Base Damage = 8
-Damage Variance = 2
+Variance Roll
+= random integer from -Final Damage Variance to +Final Damage Variance
+
+Raw Monster Damage
+= Final Base Damage + Variance Roll
 ```
 
-The `+5` changes only the D100 hit calculation.
+The variance roll is not a D100 check and has no Great Success / Great Failure meaning.
 
-The damage remains:
+The exact rule for whether `Damage Variance` itself stays constant with Level or scales with the Monster Damage Level Curve is **not yet locked** and must be decided separately.
 
-```text
-8 ± 2
-```
-
-unless an explicit GM/Profile adjustment changes it.
+Until that decision is made, implementation must not silently invent variance scaling.
 
 ---
 
-# 7. No Default STR + SIZ Character Damage Bonus
+# 8. Defence / Resistance
 
-The earlier Monster-specific proposal to reuse the Player Character physical Damage Bonus table is removed for Simplified Monster ordinary Attack / Skill Profiles.
-
-Canonical:
-
-```text
-Simplified Monster damage
-≠ Player STR + SIZ Damage Bonus table
-```
-
-Monster offensive damage is defined directly by:
-
-```text
-Base Damage ± Damage Variance
-```
-
-This keeps the Monster runtime simple and prevents a second hidden damage-growth layer from being added on top of the configured Monster Profile.
-
-A richer Boss / NPC profile may use different mechanics if explicitly configured, but that is not the default Simplified Monster rule.
-
----
-
-# 8. Defence / Resistance Still Applies
-
-After the Monster successfully hits and Raw Monster Damage is resolved:
+After Raw Monster Damage is produced:
 
 ```text
 Damage Result
@@ -246,179 +228,135 @@ Damage Result <= 0
 → target loses no HP
 ```
 
-This keeps Simplified Monster attacks compatible with the existing defence and Damage Result framework.
+The existing Damage Result / defence framework therefore remains compatible with the Simplified Monster model.
 
 ---
 
-# 9. Monster Skills Use the Same Offensive Damage Structure
+# 9. Monster Skills
 
-For Simplified Monsters, ordinary offensive **Skills** may use the same fixed-band damage structure instead of being forced into Player-style damage dice.
+Ordinary offensive Monster Skills use the same fixed-band structure.
 
 Example:
 
 ```text
 Poison Spit
-Hit basis: Effective DEX + Proficiency
-Base Damage: 10
+Primary Effective Attribute: DEX
+Attack Proficiency: 18
+Additional Hit Modifier: 0
+Template Base Damage: 10
 Damage Variance: 2
+Damage Growth Weight: 0.6
 Damage Type: Poison
-Additional Effect: Profile-defined poison status, if approved
+Additional Effect: approved poison Status Profile
 ```
 
-The damage portion is still:
+Damage, status, area, range, MP cost, cooldown and other special effects remain separate Profile fields.
 
-```text
-10 ± 2
-```
-
-while any control, status, elemental, area, cooldown, MP cost, or other special behaviour is stored explicitly as separate Profile data.
-
-A special effect does not silently change the fixed damage unless the Profile says so.
+A special effect does not silently modify damage unless explicitly configured.
 
 ---
 
-# 10. Level / Elite Interaction
+# 10. GM Final Adjustment
 
-Level and Elite status already change the Monster through:
+GM may adjust an individual spawned Monster after automatic Level damage calculation.
+
+The system must preserve:
 
 ```text
-Natural Attributes
-→ Elite Bonus
-→ Level Scaling
-→ Effective Attributes
+Template Base Damage
+Monster Level
+MonsterDamageGrowth(Level)
+Damage Growth Weight
+Calculated Base Damage
+GM Base Damage Adjustment
+Final Base Damage
+
+Template / Calculated Damage Variance
+GM Variance Adjustment
+Final Damage Variance
 ```
 
-This affects any D100 hit calculation that reads the Effective Attribute.
+GM instance adjustment affects only that Monster unless GM explicitly edits the reusable Template/Profile.
 
-The fixed damage value is **not automatically multiplied by the global Monster Level curve** under this rule.
-
-Whether `Base Damage ± Variance` should receive its own explicit Level-scaling rule is a separate design decision and remains unresolved.
-
-This prevents accidental double scaling until a deliberate damage progression rule is chosen.
+Changing the Template must not silently erase historical instance calculations or overrides.
 
 ---
 
-# 11. GM Final Adjustment
+# 11. GM Monster Management Requirements
 
-GM can maintain fixed-damage values at both Template and authorised instance level.
-
-Template fields include:
-
-```text
-Base Damage
-Damage Variance
-```
-
-Instance override may change, for that Monster only:
-
-```text
-Base Damage
-Damage Variance
-Attack Proficiency
-Additional Hit Modifier
-other approved Profile values
-```
-
-The system should preserve Template values and instance overrides separately for audit/debugging.
-
----
-
-# 12. Minimum Simplified Monster Offensive Profile
-
-A normal offensive Attack / Skill Profile should be able to store at least:
+For each Attack / Skill Profile, GM must be able to maintain:
 
 ```text
 Name
-Attack / damage type
+Attack / Damage Type
 Primary Effective Attribute
 Attack Proficiency
 Additional Hit Modifier
-Base Damage
+Template Base Damage
 Damage Variance
-Range / reach
-Targeting information
-Optional status / special-effect references
-Optional MP / cooldown / usage restriction fields where applicable
-```
-
-There is no standard `damage_dice` field required for Simplified Monster offensive Profiles.
-
----
-
-# 13. GM Monster Management Requirement
-
-The GM Monster Management interface must let GM maintain for each Monster Attack / Skill Profile:
-
-```text
-Name
-Primary Effective Attribute
-Attack Proficiency
-Additional Hit Modifier
-Base Damage
-Damage Variance
-Damage Type
+Damage Growth Weight
 Range / Reach
 Targeting
-Special effect / status links where needed
+Status / special-effect links
+MP / cooldown / usage restrictions where relevant
 ```
 
-The UI should display fixed damage in a human-readable form such as:
+For a spawned instance, GM should be able to inspect:
 
 ```text
-Damage: 8 ± 2
+Monster Level
+Template Base Damage
+MonsterDamageGrowth(Level)
+Damage Growth Weight
+Calculated Base Damage
+GM Damage Adjustment
+Final Base Damage
+Final Damage Variance
+Displayed final damage band
 ```
 
-and may also show the resulting range:
-
-```text
-6–10
-```
-
-For an exact fixed value:
-
-```text
-Damage: 12 ± 0
-```
+The UI should make automatic calculation and GM override visibly distinct.
 
 ---
 
-# 14. Superseded Monster-Specific Rules
+# 12. No Damage Dice / No Character Damage Bonus
 
-For Simplified Monster ordinary offensive Profiles, this document supersedes earlier Monster wording that used:
+For ordinary Simplified Monster offensive Profiles:
 
 ```text
-Damage Profile / damage dice
-Character STR + SIZ Damage Bonus
-random Player-style damage packages
+no standard damage_dice requirement
+no Player STR + SIZ Damage Bonus table
+no hidden Attribute damage multiplier
+no second application of the Monster Attribute Level Curve
 ```
 
-The shared Player Character damage system remains unchanged.
+Richer Boss / Full Character NPC profiles may explicitly use other mechanics, but those are not the default Simplified Monster rule.
 
 ---
 
-# 15. Locked Conclusions
+# 13. Locked Conclusions
 
-1. Simplified Monster Attacks / offensive Skills make a D100 hit / opposed check.
-2. A miss causes no damage.
-3. A hit resolves `Base Damage ± Damage Variance`.
-4. Variance is a simple random integer in `[-Variance, +Variance]`, not a D100 check.
-5. `Variance = 0` means completely fixed damage.
-6. Simplified Monsters do not use ordinary damage dice by default.
-7. Simplified Monsters do not use the Player STR + SIZ Damage Bonus table by default.
-8. Defence / resistance and Damage Result still apply after raw fixed-band damage is generated.
-9. The selected hit architecture remains Effective Attribute + Attack Proficiency + separate Hit Modifier.
-10. The exact Effective Attribute → D100 conversion remains unresolved.
-11. Fixed Monster damage does not automatically receive the global Level curve.
-12. GM can maintain Template damage and authorised per-instance overrides.
+1. Simplified Monster Attacks / offensive Skills use D100 for hit / opposed resolution.
+2. A miss deals no damage.
+3. A hit uses fixed-band damage rather than Player-style damage dice.
+4. Monster Base Damage has a separate Monster Damage Level Curve.
+5. Each Attack / Skill Profile stores its own Damage Growth Weight.
+6. The independent damage curve is deliberately separate from Attribute, HP and MP scaling.
+7. Level 1 must preserve `Calculated Base Damage = Template Base Damage` before GM adjustment.
+8. GM may apply final per-instance damage adjustments after automatic scaling.
+9. Template values, calculated values and GM overrides must remain auditable and separate.
+10. The exact `MonsterDamageGrowth(Level)` formula remains unresolved.
+11. Whether Damage Variance itself scales with Level remains unresolved.
+12. The exact Effective Attribute → D100 hit conversion also remains unresolved.
 
 ---
 
-# 16. Next Unresolved Decision
+# 14. Next Decision
 
-The next Monster attack decision is whether the fixed damage values:
+The next decision is the exact global:
 
 ```text
-Base Damage ± Damage Variance
+MonsterDamageGrowth(Level)
 ```
 
-remain unchanged across Monster Levels, or receive a separate explicit Level-based damage scaling method.
+curve used to scale Simplified Monster fixed Base Damage from Level 1 to Level 100.
