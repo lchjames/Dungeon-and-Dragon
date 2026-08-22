@@ -2,28 +2,13 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, Accuracy values above 100, Attribute-linked damage, independent damage Level scaling, asymmetric damage variance, and instance overrides.
+> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, Accuracy values above 100, D100 extreme-result handling, Attribute-linked damage, independent damage Level scaling, asymmetric damage variance, and instance overrides.
 
 ---
 
 # 1. Dedicated GM Workspace
 
-The GM workspace must include a dedicated:
-
-```text
-Monster Management
-```
-
-page/tab.
-
-It is the central interface for:
-
-```text
-Monster Templates
-Monster Skill Profiles
-spawned Monster Instances
-instance-level GM adjustments
-```
+The GM workspace must include a dedicated `Monster Management` page/tab for Monster Templates, Monster Skill Profiles, spawned Monster Instances and authorised instance-level GM adjustments.
 
 All persistent Monster data is D1-authoritative.
 
@@ -71,21 +56,18 @@ For every spawned instance:
 18. Permit GM final adjustments
 ```
 
-Spawning multiple Monsters runs the complete pipeline independently for every instance.
+Group spawn runs this complete pipeline independently for every Monster.
 
 ---
 
 # 4. Resource Handling
 
 ```text
-Calculated Max HP
-= ceil((Effective CON + Effective SIZ) / 2)
-
-Calculated Max MP
-= Effective INT × 3
+Calculated Max HP = ceil((Effective CON + Effective SIZ) / 2)
+Calculated Max MP = Effective INT × 3
 ```
 
-HP/MP do not receive the global Level curve again after Effective Attributes already include Level scaling.
+HP/MP do not receive the global Level curve a second time because Effective Attributes already include Level scaling.
 
 GM may adjust final/current HP and MP at instance level while calculated and manual values remain separate.
 
@@ -122,28 +104,15 @@ Lower Variance Growth Weight = 1.50
 Upper Variance Growth Weight = 2.00
 ```
 
-GM may override them per Skill.
-
 ---
 
 # 6. Accuracy May Be Greater Than 100
 
 Stored Skill Accuracy has no hard maximum of 100.
 
-Examples:
+Examples such as `85`, `100`, `125`, `150` are valid Profile values.
 
-```text
-Accuracy 85
-Accuracy 100
-Accuracy 125
-Accuracy 150
-```
-
-are valid Skill Profile values.
-
-The purpose of Accuracy above 100 is to preserve an **Accuracy reserve** against future penalties.
-
-Example:
+Accuracy above 100 is an **Accuracy reserve** against future penalties.
 
 ```text
 Stored Accuracy = 130
@@ -152,8 +121,6 @@ Modified Accuracy = 90
 Effective Accuracy = 90
 ```
 
-Example:
-
 ```text
 Stored Accuracy = 130
 Debuff = -20
@@ -161,13 +128,13 @@ Modified Accuracy = 110
 Effective Accuracy = 100
 ```
 
-The UI must never silently rewrite the stored `130` into `100`.
+The UI must never silently rewrite Stored Accuracy `130` into `100`.
 
 Monster Skill Accuracy is separate from the Player natural Skill-value cap of 98.
 
 ---
 
-# 7. Effective Accuracy Cap
+# 7. Effective Accuracy Cap and D100 Extreme Results
 
 Canonical:
 
@@ -179,12 +146,35 @@ Effective Accuracy
 = min(100, Modified Accuracy)
 ```
 
-Only `Effective Accuracy` enters the D100 threshold:
+Only Effective Accuracy enters the ordinary threshold:
 
 ```text
 D100 Result
 = Roll - [100 - Effective Accuracy]
 ```
+
+However the global raw D100 extremes take precedence:
+
+```text
+raw D100 = 1   → Great Failure
+raw D100 = 100 → Great Success
+```
+
+Therefore with:
+
+```text
+Effective Accuracy = 100
+```
+
+resolution is:
+
+```text
+raw 1     → Great Failure
+raw 2–99  → ordinary success
+raw 100   → Great Success
+```
+
+Accuracy above 100 does not create absolute success by itself. Its normal purpose is to absorb negative Accuracy modifiers before the cap.
 
 The GM UI / inspection view should show separately:
 
@@ -193,26 +183,17 @@ Stored Accuracy
 active positive / negative modifiers
 Modified Accuracy
 Effective Accuracy after 100 cap
+raw D100
+Great Failure / Great Success state where applicable
 ```
-
-This makes effects that reduce Accuracy transparent and debuggable.
-
-`Effective Accuracy = 100` produces a 100% ordinary hit threshold. Whether raw D100 `1` still invokes the global Great Failure rule is a separate unresolved Canonical decision and must not be guessed by implementation.
 
 ---
 
 # 8. Accuracy Is Not Attribute-Derived
 
-Standard Simplified Monster Skills do not calculate Accuracy from:
+Standard Simplified Monster Skills do not calculate Accuracy from STR / DEX / CON / POW / INT / SIZ, Effective Attributes, Attack Proficiency or Player weapon specialization.
 
-```text
-STR / DEX / CON / POW / INT / SIZ
-Effective Attribute
-Attack Proficiency
-Player weapon specialization
-```
-
-The old fields are superseded:
+The older fields are superseded:
 
 ```text
 Primary Effective Attribute for Accuracy
@@ -220,13 +201,13 @@ Attack Proficiency
 Attribute-Derived Hit Value
 ```
 
-Attributes may instead be explicitly linked to **damage or other Skill effects**.
+Attributes may instead be explicitly linked to damage or other Skill effects.
 
 ---
 
 # 9. Damage Attribute Links — GM Multi-Select
 
-Each damaging Skill may provide a small multi-select / checkbox list:
+Each damaging Skill may provide:
 
 ```text
 ☐ STR
@@ -237,19 +218,9 @@ Each damaging Skill may provide a small multi-select / checkbox list:
 ☐ SIZ
 ```
 
-The selected set is stored as the Skill's `Damage Attribute Links`.
-
-Examples:
-
-```text
-Heavy Smash → STR + SIZ
-Quick Slash → DEX
-Arcane Burst → INT + POW
-```
+The selected set is stored as `Damage Attribute Links`.
 
 Selecting no Attribute is valid for a purely Profile-defined damage Skill.
-
-The UI must store the selected Attribute identifiers, not only a precomputed number.
 
 ---
 
@@ -270,23 +241,6 @@ Damage Attribute Basis
   / selected Attribute count
 ```
 
-Examples:
-
-```text
-Effective STR = 40
-Effective DEX = 20
-Links = STR + DEX
-→ Damage Attribute Basis = 30
-```
-
-```text
-Effective STR = 30
-Effective DEX = 24
-Effective SIZ = 36
-Links = STR + DEX + SIZ
-→ Damage Attribute Basis = 30
-```
-
 Use **Effective Attributes**, so Elite / Monster Level effects flow naturally into linked Skill damage.
 
 This basis does not modify Accuracy.
@@ -294,8 +248,6 @@ This basis does not modify Accuracy.
 ---
 
 # 11. Template-Side Monster Damage Growth
-
-The global Monster Skill damage curve remains:
 
 ```text
 MonsterDamageGrowth(Level)
@@ -314,7 +266,7 @@ Calculated Base Damage
 
 Standard Weight `1.0` reaches 8× Template Base Damage at Level 100.
 
-This is now explicitly a **Template-side damage component**, not the whole final range when Damage Attribute Links are configured.
+This is a Template-side damage component, not the whole final range when Damage Attribute Links are configured.
 
 ---
 
@@ -364,15 +316,6 @@ Damage Attribute Basis
 
 The exact numerical formula by which `Damage Attribute Basis` changes Minimum and Maximum damage remains unresolved.
 
-Therefore the earlier direct formula:
-
-```text
-Base Damage - Lower Variance
-Base Damage + Upper Variance
-```
-
-must be treated only as the Template-side band for linked Skills, not as the complete final damage result.
-
 Implementation must not invent the missing Attribute coefficient / multiplier.
 
 Final Minimum Raw Damage must never be below `0`.
@@ -389,6 +332,7 @@ Stored Accuracy
 active Hit Modifiers
 Modified Accuracy
 Effective Accuracy capped at 100
+raw D100 / extreme result state
 
 Damage Attribute Links
 current linked Effective Attribute values
@@ -448,17 +392,7 @@ Player STR + SIZ Damage Bonus
 single symmetric Damage Variance
 ```
 
-The current model instead uses:
-
-```text
-independent Stored Accuracy, possibly >100
-Effective Accuracy capped at 100 after modifiers
-Damage Attribute Links multi-select
-Damage Attribute Basis from Effective Attributes
-Template-side fixed damage / asymmetric variance components
-GM adjustments
-final damage range resolver
-```
+The current model instead uses independent Stored Accuracy, Effective Accuracy capped at 100 after modifiers, raw D100 extreme handling, Damage Attribute Links, Damage Attribute Basis, Template-side fixed damage/asymmetric variance components, GM adjustments and the final damage-range resolver.
 
 ---
 
@@ -466,7 +400,6 @@ final damage range resolver
 
 Resolve separately:
 
-1. whether raw D100 `1` can still force Great Failure when Effective Accuracy is 100, or whether 100 becomes absolute Skill success;
-2. exact formula converting Damage Attribute Basis into lower / upper damage limits;
-3. whether Skill Accuracy itself has automatic Level scaling or remains a Profile value affected only by explicit modifiers / GM changes;
-4. later Elite / Boss / richer-profile exceptions.
+1. exact formula converting Damage Attribute Basis into lower / upper damage limits;
+2. whether Monster Skill Accuracy itself automatically scales with Level;
+3. later Elite / Boss / richer-profile exceptions where needed.
