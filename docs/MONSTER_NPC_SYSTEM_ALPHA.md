@@ -1,8 +1,8 @@
 # Monster / NPC System — Alpha
 
 > Status: Canonical Alpha Rule  
-> Date: 2026-08-22  
-> Scope: Structural model for Simplified Monsters, Elite/Boss profiles and Full Character NPCs. Read with `MONSTER_LEVEL_SCALING_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, and `BOSS_DESIGN_PROFILE_ALPHA.md`.
+> Date: 2026-08-23  
+> Scope: Structural model for Simplified Monsters, Elite/Boss profiles, Boss Instances and Full Character NPCs. Read with `MONSTER_LEVEL_SCALING_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, and `BOSS_DESIGN_PROFILE_ALPHA.md`.
 
 ---
 
@@ -26,6 +26,8 @@ SIZ
 Elite enemies remain extensions of the ordinary Monster model.
 
 Bosses use a dedicated **Boss Design Profile / GM interface**, while still using ordinary Monster rules as their baseline calculation framework unless a later explicit subsystem overrides one part.
+
+Each runtime Boss appearance is a separate **Boss Instance** spawned from a Boss Design Profile.
 
 Important / persistent NPCs may use the Full Character Model.
 
@@ -98,7 +100,9 @@ Neither receives a second application of the global Attribute Level curve.
 
 For ordinary Monsters, GM may perform final instance-level Max / Current HP and MP adjustments while calculated values remain preserved.
 
-For Bosses, these formulas provide the default baseline where applicable, then the dedicated Boss Final Adjustment Layer may set different Final HP / MP values. Baseline and Final values must remain separate and auditable.
+For Bosses, these formulas provide the default baseline where applicable, then the dedicated Boss Final Adjustment Layer may set different Final Max HP / MP values.
+
+Runtime Current HP / MP belong to the spawned Boss Instance, not the Boss Design Profile.
 
 ---
 
@@ -187,7 +191,7 @@ Boss uniqueness therefore comes from the selected Skill loadout and GM-authored 
 
 Every Boss is designed through a dedicated Boss Design Profile and dedicated GM-facing design interface.
 
-Canonical Boss architecture:
+Canonical Boss design architecture:
 
 ```text
 Boss identity / Level
@@ -252,8 +256,8 @@ Where the underlying subsystem exists, the dedicated Boss interface may allow au
 
 ```text
 final Attributes / Attribute overrides
-Max / Current HP
-Max / Current MP
+Max HP
+Max MP
 Skill loadout
 Skill Accuracy / explicit Accuracy override
 Skill damage tuning
@@ -262,7 +266,7 @@ Damage Type
 Range / targeting
 Status / special effects
 Resistance / Immunity once locked
-Phase behaviour / triggers once locked
+Phase definitions / triggers once locked
 special Boss mechanics
 other approved Boss-facing fields
 ```
@@ -271,7 +275,98 @@ GM Boss adjustment does not mutate the global Monster rules, Common Skill Librar
 
 ---
 
-# 11. Separation from Player Skill System
+# 11. Locked Boss Design Profile + Boss Instance Model
+
+Boss persistence uses two layers:
+
+```text
+Boss Design Profile
+→ persistent design-time Boss definition
+→ stores baseline, GM overrides and Final Boss Values
+
+Boss Instance
+→ one spawned runtime copy
+→ stores encounter/runtime state
+```
+
+This two-layer model applies even when the Boss is narratively unique and is only expected to appear once.
+
+Canonical spawn flow:
+
+```text
+Final Boss Profile
+→ Spawn Boss Instance
+→ snapshot current Final Boss Values
+→ initialize runtime state
+```
+
+---
+
+# 12. Boss Instance Snapshot and Runtime Ownership
+
+A Boss Instance must preserve enough of the Profile's Final Boss Values to remain stable during runtime.
+
+Typical snapshotted values include:
+
+```text
+source Boss Profile ID / revision metadata where practical
+Boss identity
+Level
+Final Attributes
+Final Max HP / MP
+Skill loadout and resolved Skill values
+Final Spread values
+Accuracy / damage overrides
+Phase / Resistance / special-mechanic definitions once locked
+other final design-time combat values
+```
+
+Runtime state belongs to the Boss Instance:
+
+```text
+Current HP
+Current MP
+current Phase / Phase progress
+Status effects
+Buffs / Debuffs
+Cooldowns
+usage counters
+ongoing effects
+temporary combat modifiers
+initiative / turn state where applicable
+runtime Skill state
+other encounter-local state
+```
+
+Runtime changes must not write back into the Boss Design Profile.
+
+---
+
+# 13. Profile Edits Do Not Mutate Existing Boss Instances
+
+Canonical rule:
+
+```text
+Edit Boss Design Profile
+→ affects future design / future Boss spawns
+→ does NOT silently rewrite existing Boss Instances
+```
+
+Example:
+
+```text
+Instance #1 spawned when Final Max HP = 420
+GM later edits Profile Final Max HP = 500
+
+Instance #1 remains based on 420
+Future Instance #2 may spawn from 500
+```
+
+An intentional change to an existing Boss Instance must be a separate explicit GM Instance override and remain auditable.
+
+---
+
+# 14. Separation from Player Skill System
 
 Player Characters retain their own Skill / Ability / progression systems.
 
@@ -291,7 +386,7 @@ An important / persistent NPC may instead use the Full Character Model. In that 
 
 ---
 
-# 12. Independent Accuracy with Over-100 Storage — Fixed Across Level
+# 15. Independent Accuracy with Over-100 Storage — Fixed Across Level
 
 Monster Skill Accuracy is independent and is not derived from Monster Attributes.
 
@@ -342,7 +437,7 @@ Boss-specific GM Accuracy override is permitted only as an explicit override; it
 
 ---
 
-# 13. Monster Critical Follow-Up — Deferred
+# 16. Monster Critical Follow-Up — Deferred
 
 Monster Great Success / Great Failure remains conceptually aligned with the shared Player-side D100 critical framework where a generic Canonical rule already applies.
 
@@ -364,7 +459,7 @@ The exact Monster-specific post-extreme behaviour is **DEFERRED until Monster Co
 
 ---
 
-# 14. Damage Attribute Links
+# 17. Damage Attribute Links
 
 Skill damage may explicitly link to Monster Attributes.
 
@@ -400,7 +495,7 @@ This basis contributes to damage, not Skill Accuracy.
 
 ---
 
-# 15. Locked Skill Base-Damage Level Scaling
+# 18. Locked Skill Base-Damage Level Scaling
 
 ```text
 MonsterDamageGrowth(Level)
@@ -423,7 +518,7 @@ Bosses use this as the normal Skill baseline before any explicit GM Boss tuning.
 
 ---
 
-# 16. Locked Damage Center Model
+# 19. Locked Damage Center Model
 
 For an Attribute-linked Skill:
 
@@ -443,7 +538,7 @@ Boss-specific Skill tuning may explicitly override final Boss Skill values while
 
 ---
 
-# 17. Level-Linked Signed Spread Range
+# 20. Level-Linked Signed Spread Range
 
 Spread is one signed interval:
 
@@ -491,7 +586,7 @@ Bosses specifically expose the Suggested and Final Spread values in the Boss Des
 
 ---
 
-# 18. Spread Design Intent and Balance Authority
+# 21. Spread Design Intent and Balance Authority
 
 The generated Spread Range is deliberately approximate.
 
@@ -520,7 +615,7 @@ The exact Level-to-Spread formula remains **Alpha Tuning** and should be data-dr
 
 ---
 
-# 19. Full Ordinary Monster Spawn Pipeline
+# 22. Full Ordinary Monster Spawn Pipeline
 
 ```text
 1. Read Template
@@ -548,11 +643,11 @@ The exact Level-to-Spread formula remains **Alpha Tuning** and should be data-dr
 23. Save/use instance state
 ```
 
-Boss creation reuses relevant calculation steps as a **baseline-generation pass**, then moves through the dedicated Boss GM Final Adjustment Layer before Final Boss values are locked for the encounter.
+Boss creation reuses relevant calculation steps as a **baseline-generation pass**, then moves through the dedicated Boss GM Final Adjustment Layer. Encounter runtime begins only after a Boss Instance is spawned from the Final Boss Profile.
 
 ---
 
-# 20. GM / D1 Requirements
+# 23. GM / D1 Requirements
 
 D1 must preserve enough data to distinguish:
 
@@ -593,27 +688,42 @@ Boss Design Profile
 → Common and unique Boss Skill loadout
 → special Boss-design data
 → Final Boss values
+
+Boss Instance
+→ source Boss Profile ID / revision metadata where practical
+→ snapshotted Final Boss values
+→ instance-specific GM overrides
+→ Current HP / MP
+→ Status / Buff / Debuff state
+→ Phase state
+→ cooldown / usage state
+→ temporary modifiers
+→ encounter / combat state
 ```
 
 Changing Level recalculates Effective Attributes and regenerates the suggested Spread range, but **must not recalculate Stored Accuracy**.
 
 Boss baseline values must remain auditable after GM tuning.
 
+Editing a Boss Design Profile must not silently rewrite existing Boss Instances.
+
 ---
 
-# 21. GM Final Adjustment
+# 24. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation and calculation.
 
 Bosses go further: bespoke GM adjustment is an expected part of the Boss authoring workflow, not merely an emergency correction.
 
+A spawned Boss Instance may additionally receive an explicit encounter-specific GM override without mutating its Boss Design Profile.
+
 Boss adjustment does not mutate the reusable Common Skill Library or global tuning rules unless GM explicitly edits those sources.
 
-System suggested values, Skill source, GM corrections and final runtime values should remain auditable.
+System suggested values, Skill source, GM corrections, spawn snapshots and runtime values should remain auditable.
 
 ---
 
-# 22. Resolved / Deferred Items
+# 25. Resolved / Deferred Items
 
 Resolved:
 
@@ -631,6 +741,13 @@ Boss design architecture
 → ordinary Monster rules calculate baseline values first
 → GM manually tunes / overrides Boss-specific final values
 → no universal Boss multiplier
+
+Boss persistence architecture
+→ Boss Design Profile + Boss Instance
+→ spawn snapshots current Final Boss Values
+→ runtime state belongs to Boss Instance
+→ later Profile edits do not silently mutate existing Instances
+→ explicit Instance-specific GM overrides are allowed and auditable
 ```
 
 Deferred / tuning:
@@ -638,9 +755,8 @@ Deferred / tuning:
 1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to future Monster AI design**;
 2. Monster AI Skill selection / behavioural logic — future AI design pass;
 3. numeric Spread-generation tuning — actual game-content creation / play balance;
-4. exact Boss Profile vs spawned Boss Instance persistence semantics;
-5. Skill status / Resistance / Immunity details;
-6. Boss Phase / trigger / special-mechanic details;
-7. Monster EXP rewards;
-8. NPC progression behaviour;
-9. encounter difficulty contribution.
+4. Skill status / Resistance / Immunity details;
+5. Boss Phase / trigger / special-mechanic details;
+6. Monster EXP rewards;
+7. NPC progression behaviour;
+8. encounter difficulty contribution.
