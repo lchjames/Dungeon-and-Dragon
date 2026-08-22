@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system.
+> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including the fixed-damage Monster Attack / Skill redesign.
 
 ---
 
@@ -44,8 +44,8 @@ Name
 Description / notes
 Default or allowed Level information
 Elite configuration where allowed
-Attack Profiles
-Ability/profile links for special actions
+Attack / Skill Profiles
+Ability/profile links for exceptional actions
 Other approved Monster metadata
 ```
 
@@ -72,7 +72,7 @@ For every instance:
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
 9. Calculate Max MP = Effective INT × 3
 10. Recalculate other derived combat/resource values from Effective Attributes
-11. Attach/use the Template's approved Attack Profiles
+11. Attach/use the Template's approved Attack / Skill Profiles
 12. Save the generated instance
 13. Permit GM final adjustment
 ```
@@ -113,14 +113,14 @@ Calculated Max MP
 MP GM adjustment
 Final Max MP
 Current MP
-Attack Profiles
-Attack instance overrides, if any
+Attack / Skill Profiles
+Attack / Skill instance overrides, if any
 Other derived values
 GM adjustments
 Final current state
 ```
 
-The UI should visually distinguish Natural, Effective, calculated resources, Template Attack Profiles, and instance-level GM overrides.
+The UI should visually distinguish Natural, Effective, calculated resources, Template Profiles, and instance-level GM overrides.
 
 ---
 
@@ -146,48 +146,53 @@ GM may adjust Final Max HP, Current HP, Final Max MP, or Current MP at instance 
 
 ---
 
-# 6. Monster Attack Profile Management
+# 6. Monster Attack / Skill Profile Management
 
-Simplified Monsters use the Canonical simplified Player-style attack model defined in `MONSTER_ATTACK_PROFILE_ALPHA.md`.
+Simplified Monsters use the Canonical fixed-damage offensive model defined in `MONSTER_ATTACK_PROFILE_ALPHA.md`.
 
-The Monster Management tab must provide a dedicated **Attack Profiles** section for each Monster Template.
+The Monster Management tab must provide a dedicated **Attack / Skill Profiles** section for each Monster Template.
 
-A Template may contain multiple ordinary Attack Profiles, for example:
+A Template may contain multiple offensive Profiles, for example:
 
 ```text
 Goblin Short Sword
 Goblin Short Bow
+Poison Spit
+Wolf Bite
 ```
 
-Each Attack Profile must expose at least:
+Each offensive Profile must expose at least:
 
 ```text
-Attack name
+Name
 Attack / damage type
 Primary Effective Attribute
 Attack Proficiency
 Additional Hit Modifier
-Damage Profile / damage dice
-Fixed Damage Modifier
-Apply Effective STR + Effective SIZ Damage Bonus: yes/no
+Base Damage
+Damage Variance
 Range / reach
 Targeting fields where relevant
-Ability link when the action is exceptional rather than ordinary
+Optional status / special-effect links
+Optional MP / cooldown / usage restrictions where relevant
 ```
 
-## 6.1 Locked D100 Hit Architecture
+Simplified Monster offensive Profiles do not require standard Player-style `damage_dice` fields.
 
-Monster ordinary attacks use:
+---
+
+# 7. Locked D100 Hit Architecture
+
+Monster ordinary attacks and offensive Skills use:
 
 ```text
 D100 Attack Base
 = Attribute-Derived Hit Value
 + Attack Proficiency
++ Additional Hit Modifier
 ```
 
-with any additional hit modifier stored separately.
-
-The Attack Profile explicitly chooses its `Primary Effective Attribute`.
+The Profile explicitly chooses its `Primary Effective Attribute`.
 
 Example:
 
@@ -200,53 +205,133 @@ Additional Hit Modifier: +5
 
 `Attack Proficiency` is a direct Template/Profile value. Ordinary Monsters do not need Player weapon-practice EXP, specialization growth history, or a learning workflow to maintain it.
 
-The exact formula converting an Effective Attribute into `Attribute-Derived Hit Value` remains tied to the shared Player ordinary physical Attack Mapping and is not independently invented by the Monster system.
+The exact formula converting an Effective Attribute into `Attribute-Derived Hit Value` remains unresolved and must be defined separately.
 
-## 6.2 Instance Inspection
+---
 
-For each attack on a spawned Monster, GM should be able to inspect:
+# 8. Locked Fixed-Band Damage Model
+
+After a successful D100 hit, Simplified Monster damage is resolved from:
+
+```text
+Base Damage
+Damage Variance
+```
+
+Canonical formula:
+
+```text
+Variance Roll
+= random integer from -Damage Variance to +Damage Variance
+
+Raw Monster Damage
+= Base Damage + Variance Roll
+```
+
+Example:
+
+```text
+Base Damage = 8
+Damage Variance = 2
+
+→ raw damage range 6–10
+```
+
+For a fully fixed value:
+
+```text
+Base Damage = 12
+Damage Variance = 0
+
+→ always 12 raw damage on hit
+```
+
+The variance roll is not a D100 action check and has no Great Success / Great Failure meaning.
+
+The GM UI should display both:
+
+```text
+8 ± 2
+```
+
+and, where useful:
+
+```text
+6–10
+```
+
+---
+
+# 9. Damage Resolution After Hit
+
+Monster runtime flow is:
+
+```text
+D100 hit / opposed check
+→ fail: no damage
+→ success: Base Damage ± Variance
+→ apply defence / resistance
+→ Damage Result
+→ HP loss only when Damage Result > 0
+```
+
+The Simplified Monster damage model does not use the Player STR + SIZ Damage Bonus table by default.
+
+The global Monster Level curve is also not automatically applied again to fixed damage under the current rule.
+
+Whether fixed damage itself receives a separate Level-scaling rule remains a later design decision.
+
+---
+
+# 10. Instance Inspection
+
+For each offensive Profile on a spawned Monster, GM should be able to inspect:
 
 ```text
 Primary Effective Attribute
-current Effective Attribute value
+Current Effective Attribute value
 Attribute-Derived Hit Value
 Template Attack Proficiency
 Additional Hit Modifier
-instance attack override, if any
-final D100 attack basis
-Damage Profile
-Damage Bonus applicability
+Final D100 attack basis
+Template Base Damage
+Template Damage Variance
+Displayed damage band
+Instance Profile override, if any
+Damage type
+Special-effect references
 ```
 
-This keeps Level/Elite influence auditable:
+This keeps both accuracy and damage auditable.
+
+---
+
+# 11. Template vs Instance Attack / Skill Editing
 
 ```text
-Natural Attribute
-→ Elite / Level scaling
-→ Effective Attribute
-→ Attribute-Derived Hit Value
-→ + Attack Proficiency
-→ + separate Hit Modifier
-→ final D100 basis
-```
-
-The global Monster Level curve must not be applied again after the Effective Attribute has already included it.
-
-## 6.3 Template vs Instance Attack Editing
-
-```text
-Edit Template Attack Profile
+Edit Template Profile
 → changes reusable definition / future use
 
-Edit Spawned Instance Attack Override
+Edit Spawned Instance Profile Override
 → changes only that Monster
+```
+
+GM may adjust at instance level:
+
+```text
+Attack Proficiency
+Additional Hit Modifier
+Base Damage
+Damage Variance
+Range / targeting
+other approved Profile fields
 ```
 
 Template values, calculated values, and instance overrides must remain distinguishable.
 
 ---
 
-# 7. Level Principle
+# 12. Level Principle
 
 Monster Level never changes Template Attribute ranges before rolling and never rerolls Natural Attributes.
 
@@ -260,11 +345,11 @@ At higher Levels, Effective Attributes are recalculated from preserved Natural A
 
 A standard Weight `1.0` uses the same Level growth shape as Player HP/MP and reaches about `21.81×` Natural at Level 100.
 
-Attack components that read Effective Attributes naturally receive Level/Elite influence through those Effective values. The global Level curve must not be silently applied a second time to the same attack output.
+Hit components that read Effective Attributes naturally receive Level/Elite influence through those Effective values. The global Level curve must not be silently applied a second time to fixed Monster damage.
 
 ---
 
-# 8. GM Final Adjustment
+# 13. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation, Level scaling and derived-stat calculation.
 
@@ -278,10 +363,11 @@ Elite Bonus
 Natural Attribute
 Calculated Effective Attribute
 Calculated Resource / derived value
-Template Attack Profile
+Template Attack / Skill Profile
 Calculated Attribute-Derived Hit Value
 Template Attack Proficiency
-Instance Attack Override
+Template Base Damage / Variance
+Instance Profile Override
 GM adjustment
 Final value
 ```
@@ -290,14 +376,32 @@ GM editing must not erase Natural Attribute history or calculated pre-adjustment
 
 ---
 
-# 9. Template vs Instance Editing
+# 14. Superseded GM Fields
+
+For Simplified Monster offensive Profiles, the GM UI should no longer require the earlier Monster fields:
 
 ```text
-Edit Template
-→ changes reusable ranges / Growth Weights / Attack Profiles / future Template behaviour
-
-Edit Spawned Instance
-→ changes only that individual Monster
+Damage Profile / damage dice
+Apply Effective STR + Effective SIZ Damage Bonus: yes/no
 ```
 
-Where persistent instances are recalculated after a deliberate Template Growth Weight or Attack Profile change, the operation must be explicit/auditable rather than silently mutating historical values.
+These are replaced by:
+
+```text
+Base Damage
+Damage Variance
+```
+
+Player Character damage configuration is unaffected.
+
+---
+
+# 15. Next Unresolved Monster Damage Decision
+
+The next decision is whether:
+
+```text
+Base Damage ± Damage Variance
+```
+
+stays constant for all Levels of a Monster Template, or uses a separate explicit Monster Level damage-scaling method.
