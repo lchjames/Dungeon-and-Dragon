@@ -2,8 +2,8 @@
 
 > Status: Canonical Alpha Override  
 > Date: 2026-08-22  
-> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked damage, and the signed `Damage Spread Range` model.  
-> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, used Attribute Ratios to widen damage, or split spread into separate Lower / Upper mechanisms.
+> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked damage, and the signed Level-linked `Damage Spread Range` model.  
+> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, used Attribute Ratios to widen damage, split spread into separate Lower / Upper mechanisms, or required a final fixed Spread progression formula before content tuning.
 
 ---
 
@@ -18,8 +18,6 @@ Damage Type
 Template Base Damage
 Damage Growth Weight
 Damage Attribute Links
-Template Spread Min
-Template Spread Max
 Range / Reach
 Targeting
 Status / special effects
@@ -145,8 +143,6 @@ Lv100 → 8.00× Template Base Damage
 
 # 6. Locked Damage Center — Base Damage + Attribute Basis
 
-The previous Attribute Ratio model is superseded.
-
 For an Attribute-linked damaging Skill:
 
 ```text
@@ -167,48 +163,38 @@ The Monster's relevant Effective Attribute value therefore contributes directly 
 
 # 7. Signed Damage Spread Range
 
-Spread is one signed interval, not separate Lower / Upper systems.
-
-Each damaging Skill stores a Profile-side range:
+Spread is one signed interval:
 
 ```text
-Template Spread Min
-Template Spread Max
+[Final Spread Min, Final Spread Max]
 ```
 
-Examples:
+Examples of possible output shapes:
 
 ```text
 [-2, +2]
 [-5, +15]
 [0, +8]
-[-6, -1]   // allowed for an intentionally downside-only exceptional Skill
+[-6, -1]
 ```
 
 Canonical constraints:
 
 ```text
-Template Spread Min <= Template Spread Max
 Final Spread Min <= Final Spread Max
 ```
 
-For a normal standard damaging Skill, `0` will usually lie inside the range, but this is not an absolute requirement for exceptional Skill design.
-
-The runtime spread result is:
+Runtime:
 
 ```text
 Spread Roll
 = random integer from Final Spread Min to Final Spread Max, inclusive
-```
 
-Then:
-
-```text
 Raw Monster Damage
 = max(0, Calculated Damage Center + Spread Roll)
 ```
 
-Equivalent range display:
+Equivalent display:
 
 ```text
 Calculated Minimum Raw Damage
@@ -222,42 +208,93 @@ Spread randomisation is not a second D100 action check and has no Great Success 
 
 ---
 
-# 8. Locked Spread Design Intent
+# 8. Level-Linked System Generation — Canonical Architecture
 
-The signed range exists to allow a successful hit to fluctuate around the Damage Center.
+The Spread Range is linked to **Monster Level**.
 
-Example at low Level:
-
-```text
-Damage Center = Base Damage + Attribute Basis
-Spread Range = [-2, +2]
-```
-
-A low roll applies `-2`; a high roll applies `+2`.
-
-At higher progression, the same Skill may evolve conceptually toward a positively skewed range such as:
+The system must first generate an approximate/suggested signed range from the Monster's Level:
 
 ```text
-[-5, +15]
+Monster Level
+→ Spread Generation Rule / Tuning Table
+→ System Suggested Spread Min
+→ System Suggested Spread Max
 ```
 
-The intended late-game shape is therefore:
+Then GM may correct the generated result:
+
+```text
+System Suggested Spread Range
+→ GM Spread Min Adjustment / Override
+→ GM Spread Max Adjustment / Override
+→ Final Spread Range
+```
+
+The generated range is a **starting point**, not the final balance authority.
+
+Canonical responsibility split:
+
+```text
+System
+→ quickly produces a plausible Level-appropriate range
+
+GM
+→ reviews and corrects the actual Skill / Monster instance
+```
+
+The final numbers are expected to be tuned during actual game-content creation and play balance work.
+
+---
+
+# 9. Spread Progression Design Intent
+
+Low-Level ranges may be roughly symmetric, while higher-Level ranges may become increasingly positive-skewed.
+
+Conceptual examples only:
+
+```text
+low Level  → about [-2, +2]
+high Level → about [-5, +15]
+```
+
+These examples are **not a locked Level table**.
+
+The intended shape is:
 
 ```text
 negative edge
-→ may move farther below 0, but only modestly
+→ may move farther below 0, but relatively slowly
 
 positive edge
 → may extend much farther above 0
 ```
 
-So low rolls remain possible, while the potential upside grows substantially more than the downside.
-
-This asymmetry is a property of the **single signed Spread Range**.
+So low rolls remain possible, while high-Level upside can grow much more strongly.
 
 ---
 
-# 9. User-Confirmed Calculation Shape
+# 10. Spread Scaling Is Alpha Tuning, Not a Final Formula
+
+The architecture is locked:
+
+```text
+Level
+→ System Suggested Spread Range
+→ GM correction
+→ Final Spread Range
+```
+
+But the exact numerical generator is intentionally **not locked yet**.
+
+It may later be implemented as a data-driven Level table, interpolation rule, curve, or another tuning mechanism, provided it obeys the Canonical architecture above.
+
+Do not treat any temporary Alpha coefficients as permanent rules.
+
+The preferred implementation should keep the Spread generation data easy to rebalance without changing the core combat model.
+
+---
+
+# 11. User-Confirmed Calculation Shape
 
 Examples supplied during design:
 
@@ -271,7 +308,7 @@ Lv2 low roll:
 = 79
 ```
 
-These are read as:
+Read as:
 
 ```text
 Calculated Base Damage
@@ -279,25 +316,11 @@ Calculated Base Damage
 + signed Spread Roll
 ```
 
-For the first example:
-
-```text
-Spread Roll = -2
-```
-
-For the second:
-
-```text
-Spread Roll = -3
-```
-
-The exact formula by which `Template Spread Min / Max` become `Final Spread Min / Max` as the Monster progresses is not yet locked.
-
-Implementation must not invent that scaling rule.
+The Spread value is an offset inside one signed Level-generated range.
 
 ---
 
-# 10. Superseded Damage-Band Terms
+# 12. Superseded Damage-Band Terms
 
 The following standard Simplified Monster fields / concepts are superseded:
 
@@ -314,11 +337,15 @@ Attribute-derived Lower Contribution
 Attribute-derived Upper Contribution
 ```
 
+Do not require fixed `Template Spread Min / Template Spread Max` as the sole source of the standard range either; standard Spread is generated from Level first, then reviewed by GM.
+
 Use instead:
 
 ```text
-Template Spread Min
-Template Spread Max
+System Suggested Spread Min
+System Suggested Spread Max
+GM Spread Min Adjustment / Override
+GM Spread Max Adjustment / Override
 Final Spread Min
 Final Spread Max
 Spread Roll
@@ -326,7 +353,7 @@ Spread Roll
 
 ---
 
-# 11. Runtime Skill Resolution
+# 13. Runtime Skill Resolution
 
 ```text
 Declare Monster Skill
@@ -339,7 +366,7 @@ Declare Monster Skill
 → otherwise resolve ordinary hit / opposed threshold
 → miss: no normal hit damage
 → hit: calculate / read Damage Center
-→ resolve Final Spread Range
+→ read Final Spread Range
 → roll one signed integer Spread Roll inside that range
 → Raw Damage = max(0, Damage Center + Spread Roll)
 → Defence / Resistance
@@ -350,7 +377,7 @@ Declare Monster Skill
 
 ---
 
-# 12. GM / Audit Requirements
+# 14. GM / Audit Requirements
 
 For each spawned Skill, preserve at least:
 
@@ -371,55 +398,46 @@ Damage Growth Weight
 Calculated Base Damage
 Calculated Damage Center
 
-Template Spread Min
-Template Spread Max
+Monster Level used for Spread generation
+System Suggested Spread Min
+System Suggested Spread Max
+GM Spread Min Adjustment / Override
+GM Spread Max Adjustment / Override
 Final Spread Min
 Final Spread Max
 Spread Roll when resolved
 Calculated Minimum Raw Damage
 Calculated Maximum Raw Damage
-GM spread / damage adjustments
 Final Raw Damage
 ```
 
-Template, calculated and GM-adjusted values must remain distinguishable.
+System-generated, GM-corrected and runtime values must remain distinguishable.
 
 ---
 
-# 13. GM Skill Editor Requirements
+# 15. GM Skill / Instance UI Requirements
 
-For each Monster Skill Profile, the GM UI must support:
-
-```text
-Skill Name
-Stored Accuracy — may exceed 100
-Damage Type
-Template Base Damage
-Damage Growth Weight
-Damage Attribute Links — multi-select STR / DEX / CON / POW / INT / SIZ
-Template Spread Min — signed integer
-Template Spread Max — signed integer
-Range / Reach
-Targeting
-Status / special-effect links
-MP cost
-Cooldown
-Usage restrictions
-Other approved flags
-```
-
-The UI should display the spread compactly as, for example:
+The GM UI should show the Level-generated range and editable final controls together:
 
 ```text
-Spread: -2 to +2
-Spread: -5 to +15
+Monster Level
+Suggested Spread: -2 to +2
+GM Min Adjustment / Override
+GM Max Adjustment / Override
+Final Spread: -2 to +2
 ```
 
-and validate only that Min does not exceed Max unless a future stronger constraint is explicitly locked.
+At another Level it may display, for example:
+
+```text
+Suggested Spread: -5 to +15
+```
+
+The GM must be able to correct either boundary without editing the underlying global tuning rule.
 
 ---
 
-# 14. Locked Conclusions
+# 16. Locked Conclusions
 
 1. Simplified Monster offensive actions use dedicated Monster Skill Profiles.
 2. Stored Accuracy is independent, may exceed 100, and only Effective Accuracy is capped at 100 after modifiers.
@@ -432,25 +450,15 @@ and validate only that Min does not exceed Max unless a future stronger constrai
 9. Spread is one signed inclusive interval `[Final Spread Min, Final Spread Max]`.
 10. Spread Roll is one random integer drawn from that signed interval after a successful hit.
 11. Raw Monster Damage is `max(0, Damage Center + Spread Roll)`.
-12. Standard late-game design may shift from ranges such as `[-2,+2]` toward positively skewed ranges such as `[-5,+15]`.
-13. Negative spread growth should remain materially smaller than positive spread growth for the standard intended damage shape.
-14. Exact Spread Min / Max progression remains unresolved and must not be invented by implementation.
-15. GM may perform final instance adjustments while preserving calculation layers.
+12. Standard Spread Range generation is linked to Monster Level.
+13. The system generates an approximate/suggested Level-appropriate range first.
+14. GM then manually corrects / overrides either boundary to obtain the Final Spread Range.
+15. Low-Level ranges may be roughly symmetric; high-Level ranges may become more positive-skewed.
+16. Exact Level-to-Spread numbers / curve remain Alpha Tuning and are intentionally deferred until content creation and play-balance work.
+17. Implementation should keep Spread tuning data-driven / easy to rebalance rather than hard-coding temporary coefficients into the core combat model.
 
 ---
 
-# 15. Next Decision
+# 17. Next Unresolved Decision
 
-The next Monster damage decision is the exact rule that converts:
-
-```text
-Template Spread Min / Template Spread Max
-```
-
-into:
-
-```text
-Final Spread Min / Final Spread Max
-```
-
-as Monster Level / Effective Attribute progression increases, while preserving the intended transition from roughly symmetric low-Level spread toward a strongly positive-skewed high-Level spread.
+The next Monster Skill decision is whether Stored Skill Accuracy itself normally receives automatic Monster-Level scaling, or remains a Profile value changed only by explicit modifiers / GM changes.
