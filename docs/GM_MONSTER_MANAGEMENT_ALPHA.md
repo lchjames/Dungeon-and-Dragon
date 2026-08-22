@@ -2,24 +2,27 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines GM-facing Monster Management for the Hybrid Monster/NPC system, including reusable Common Monster Skills, Boss common-plus-unique Skill loadouts, fixed over-100 Accuracy, Attribute-linked damage, Level-generated signed Spread Ranges, GM correction / overrides, and deferred Monster-specific critical follow-up pending AI design.
+> Scope: Defines GM-facing Monster Management for the Hybrid Monster/NPC system, including reusable Common Monster Skills, dedicated Boss Design Profiles, Boss common-plus-unique Skill loadouts, fixed over-100 Accuracy, Attribute-linked damage, Level-generated signed Spread Ranges, GM correction / overrides, and deferred Monster-specific critical follow-up pending AI design. Read with `BOSS_DESIGN_PROFILE_ALPHA.md` for Boss-specific authoring.
 
 ---
 
 # 1. Dedicated GM Workspace
 
-The GM workspace must include a dedicated `Monster Management` page/tab for:
+The GM workspace must include:
 
 ```text
 Monster Templates
 Common Monster Skill Library
 Monster Skill Profiles
-Boss / Elite Skill Loadouts
 spawned Monster Instances
 instance-level GM adjustments
+Boss Design Profiles
+Boss Design / Editing workspace
 ```
 
-All persistent Monster data is D1-authoritative.
+Boss authoring must not be forced into the ordinary disposable-Monster form. Bosses receive a dedicated design table/interface because bespoke GM adjustment is expected for every Boss.
+
+All persistent Monster / Boss data is D1-authoritative.
 
 ---
 
@@ -44,7 +47,7 @@ Template editing must not silently erase spawned-instance history.
 
 GM tooling should support a reusable Common Monster Skill Library.
 
-Each library entry is a normal Monster Skill Profile and may be reused by multiple Monster Templates.
+Each library entry is a normal Monster Skill Profile and may be reused by multiple Monster Templates and Bosses.
 
 Typical common entries may include:
 
@@ -91,9 +94,113 @@ Only an important / persistent NPC intentionally built with the Full Character M
 
 ---
 
-# 5. Spawn Workflow
+# 5. Dedicated Boss Design Profile / Interface
 
-For every spawned instance:
+Every Boss should be authored through a dedicated Boss Design Profile and dedicated GM-facing interface.
+
+Canonical flow:
+
+```text
+Boss identity / Level
+→ apply ordinary Monster canonical baseline rules
+→ calculate / suggest baseline values
+→ GM performs Boss-specific manual adjustment / override
+→ Final Boss Profile
+```
+
+The Boss interface should expose at least these conceptual sections:
+
+```text
+Boss Identity
+Baseline Calculation
+Boss Final Values
+Skill Loadout
+Special Boss Design
+Audit / baseline-vs-final comparison
+```
+
+The baseline and GM-adjusted final values must remain distinguishable.
+
+Do not hard-code a universal Boss multiplier for HP, MP, Attributes, Damage or Accuracy.
+
+---
+
+# 6. Boss Baseline Calculation
+
+Before GM tuning, the system should calculate Boss baseline values using the same already-Canonical Monster rules where applicable.
+
+Baseline may include:
+
+```text
+Monster Level
+Natural STR / DEX / CON / POW / INT / SIZ
+Effective STR / DEX / CON / POW / INT / SIZ
+Calculated Max HP
+Calculated Max MP
+Stored Skill Accuracy
+Damage Attribute Basis
+Calculated Base Damage
+Calculated Damage Center
+System Suggested Spread Min / Max
+other already-Canonical Monster values
+```
+
+This baseline is a coherent starting point, not the final Boss balance authority.
+
+---
+
+# 7. Boss Final Adjustment Authority
+
+After baseline generation, the GM may manually adjust / override Boss-facing values.
+
+Where the related subsystem exists, this may include:
+
+```text
+final Attributes / authorised Attribute overrides
+Max / Current HP
+Max / Current MP
+Skill loadout
+Skill Accuracy / explicit Accuracy override
+Skill damage tuning
+Final Spread Min / Max
+Damage Type
+Range / targeting
+Status / special effects
+Resistance / Immunity once locked
+Phase rules / triggers once locked
+special Boss mechanics
+other explicitly authorised Boss fields
+```
+
+The system must preserve:
+
+```text
+Calculated / Suggested Baseline
+GM Adjustment / Override
+Final Boss Value
+```
+
+Example:
+
+```text
+Calculated Max HP = 180
+GM Override = 420
+Final Max HP = 420
+```
+
+or:
+
+```text
+Suggested Spread = [-4,+12]
+GM Override = [-3,+20]
+Final Spread = [-3,+20]
+```
+
+---
+
+# 8. Ordinary Monster Spawn Workflow
+
+For every ordinary spawned instance:
 
 ```text
 1. Roll STR / DEX / CON / POW / INT / SIZ independently from Template ranges
@@ -105,7 +212,7 @@ For every spawned instance:
 7. Calculate Effective Attributes
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
 9. Calculate Max MP = Effective INT × 3
-10. Attach approved Monster Skill Profiles from Common Library and/or Template/Boss-specific authoring
+10. Attach approved Monster Skill Profiles from Common Library and/or Template-specific authoring
 11. Preserve each Skill's Stored Accuracy exactly; Monster Level does not scale it
 12. Resolve Damage Attribute Links against current Effective Attributes
 13. Calculate Damage Attribute Basis
@@ -121,11 +228,11 @@ For every spawned instance:
 23. Save instance / combat state
 ```
 
-Group spawn runs the complete generation pipeline independently for every Monster.
+Boss creation uses the same relevant baseline calculations, then passes through the dedicated Boss Final Adjustment Layer before the Final Boss Profile is considered ready.
 
 ---
 
-# 6. Resource Handling
+# 9. Resource Handling
 
 ```text
 Calculated Max HP = ceil((Effective CON + Effective SIZ) / 2)
@@ -134,11 +241,13 @@ Calculated Max MP = Effective INT × 3
 
 HP/MP do not receive the global Level curve a second time because Effective Attributes already include Level scaling.
 
-GM may adjust final/current HP and MP at instance level while calculated and manual values remain separate.
+For ordinary Monsters, GM may adjust final/current HP and MP at instance level while calculated and manual values remain separate.
+
+For Bosses, baseline calculated HP/MP is specifically expected to be reviewable and manually corrected through the Boss Design Profile.
 
 ---
 
-# 7. Monster Skill Profile Fields
+# 10. Monster Skill Profile Fields
 
 Each Monster Skill Profile may expose:
 
@@ -175,7 +284,7 @@ Standard Spread is generated from Monster Level and then corrected by GM.
 
 ---
 
-# 8. Accuracy Rules — No Automatic Level Scaling
+# 11. Accuracy Rules — No Automatic Level Scaling
 
 Stored Skill Accuracy may exceed 100.
 
@@ -218,7 +327,7 @@ GM UI must not present a calculated `Accuracy after Level scaling` field because
 
 ---
 
-# 9. Critical Follow-Up — Deferred to Monster AI Design
+# 12. Critical Follow-Up — Deferred to Monster AI Design
 
 The GM system must preserve the raw D100 extreme state, but must not assume a new Monster-only universal critical effect.
 
@@ -238,7 +347,7 @@ The exact Monster-specific follow-up is deferred until the future Monster Combat
 
 ---
 
-# 10. Damage Attribute Links — GM Multi-Select
+# 13. Damage Attribute Links — GM Multi-Select
 
 Each damaging Skill may provide:
 
@@ -272,7 +381,7 @@ This basis modifies damage only, not Accuracy.
 
 ---
 
-# 11. Locked Skill Base-Damage Level Curve
+# 14. Locked Skill Base-Damage Level Curve
 
 ```text
 MonsterDamageGrowth(Level)
@@ -293,7 +402,7 @@ Standard Weight `1.0` reaches 8× Template Base Damage at Level 100.
 
 ---
 
-# 12. Locked Damage Center Formula
+# 15. Locked Damage Center Formula
 
 For an Attribute-linked Skill:
 
@@ -311,7 +420,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 13. Level-Generated Signed Damage Spread Range
+# 16. Level-Generated Signed Damage Spread Range
 
 Spread is one signed interval:
 
@@ -363,7 +472,7 @@ Calculated Maximum Raw Damage
 
 ---
 
-# 14. Spread Generation Is a Starting Point
+# 17. Spread Generation Is a Starting Point
 
 Canonical responsibility split:
 
@@ -391,7 +500,7 @@ Implementation should keep Spread tuning data-driven and easy to rebalance.
 
 ---
 
-# 15. Spawned Skill Inspection
+# 18. Spawned Skill / Boss Audit
 
 For every spawned Monster Skill, GM should be able to inspect:
 
@@ -423,19 +532,17 @@ Final Spread Min / Max
 Calculated Minimum / Maximum Raw Damage
 Spread Roll when resolved
 Final Raw Damage
-
-Damage Type
-Status / special-effect references
-MP / cooldown / usage state
 ```
 
-Where practical, source/origin should distinguish a Common Library Skill from a Template-specific or Boss-specific unique Skill.
+Boss audit additionally preserves baseline Boss values, Boss-specific GM overrides and Final Boss values.
+
+Where practical, Skill source/origin should distinguish a Common Library Skill from a Template-specific or Boss-specific unique Skill.
 
 Changing Level must never silently mutate Stored Accuracy.
 
 ---
 
-# 16. GM UI Requirements
+# 19. GM UI Requirements
 
 Accuracy should appear as a Profile / override value rather than a Level-derived value:
 
@@ -460,13 +567,13 @@ Add from Common Monster Skill Library
 Create New Unique Monster Skill
 ```
 
-A unique Boss Skill editor uses the same Monster Skill Profile fields as the Common Library.
+Bosses must also have a dedicated Boss Design UI exposing baseline values beside GM-adjusted Final values.
 
 Critical state may be displayed for audit, but Monster-specific critical-result controls should wait for the future AI / critical design pass.
 
 ---
 
-# 17. Template vs Instance Editing
+# 20. Template vs Instance Editing
 
 ```text
 Edit reusable Common / Template Skill
@@ -476,11 +583,11 @@ Edit Spawned Skill Override
 → changes only that Monster instance
 ```
 
-Persistent instances must not silently lose historical calculated values or overrides after Template edits.
+Boss Profile vs spawned Boss Instance semantics are still to be locked separately. Regardless of that later decision, design-time baseline and GM Final values must not be silently replaced by runtime state.
 
 ---
 
-# 18. Current Deferred / Unresolved Items
+# 21. Resolved / Deferred Items
 
 Resolved:
 
@@ -491,6 +598,12 @@ Monster Skill Accuracy Level scaling
 Boss Skill authoring architecture
 → Common Monster Skills + GM-authored unique Monster Skills
 → same Monster Skill Profile system
+
+Boss numeric design architecture
+→ dedicated Boss Design Profile / interface
+→ ordinary Monster rules provide baseline calculations
+→ GM manually tunes Final Boss values
+→ no universal Boss multiplier
 ```
 
 Deferred / tuning:
@@ -498,4 +611,5 @@ Deferred / tuning:
 1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to Monster AI design**;
 2. Monster AI Skill selection / behavioural logic — future AI design pass;
 3. numeric Spread-generation tuning — actual content creation / play balance;
-4. Boss stat / resource / phase / generation modifiers beyond the resolved Skill-loadout architecture.
+4. exact Boss Profile vs spawned Boss Instance persistence model;
+5. later Phase / Resistance / Immunity / special-mechanic details as their systems are locked.
