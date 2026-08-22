@@ -114,11 +114,31 @@ Standard damage Spread is generated from Monster Level and then corrected by GM.
 
 ---
 
-# 6. Independent Accuracy with Over-100 Storage
+# 6. Independent Accuracy with Over-100 Storage — Fixed Across Level
 
 Monster Skill Accuracy is independent and is not derived from Monster Attributes.
 
 Stored Accuracy may exceed `100`.
+
+Canonical Level invariant:
+
+```text
+Monster Level changes
+→ Stored Accuracy remains unchanged
+```
+
+Example:
+
+```text
+Stored Accuracy = 80
+Lv1   → 80
+Lv50  → 80
+Lv100 → 80
+```
+
+Stored Accuracy changes only through explicit authorised Profile edits, GM overrides, Buff / Debuff, Status, Skill effects, or other explicit Accuracy modifiers.
+
+Runtime:
 
 ```text
 Modified Accuracy
@@ -140,6 +160,8 @@ Raw D100 extremes remain:
 ```
 
 These extreme results take precedence over the ordinary threshold.
+
+Monster Level is not an Accuracy-growth source in the standard Simplified Monster model.
 
 ---
 
@@ -289,16 +311,6 @@ high Level → more positive-skewed, e.g. about [-5, +15]
 
 These are examples of shape only, not locked values.
 
-The intended direction is:
-
-```text
-negative edge
-→ expands relatively slowly
-
-positive edge
-→ may expand much more strongly
-```
-
 Actual values are expected to be tuned when real Monster, encounter, and campaign content is created and play-tested.
 
 ---
@@ -307,16 +319,7 @@ Actual values are expected to be tuned when real Monster, encounter, and campaig
 
 The exact Level-to-Spread formula / table is not part of the locked core combat law yet.
 
-It may later use:
-
-```text
-Level bands
-reference-point interpolation
-curve-based generation
-other approved data-driven tuning
-```
-
-The implementation should keep this tuning easy to edit without rewriting the core resolver.
+It may later use Level bands, reference-point interpolation, curve-based generation, or another approved data-driven tuning model.
 
 The invariant is:
 
@@ -362,7 +365,7 @@ The Spread value is an offset inside one signed Level-generated range, not a sep
 7. Save Effective Attributes
 8. Calculate HP / MP
 9. Attach Monster Skills
-10. Preserve Stored Accuracy values, including >100
+10. Preserve Stored Accuracy exactly; do not Level-scale it
 11. Resolve selected Damage Attribute Links
 12. Calculate Damage Attribute Basis
 13. Calculate Level-adjusted Skill Base Damage
@@ -399,7 +402,8 @@ Monster Instance / generated Skill state
 → Natural Attributes
 → Effective Attributes
 → calculated HP / MP
-→ per-Skill Accuracy calculations
+→ fixed per-Skill Stored Accuracy / authorised override
+→ per-Skill Accuracy modifiers and Effective Accuracy
 → per-Skill linked Attribute values / Basis
 → calculated Base Damage
 → calculated Damage Center
@@ -411,7 +415,7 @@ Monster Instance / generated Skill state
 → final state
 ```
 
-Changing Level recalculates Effective Attributes from preserved Natural values and regenerates the suggested Spread range from the current Level; GM overrides must remain auditable rather than being silently lost.
+Changing Level recalculates Effective Attributes and regenerates the suggested Spread range, but **must not recalculate Stored Accuracy**. GM overrides must remain auditable rather than being silently lost.
 
 ---
 
@@ -427,12 +431,13 @@ System suggested values, GM corrections and final runtime values should remain a
 
 # 17. Current Unresolved Items
 
+Monster Skill Accuracy Level scaling is resolved: **no automatic Level scaling**.
+
 Resolve separately:
 
-1. whether Monster Skill Accuracy itself automatically scales with Level;
-2. numeric Spread-generation tuning during actual game-content creation / play balance;
-3. Boss-specific generation / modifiers beyond the ordinary Elite rule;
-4. Skill status / Resistance / Immunity details;
-5. Monster EXP rewards;
-6. NPC progression behaviour;
-7. encounter difficulty contribution.
+1. numeric Spread-generation tuning during actual game-content creation / play balance;
+2. Boss-specific generation / modifiers beyond the ordinary Elite rule;
+3. Skill status / Resistance / Immunity details;
+4. Monster EXP rewards;
+5. NPC progression behaviour;
+6. encounter difficulty contribution.
