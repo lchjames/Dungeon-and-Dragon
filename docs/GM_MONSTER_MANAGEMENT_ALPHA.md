@@ -114,6 +114,15 @@ Upper Variance Growth Weight
 
 are superseded and must not be required.
 
+For a new standard damaging Skill, the GM UI must prefill:
+
+```text
+Lower Attribute Ratio = 0.10
+Upper Attribute Ratio = 0.50
+```
+
+These are editable defaults, not immutable values.
+
 ---
 
 # 6. Accuracy Rules
@@ -242,9 +251,16 @@ If no Damage Attribute Links are selected, both Attribute-derived contributions 
 
 ---
 
-# 10. Locked Standard Asymmetry Principle
+# 10. Locked Standard Asymmetry and Defaults
 
-For ordinary damaging Monster Skills, the lower-side reduction and upper-side bonus are **not meant to scale comparably**.
+For ordinary damaging Monster Skills, the lower-side reduction and upper-side bonus are not meant to scale comparably.
+
+Canonical defaults:
+
+```text
+Lower Attribute Ratio = 0.10
+Upper Attribute Ratio = 0.50
+```
 
 Canonical design intent:
 
@@ -257,28 +273,22 @@ higher Monster power
 → upper-side bonus grows much more strongly
 ```
 
-Therefore standard Skill tuning should satisfy:
-
-```text
-Upper Attribute Ratio > Lower Attribute Ratio
-```
-
-with the intended normal relationship being:
-
-```text
-Upper Attribute Contribution ≫ Lower Attribute Contribution
-```
-
-The earlier near-symmetric tuning examples such as `0.30 / 0.45` are not suitable standard defaults because they make the low-end damage fall too far below Base Damage at high Level.
-
-The exact default pair is still unresolved.
-
 The GM editor should:
 
 - display Lower and Upper Ratios side by side;
-- visually explain that Lower controls the **low-roll penalty** while Upper controls the **high-roll bonus**;
+- explain that Lower controls the low-roll penalty while Upper controls the high-roll bonus;
+- prefill `0.10 / 0.50` for a standard damaging Skill;
 - warn when a standard Skill is configured with `Lower Attribute Ratio >= Upper Attribute Ratio`;
-- allow GM to override this warning for intentionally unusual Skills.
+- allow GM to override either ratio for intentionally unusual Skills.
+
+Example with `Damage Attribute Basis = 65`:
+
+```text
+Lower Contribution = round(65 × 0.10) = 7
+Upper Contribution = round(65 × 0.50) = 33
+```
+
+This preserves a much larger upside than downside at higher power.
 
 ---
 
@@ -370,6 +380,5 @@ Persistent instances must not silently lose historical calculated values or over
 
 Resolve separately:
 
-1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for a new standard damaging Monster Skill, under the locked requirement that the lower penalty be much smaller than the upper bonus;
-2. whether Monster Skill Accuracy itself automatically scales with Level;
-3. later Elite / Boss / richer-profile exceptions where needed.
+1. whether Monster Skill Accuracy itself automatically scales with Level;
+2. later Elite / Boss / richer-profile exceptions where needed.
