@@ -50,6 +50,15 @@ is superseded for Simplified Monsters by separate lower and upper variance value
 
 This allows Level progression to produce a wider and intentionally asymmetric damage band.
 
+Canonical standard defaults for a normal Profile are:
+
+```text
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
+```
+
+These are defaults, not immutable per-Profile constants. A Monster Template / Attack / Skill Profile may explicitly override either value, and GM may later apply authorised instance-level adjustments.
+
 Example Level-1 Template values:
 
 ```text
@@ -57,9 +66,9 @@ Goblin Short Sword
 Template Base Damage = 8
 Damage Growth Weight = 1.0
 Template Lower Variance = 2
-Lower Variance Growth Weight = 0.5
+Lower Variance Growth Weight = 1.50
 Template Upper Variance = 2
-Upper Variance Growth Weight = 1.0
+Upper Variance Growth Weight = 2.00
 ```
 
 At Level 1, before GM adjustment:
@@ -70,7 +79,7 @@ Calculated Lower Variance = Template Lower Variance
 Calculated Upper Variance = Template Upper Variance
 ```
 
-The Level-1 Profile may still be symmetric. Higher Levels are not required to remain symmetric.
+The Level-1 Profile may still be symmetric. Higher Levels are intentionally allowed to become strongly asymmetric.
 
 ---
 
@@ -151,15 +160,24 @@ Calculated Upper Variance
 
 The two weights are independent.
 
-This means a Monster Profile may deliberately make the high-end damage ceiling grow faster while also allowing the low-end floor to move farther downward.
+Canonical standard defaults:
+
+```text
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
+```
+
+This deliberately makes the standard high-Level damage range wider, with the high-end ceiling expanding faster than the lower-side spread.
 
 Conceptually:
 
 ```text
 Level rises
 → Base Damage rises
-→ Upper Variance can expand strongly
-→ Lower Variance can also expand
+→ Lower Variance expands strongly
+→ Upper Variance expands even faster
+→ minimum can sit much farther below Base Damage
+→ maximum can sit much farther above Base Damage
 → final possible damage band becomes wider
 ```
 
@@ -192,34 +210,61 @@ The hard floor of `0` prevents a wide lower variance from producing negative raw
 
 ---
 
-# 6. Higher Upper Limit / Lower Bottom Limit Principle
+# 6. Locked High-Volatility Default
 
-Canonical design intent:
-
-```text
-higher-Level Monster
-→ may have a noticeably higher damage ceiling
-→ may also have a lower relative damage floor
-→ wider volatility than the Level-1 Profile
-```
-
-Therefore the Profile model must support:
+For ordinary Simplified Monster Profiles that do not explicitly override the variance growth weights, use:
 
 ```text
-Upper Variance Growth Weight ≠ Lower Variance Growth Weight
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
 ```
 
-and should not assume the two sides scale equally.
+This is the Canonical **high-volatility default**.
 
-A Template can intentionally configure a stronger high-end expansion, for example:
+Using the standard example:
 
 ```text
-Upper Variance Growth Weight > Lower Variance Growth Weight
+Template Base Damage = 8
+Damage Growth Weight = 1.0
+Template Lower Variance = 2
+Template Upper Variance = 2
 ```
 
-while still increasing Lower Variance enough to push the possible minimum farther below the Level-adjusted Base Damage.
+At Level 100:
 
-The exact default relationship between the two growth weights is a separate Alpha tuning decision.
+```text
+MonsterDamageGrowth(100) = 7
+Calculated Base Damage = 64
+
+Calculated Lower Variance
+= round(2 × [1 + 7 × 1.50])
+= 23
+
+Calculated Upper Variance
+= round(2 × [1 + 7 × 2.00])
+= 30
+
+Minimum Raw Damage = 64 - 23 = 41
+Maximum Raw Damage = 64 + 30 = 94
+```
+
+Therefore the standard example evolves from:
+
+```text
+Level 1   → 6–10
+Level 100 → 41–94
+```
+
+This satisfies the intended behaviour:
+
+```text
+higher Level
+→ much higher upper limit
+→ substantially lower bottom relative to the Level-scaled Base Damage
+→ wider uncertainty on successful hits
+```
+
+A Profile may still explicitly use lower or higher weights where its design requires more stable or more volatile damage.
 
 ---
 
@@ -303,12 +348,14 @@ Additional Hit Modifier: 0
 Template Base Damage: 10
 Damage Growth Weight: 0.6
 Template Lower Variance: 1
-Lower Variance Growth Weight: 0.4
+Lower Variance Growth Weight: 1.2
 Template Upper Variance: 3
-Upper Variance Growth Weight: 0.9
+Upper Variance Growth Weight: 1.8
 Damage Type: Poison
 Additional Effect: approved poison Status Profile
 ```
+
+The example above explicitly overrides the standard `1.50 / 2.00` variance-growth defaults.
 
 Damage, status, area, range, MP cost, cooldown and other special effects remain separate Profile fields.
 
@@ -375,6 +422,15 @@ Status / special-effect links
 MP / cooldown / usage restrictions where relevant
 ```
 
+When creating a normal Profile, the GM UI should prefill:
+
+```text
+Lower Variance Growth Weight = 1.50
+Upper Variance Growth Weight = 2.00
+```
+
+GM may change either value before saving the Template/Profile.
+
 For a spawned instance, GM should be able to inspect:
 
 ```text
@@ -396,8 +452,8 @@ The UI must make automatic calculation and GM override visibly distinct.
 Recommended human-readable display:
 
 ```text
-Damage: 64
-Range: 42–91
+Base Damage: 64
+Damage Range: 41–94
 ```
 
 rather than forcing an inaccurate symmetric form such as:
@@ -458,22 +514,23 @@ This is required so the upper ceiling and lower floor can evolve independently w
 4. Base Damage uses `MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5` plus per-Profile `Damage Growth Weight`.
 5. Damage variance is asymmetric: Lower and Upper Variance are separate values.
 6. Lower and Upper Variance each have independent Level Growth Weights.
-7. Higher-Level Profiles may have both a higher upper damage ceiling and a lower relative damage floor.
-8. Minimum Raw Damage is clamped to `0`.
-9. GM may separately adjust Base Damage, Lower Variance and Upper Variance at instance level.
-10. Template, calculated and GM-adjusted values remain auditable and separate.
-11. The exact default relationship between Lower and Upper Variance Growth Weights remains unresolved.
-12. The exact Effective Attribute → D100 hit conversion remains unresolved.
+7. Canonical default `Lower Variance Growth Weight = 1.50`.
+8. Canonical default `Upper Variance Growth Weight = 2.00`.
+9. The standard default intentionally creates a wider high-Level range with stronger upper-end expansion.
+10. Minimum Raw Damage is clamped to `0`.
+11. GM may override variance Growth Weights at Template/Profile level and separately adjust Base Damage, Lower Variance and Upper Variance at instance level.
+12. Template, calculated and GM-adjusted values remain auditable and separate.
+13. The exact Effective Attribute → D100 hit conversion remains unresolved.
 
 ---
 
 # 16. Next Decision
 
-The next Monster damage decision is the **default asymmetry** between:
+The next unresolved Monster attack decision is the exact shared conversion from:
 
 ```text
-Lower Variance Growth Weight
-Upper Variance Growth Weight
+Primary Effective Attribute
+→ Attribute-Derived Hit Value
 ```
 
-for standard Monster Attack / Skill Profiles.
+used inside the D100 hit architecture.
