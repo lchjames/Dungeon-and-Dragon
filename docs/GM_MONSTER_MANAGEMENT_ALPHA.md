@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, fixed over-100 Accuracy storage, Attribute-linked damage, Level-generated signed Damage Spread Ranges, and GM correction / overrides.
+> Scope: Defines GM-facing Monster Management for the Hybrid Monster/NPC system, including fixed over-100 Accuracy, Attribute-linked damage, Level-generated signed Spread Ranges, GM correction / overrides, and deferred Monster-specific critical follow-up pending AI design.
 
 ---
 
@@ -64,7 +64,8 @@ For every spawned instance:
 19. Save Final Spread Min / Max
 20. On hit, roll one signed Spread Roll inside the Final range
 21. Calculate Raw Damage
-22. Save instance / combat state
+22. Preserve D100 Great Success / Great Failure state without inventing Monster-specific critical follow-up
+23. Save instance / combat state
 ```
 
 Group spawn runs the complete generation pipeline independently for every Monster.
@@ -104,7 +105,7 @@ Usage restrictions
 Other approved flags
 ```
 
-The former standard fields are superseded and must not be required:
+The following former standard fields are superseded and must not be required:
 
 ```text
 Template Lower Spread
@@ -117,15 +118,13 @@ Lower Variance Growth Weight
 Upper Variance Growth Weight
 ```
 
-Standard Spread is generated from Monster Level and then corrected by GM rather than being fully dictated by fixed Skill-side Min / Max inputs.
+Standard Spread is generated from Monster Level and then corrected by GM.
 
 ---
 
 # 6. Accuracy Rules — No Automatic Level Scaling
 
 Stored Skill Accuracy may exceed 100.
-
-Canonical rule:
 
 ```text
 Monster Level changes
@@ -141,7 +140,7 @@ Lv50  → 80
 Lv100 → 80
 ```
 
-Accuracy may change only through explicit authorised sources such as Profile edits, GM override, Buff / Debuff, Status, Skill properties, or other explicit Accuracy modifiers.
+Accuracy may change only through explicit authorised sources such as Profile edits, GM override, Buff / Debuff, Status, Skill properties, or another explicit Accuracy modifier.
 
 Runtime:
 
@@ -153,8 +152,6 @@ Effective Accuracy
 = min(100, Modified Accuracy)
 ```
 
-Monster Skill Accuracy is not subject to the Player natural Skill cap of 98.
-
 Raw D100 extremes remain:
 
 ```text
@@ -162,13 +159,35 @@ Raw D100 extremes remain:
 100 → Great Success
 ```
 
-These extreme results take precedence over the ordinary threshold.
+These extreme faces take precedence over the ordinary threshold.
 
 GM UI must not present a calculated `Accuracy after Level scaling` field because no such standard calculation exists.
 
 ---
 
-# 7. Damage Attribute Links — GM Multi-Select
+# 7. Critical Follow-Up — Deferred to Monster AI Design
+
+The GM system must preserve the raw D100 extreme state, but must not assume a new Monster-only universal critical effect.
+
+Do not hard-code any of the following as Canonical defaults:
+
+```text
+Great Success = maximum Spread
+Great Success = fixed damage multiplier
+Great Success = automatic defence bypass
+Great Success = automatic Status
+Great Failure = automatic self-damage
+```
+
+Monster Great Success / Great Failure should remain broadly aligned with the shared Player-side D100 critical framework where an already-Canonical common rule applies.
+
+The exact Monster-specific follow-up is deferred until the future Monster Combat AI / behavioural AI design pass, when the project will also decide AI Skill selection and any Profile-specific critical behaviour.
+
+The GM UI should therefore avoid presenting a universal `Critical Damage Multiplier` or `Great Success = Max Spread` control as if it were already locked.
+
+---
+
+# 8. Damage Attribute Links — GM Multi-Select
 
 Each damaging Skill may provide:
 
@@ -202,7 +221,7 @@ This basis modifies damage only, not Accuracy.
 
 ---
 
-# 8. Locked Skill Base-Damage Level Curve
+# 9. Locked Skill Base-Damage Level Curve
 
 ```text
 MonsterDamageGrowth(Level)
@@ -223,7 +242,7 @@ Standard Weight `1.0` reaches 8× Template Base Damage at Level 100.
 
 ---
 
-# 9. Locked Damage Center Formula
+# 10. Locked Damage Center Formula
 
 For an Attribute-linked Skill:
 
@@ -241,7 +260,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 10. Level-Generated Signed Damage Spread Range
+# 11. Level-Generated Signed Damage Spread Range
 
 Spread is one signed interval:
 
@@ -254,20 +273,15 @@ The system first generates an approximate range from Monster Level:
 ```text
 Monster Level
 → Spread Generation Rule / Tuning Table
-→ System Suggested Spread Min
-→ System Suggested Spread Max
+→ System Suggested Spread Min / Max
 ```
 
 The GM then corrects the generated range:
 
 ```text
-System Suggested Spread Min
-+ GM Min Adjustment / Override
-→ Final Spread Min
-
-System Suggested Spread Max
-+ GM Max Adjustment / Override
-→ Final Spread Max
+System Suggested Spread Range
+→ GM Min / Max adjustment or override
+→ Final Spread Range
 ```
 
 Canonical validation:
@@ -298,7 +312,7 @@ Calculated Maximum Raw Damage
 
 ---
 
-# 11. Spread Generation Is a Starting Point, Not Final Authority
+# 12. Spread Generation Is a Starting Point
 
 Canonical responsibility split:
 
@@ -314,59 +328,31 @@ GM
 Examples such as:
 
 ```text
-low Level  → about [-2, +2]
-high Level → about [-5, +15]
+low Level  → about [-2,+2]
+high Level → about [-5,+15]
 ```
 
-represent intended qualitative direction only, not a locked Level table.
+represent intended qualitative direction only, not a locked table.
+
+The exact Level-to-Spread formula remains **Alpha Tuning** until real content creation / play balance.
+
+Implementation should keep Spread tuning data-driven and easy to rebalance.
 
 ---
 
-# 12. Alpha Tuning / Future Balance
-
-The exact Level-to-Spread formula is intentionally deferred until actual Monster and encounter content is being created and play-tested.
-
-The implementation should therefore keep Spread generation **data-driven and easy to rebalance**.
-
-Acceptable future tuning implementations may include Level-band tables, interpolation, curves, or another explicitly approved tuning model, provided the Canonical architecture remains:
-
-```text
-Level
-→ Suggested Spread
-→ GM correction
-→ Final Spread
-```
-
----
-
-# 13. Spread Design Intent
-
-Standard progression may shift from roughly symmetric low-Level ranges toward increasingly positive-skewed high-Level ranges.
-
-```text
-negative edge
-→ may expand modestly
-
-positive edge
-→ may expand more strongly
-```
-
-This preserves low-roll outcomes while allowing substantially larger high-end variation later.
-
----
-
-# 14. Spawned Skill Inspection
+# 13. Spawned Skill Inspection
 
 For every spawned Monster Skill, GM should be able to inspect:
 
 ```text
 Skill Name
 Stored Accuracy
-Current Stored Accuracy / authorised override if any
+Current Stored Accuracy / authorised override
 active Hit Modifiers
 Modified Accuracy
 Effective Accuracy capped at 100
-raw D100 / extreme-result state
+raw D100
+Great Success / Great Failure state
 
 Damage Attribute Links
 current linked Effective Attribute values
@@ -379,14 +365,10 @@ Calculated Base Damage
 Calculated Damage Center
 
 Monster Level used for Spread generation
-System Suggested Spread Min
-System Suggested Spread Max
-GM Spread Min Adjustment / Override
-GM Spread Max Adjustment / Override
-Final Spread Min
-Final Spread Max
-Calculated Minimum Raw Damage
-Calculated Maximum Raw Damage
+System Suggested Spread Min / Max
+GM Spread Min / Max adjustment / override
+Final Spread Min / Max
+Calculated Minimum / Maximum Raw Damage
 Spread Roll when resolved
 Final Raw Damage
 
@@ -397,35 +379,33 @@ MP / cooldown / usage state
 
 Changing Level must never silently mutate Stored Accuracy.
 
-Automatic, suggested, GM-corrected and runtime values must remain visually distinguishable.
+Automatic, suggested, GM-corrected and runtime values must remain distinguishable.
 
 ---
 
-# 15. GM UI Requirements
+# 14. GM UI Requirements
 
 Accuracy should appear as a Profile / override value rather than a Level-derived value:
 
 ```text
 Stored Accuracy: 80
-Level: 1 / 50 / 100
 Automatic Level Accuracy Growth: OFF / N/A
 ```
 
-Spread controls should display something like:
+Spread controls should display:
 
 ```text
-Level: 1
-Suggested Spread: -2 to +2
-GM Min Adjustment / Override: ...
-GM Max Adjustment / Override: ...
-Final Spread: -2 to +2
+Level
+Suggested Spread
+GM Min / Max adjustment or override
+Final Spread
 ```
 
-GM must be able to edit the final Spread boundaries without changing the global Spread-generation tuning data.
+Critical state may be displayed for audit, but Monster-specific critical-result controls should wait for the future AI / critical design pass.
 
 ---
 
-# 16. Template vs Instance Editing
+# 15. Template vs Instance Editing
 
 ```text
 Edit Template Skill
@@ -439,11 +419,18 @@ Persistent instances must not silently lose historical calculated values or over
 
 ---
 
-# 17. Current Unresolved Items
+# 16. Current Deferred / Unresolved Items
 
-Monster Skill Accuracy Level scaling is resolved: **Stored Accuracy does not automatically scale with Monster Level**.
+Resolved:
 
-Resolve separately:
+```text
+Monster Skill Accuracy Level scaling
+→ no automatic Level scaling
+```
 
-1. later Spread-generation numeric tuning during actual content creation / play balance;
-2. later Elite / Boss / richer-profile exceptions where needed.
+Deferred / tuning:
+
+1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to Monster AI design**;
+2. Monster AI Skill selection / behavioural logic — future AI design pass;
+3. numeric Spread-generation tuning — actual content creation / play balance;
+4. later Elite / Boss / richer-profile exceptions where needed.
