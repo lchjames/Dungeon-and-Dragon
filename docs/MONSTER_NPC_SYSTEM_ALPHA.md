@@ -103,8 +103,6 @@ Damage Type
 Template Base Damage
 Damage Growth Weight
 Damage Attribute Links
-Template Spread Min
-Template Spread Max
 Range / targeting
 Status / special effects
 MP cost
@@ -112,7 +110,7 @@ Cooldown
 Usage restrictions
 ```
 
-The previous Lower / Upper Spread and Attribute Ratio fields are superseded by the signed Spread Range model.
+Standard damage Spread is generated from Monster Level and then corrected by GM. Older Lower / Upper Spread, Attribute Ratio, and fixed Template Spread-bound architectures are superseded for the standard Simplified Monster flow.
 
 ---
 
@@ -222,7 +220,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 10. Signed Spread Range Around the Damage Center
+# 10. Level-Linked Signed Spread Range
 
 Spread is one signed interval:
 
@@ -230,11 +228,20 @@ Spread is one signed interval:
 [Final Spread Min, Final Spread Max]
 ```
 
-Examples:
+The system generates an approximate range from Monster Level:
 
 ```text
-[-2, +2]
-[-5, +15]
+Monster Level
+→ Spread Generation Rule / Tuning Table
+→ System Suggested Spread Min / Max
+```
+
+The GM then corrects the suggestion:
+
+```text
+System Suggested Spread Range
+→ GM boundary adjustments / overrides
+→ Final Spread Range
 ```
 
 Runtime:
@@ -257,20 +264,72 @@ Calculated Maximum Raw Damage
 = max(0, Calculated Damage Center + Final Spread Max)
 ```
 
-The intended standard progression is that the negative edge may increase modestly while the positive edge can increase much more strongly.
+---
 
-Conceptually:
+# 11. Spread Design Intent and Balance Authority
+
+The generated Spread Range is deliberately approximate.
+
+Canonical responsibility split:
 
 ```text
-low Level  → [-2, +2]
-high Level → [-5, +15]
+System
+→ produces a fast Level-appropriate starting range
+
+GM
+→ makes the final content-design correction
 ```
 
-The exact rule for calculating Final Spread Min / Max remains unresolved.
+Conceptually, standard progression may look like:
+
+```text
+low Level  → roughly symmetric, e.g. about [-2, +2]
+high Level → more positive-skewed, e.g. about [-5, +15]
+```
+
+These are examples of shape only, not locked values.
+
+The intended direction is:
+
+```text
+negative edge
+→ expands relatively slowly
+
+positive edge
+→ may expand much more strongly
+```
+
+Actual values are expected to be tuned when real Monster, encounter, and campaign content is created and play-tested.
 
 ---
 
-# 11. User-Confirmed Calculation Shape
+# 12. Spread Numeric Formula Is Alpha Tuning
+
+The exact Level-to-Spread formula / table is not part of the locked core combat law yet.
+
+It may later use:
+
+```text
+Level bands
+reference-point interpolation
+curve-based generation
+other approved data-driven tuning
+```
+
+The implementation should keep this tuning easy to edit without rewriting the core resolver.
+
+The invariant is:
+
+```text
+Monster Level
+→ System Suggested Spread
+→ GM correction
+→ Final Spread
+```
+
+---
+
+# 13. User-Confirmed Damage Shape
 
 Conceptual low-roll examples:
 
@@ -287,11 +346,11 @@ Calculated Base Damage
 + signed Spread Roll
 ```
 
-The spread value is therefore an offset inside one signed range, not a separate Lower or Upper mechanic.
+The Spread value is an offset inside one signed Level-generated range, not a separate Lower / Upper mechanic.
 
 ---
 
-# 12. Full Spawn Pipeline
+# 14. Full Spawn Pipeline
 
 ```text
 1. Read Template
@@ -308,18 +367,20 @@ The spread value is therefore an offset inside one signed range, not a separate 
 12. Calculate Damage Attribute Basis
 13. Calculate Level-adjusted Skill Base Damage
 14. Calculate Damage Center = Base Damage + Attribute Basis
-15. Resolve Final Spread Min / Max once the scaling rule is locked
-16. On hit, roll one signed Spread Roll inside that range
-17. Calculate Raw Monster Damage
-18. Apply GM adjustments / combat resolution as authorised
-19. Save/use instance state
+15. Generate Suggested Spread Min / Max from Monster Level
+16. Apply GM Spread correction / override
+17. Save Final Spread Min / Max
+18. On hit, roll one signed Spread Roll inside the Final range
+19. Calculate Raw Monster Damage
+20. Apply defence / resistance / other combat resolution
+21. Save/use instance state
 ```
 
 Group spawn runs the generation pipeline independently for every Monster.
 
 ---
 
-# 13. GM / D1 Requirements
+# 15. GM / D1 Requirements
 
 D1 must preserve enough data to distinguish:
 
@@ -330,9 +391,8 @@ Monster Template
 → Stored Accuracy
 → Template Base Damage / Damage Growth Weight
 → Damage Attribute Links
-→ Template Spread Min / Max
 
-Monster Instance
+Monster Instance / generated Skill state
 → Level
 → base rolls
 → Elite result / bonus
@@ -343,33 +403,34 @@ Monster Instance
 → per-Skill linked Attribute values / Basis
 → calculated Base Damage
 → calculated Damage Center
+→ System Suggested Spread Min / Max
+→ GM Spread adjustments / overrides
 → Final Spread Min / Max
 → Spread Roll when resolved
 → calculated / final Raw Damage
-→ GM overrides
 → final state
 ```
 
-Changing Level recalculates Effective Attributes from preserved Natural values and never rerolls Natural Attributes.
+Changing Level recalculates Effective Attributes from preserved Natural values and regenerates the suggested Spread range from the current Level; GM overrides must remain auditable rather than being silently lost.
 
 ---
 
-# 14. GM Final Adjustment
+# 16. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation and calculation.
 
-Instance adjustment does not mutate the reusable Template unless GM explicitly edits it.
+Instance adjustment does not mutate the reusable Template or global Spread tuning rule unless GM explicitly edits those sources.
 
-Template, calculated and GM-adjusted layers should remain auditable.
+System suggested values, GM corrections and final runtime values should remain auditable.
 
 ---
 
-# 15. Current Unresolved Items
+# 17. Current Unresolved Items
 
 Resolve separately:
 
-1. exact scaling rule for Final Spread Min / Final Spread Max, preserving much smaller negative growth than positive growth;
-2. whether Monster Skill Accuracy itself automatically scales with Level;
+1. whether Monster Skill Accuracy itself automatically scales with Level;
+2. numeric Spread-generation tuning during actual game-content creation / play balance;
 3. Boss-specific generation / modifiers beyond the ordinary Elite rule;
 4. Skill status / Resistance / Immunity details;
 5. Monster EXP rewards;
