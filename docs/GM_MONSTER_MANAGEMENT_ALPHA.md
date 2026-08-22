@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including fixed-damage Attack / Skill Profiles and the locked independent Monster damage Level curve.
+> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including fixed-damage Attack / Skill Profiles, independent Base Damage scaling, and asymmetric Level-scaled damage variance.
 
 ---
 
@@ -69,9 +69,10 @@ For every requested Monster instance, the server independently runs:
 9. Calculate Max MP = Effective INT × 3
 10. Attach approved Attack / Skill Profiles
 11. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
-12. Calculate each Profile's Level-adjusted Base Damage using Damage Growth Weight
-13. Save generated instance
-14. Permit GM final adjustment
+12. Calculate each Profile's Level-adjusted Base Damage
+13. Calculate each Profile's Level-adjusted Lower Variance and Upper Variance independently
+14. Save generated instance
+15. Permit GM final adjustment
 ```
 
 Requesting N Monsters runs the full generation pipeline N separate times. A group spawn never clones one generated result across the group.
@@ -133,13 +134,18 @@ Primary Effective Attribute
 Attack Proficiency
 Additional Hit Modifier
 Template Base Damage
-Damage Variance
 Damage Growth Weight
+Template Lower Variance
+Lower Variance Growth Weight
+Template Upper Variance
+Upper Variance Growth Weight
 Range / Reach
 Targeting
 Optional Status / special-effect links
 Optional MP / cooldown / usage restrictions
 ```
+
+The former single symmetric `Damage Variance` field is superseded for Simplified Monsters.
 
 Simplified Monster offensive Profiles do not require Player-style `damage_dice` fields and do not use the Player STR + SIZ Damage Bonus table by default.
 
@@ -164,30 +170,9 @@ The exact Effective Attribute → `Attribute-Derived Hit Value` formula remains 
 
 ---
 
-# 8. Locked Fixed-Damage Runtime
+# 8. Locked Base Damage Level Curve
 
-After a successful D100 hit:
-
-```text
-Final Base Damage
-± Final Damage Variance
-→ Raw Monster Damage
-→ Defence / Resistance
-→ Damage Result
-→ HP loss only when Damage Result > 0
-```
-
-Variance uses a simple random integer in the configured ± range. It is not a D100 action check and has no Great Success / Great Failure meaning.
-
-`Damage Variance = 0` means completely fixed damage.
-
----
-
-# 9. Locked Independent Monster Damage Level Curve
-
-Monster fixed Base Damage uses its own Level-growth layer and does not reuse the much stronger Attribute curve as a hidden second multiplier.
-
-Canonical global curve:
+Monster fixed Base Damage uses its own Level-growth layer:
 
 ```text
 MonsterDamageGrowth(Level)
@@ -204,14 +189,7 @@ Calculated Base Damage
   )
 ```
 
-The curve satisfies:
-
-```text
-MonsterDamageGrowth(1) = 0
-MonsterDamageGrowth(100) = 7
-```
-
-Therefore with standard `Damage Growth Weight = 1.0`:
+With `Damage Growth Weight = 1.0`:
 
 ```text
 Level 1   → 1.00× Template Base Damage
@@ -226,7 +204,79 @@ The GM UI should expose the formula rather than showing only the final result.
 
 ---
 
-# 10. GM Damage Adjustment
+# 9. Locked Asymmetric Damage Variance Scaling
+
+Damage variance is not a single symmetric `±` value.
+
+Each Profile separately stores and scales:
+
+```text
+Template Lower Variance
+Lower Variance Growth Weight
+
+Template Upper Variance
+Upper Variance Growth Weight
+```
+
+Canonical formulas:
+
+```text
+Calculated Lower Variance
+= round(
+    Template Lower Variance
+    × [1 + MonsterDamageGrowth(Level) × Lower Variance Growth Weight]
+  )
+
+Calculated Upper Variance
+= round(
+    Template Upper Variance
+    × [1 + MonsterDamageGrowth(Level) × Upper Variance Growth Weight]
+  )
+```
+
+The two Growth Weights are independent.
+
+This deliberately supports a higher upper damage ceiling and a lower relative bottom limit as Monster Level rises.
+
+The exact default relationship between the two weights remains an Alpha tuning decision.
+
+---
+
+# 10. Final Damage Range
+
+After automatic calculations and GM adjustments:
+
+```text
+Minimum Raw Damage
+= max(0, Final Base Damage - Final Lower Variance)
+
+Maximum Raw Damage
+= Final Base Damage + Final Upper Variance
+```
+
+After a successful D100 hit:
+
+```text
+Raw Monster Damage
+= random integer from Minimum Raw Damage to Maximum Raw Damage
+```
+
+The random damage selection is not a D100 action check and has no Great Success / Great Failure meaning.
+
+The `0` floor prevents negative raw damage or accidental healing.
+
+The GM UI should show the actual range, for example:
+
+```text
+Base Damage: 64
+Damage Range: 42–91
+```
+
+rather than an inaccurate symmetric `64 ± X` display.
+
+---
+
+# 11. GM Damage Adjustment
 
 GM may perform final authorised per-instance damage adjustments after automatic Level scaling.
 
@@ -241,20 +291,20 @@ Calculated Base Damage
 GM Base Damage Adjustment
 Final Base Damage
 
-Template / Calculated Damage Variance
-GM Variance Adjustment
-Final Damage Variance
-```
+Template Lower Variance
+Lower Variance Growth Weight
+Calculated Lower Variance
+GM Lower Variance Adjustment
+Final Lower Variance
 
-Canonical order:
+Template Upper Variance
+Upper Variance Growth Weight
+Calculated Upper Variance
+GM Upper Variance Adjustment
+Final Upper Variance
 
-```text
-Template Base Damage
-→ global Monster Damage Level Curve
-→ Damage Growth Weight
-→ Calculated Base Damage
-→ GM Base Damage Adjustment
-→ Final Base Damage
+Final Minimum Raw Damage
+Final Maximum Raw Damage
 ```
 
 A GM instance adjustment affects only that Monster unless GM explicitly edits the reusable Template/Profile.
@@ -263,32 +313,32 @@ Template values, calculated values and instance overrides must not be collapsed 
 
 ---
 
-# 11. Damage Growth Weight Editing
+# 12. Growth Weight Editing
 
-GM must be able to edit `Damage Growth Weight` separately for each Attack / Skill Profile.
-
-Canonical meaning:
+GM must be able to edit independently for each Attack / Skill Profile:
 
 ```text
-0.0 → no Level-derived damage growth
-0.5 → half standard damage-growth component
-1.0 → standard damage growth; 8× total at Level 100
-1.5 → 1.5× standard Level-derived growth component
+Damage Growth Weight
+Lower Variance Growth Weight
+Upper Variance Growth Weight
 ```
 
-The Weight only affects the Level-derived component and does not change the Level-1 baseline.
-
-At Level 100:
+Base Damage Weight meaning:
 
 ```text
-Weight 0.5 → 4.5× total damage baseline
-Weight 1.0 → 8.0×
-Weight 1.5 → 11.5×
+0.0 → no Level-derived Base Damage growth
+0.5 → half standard Base Damage growth component
+1.0 → standard Base Damage growth; 8× total at Level 100
+1.5 → 1.5× standard Level-derived Base Damage growth component
 ```
+
+Lower and Upper Variance weights follow the same "growth component only" principle but independently control the two sides of the final damage range.
+
+At Level 1, all Growth Weights leave their Template baseline values unchanged.
 
 ---
 
-# 12. Spawned Attack / Skill Inspection
+# 13. Spawned Attack / Skill Inspection
 
 For each offensive Profile on a spawned Monster, GM should be able to inspect:
 
@@ -299,23 +349,33 @@ Attribute-Derived Hit Value
 Attack Proficiency
 Additional Hit Modifier
 Final D100 attack basis
+
 Template Base Damage
 MonsterDamageGrowth(Level)
 Damage Growth Weight
 Calculated Base Damage
 GM Base Damage Adjustment
 Final Base Damage
-Final Damage Variance
-Displayed final damage band
+
+Template Lower Variance
+Lower Variance Growth Weight
+Calculated / GM-adjusted / Final Lower Variance
+
+Template Upper Variance
+Upper Variance Growth Weight
+Calculated / GM-adjusted / Final Upper Variance
+
+Final Minimum Raw Damage
+Final Maximum Raw Damage
 Damage Type
 Special-effect references
 ```
 
-This keeps both accuracy and damage explainable.
+This keeps both accuracy and the full damage band explainable.
 
 ---
 
-# 13. Template vs Instance Editing
+# 14. Template vs Instance Editing
 
 ```text
 Edit Template
@@ -329,34 +389,38 @@ Any recalculation of persistent instances after a deliberate Template change mus
 
 ---
 
-# 14. Superseded Simplified Monster Damage Fields
+# 15. Superseded Simplified Monster Damage Fields
 
 The GM UI should not require the older Simplified Monster fields:
 
 ```text
 Damage Profile / damage dice
 Apply STR + SIZ Character Damage Bonus
+single symmetric Damage Variance
 ```
 
 These are replaced by:
 
 ```text
 Template Base Damage
-Damage Variance
 Damage Growth Weight
-Calculated Base Damage
-GM Damage Adjustment
-Final Base Damage
+Template Lower Variance
+Lower Variance Growth Weight
+Template Upper Variance
+Upper Variance Growth Weight
+Calculated values
+GM adjustments
+Final damage range
 ```
 
 Player Character damage configuration remains unaffected.
 
 ---
 
-# 15. Current Unresolved Items
+# 16. Current Unresolved Items
 
 Still to be decided separately:
 
-1. whether Damage Variance stays constant with Level or scales;
+1. default relationship between Lower Variance Growth Weight and Upper Variance Growth Weight;
 2. exact Effective Attribute → D100 hit conversion;
 3. later Elite/Boss/richer-profile exceptions where needed.
