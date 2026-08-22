@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, one dedicated Skill Base-Damage Level curve, and instance overrides.
+> Scope: Defines the GM-facing Monster Management workspace for the Hybrid Monster/NPC system, including dedicated Monster Skills, over-100 Accuracy storage, Attribute-linked damage, one dedicated Skill Base-Damage Level curve, locked lower/upper Attribute ratios, and instance overrides.
 
 ---
 
@@ -58,9 +58,10 @@ For every spawned instance:
 13. Calculate Damage Attribute Basis for linked Skills
 14. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
 15. Calculate each damaging Skill's Level-adjusted Base Damage
-16. Combine Template Lower / Upper Spread with Attribute-derived lower / upper contributions once the coefficient rule is locked
-17. Save instance
-18. Permit GM final adjustments
+16. Calculate Attribute-derived Lower / Upper Contributions from the Skill ratios
+17. Calculate Minimum / Maximum Raw Damage
+18. Save instance
+19. Permit GM final adjustments
 ```
 
 Group spawn runs the complete pipeline independently for every Monster.
@@ -93,6 +94,8 @@ Damage Growth Weight
 Template Lower Spread
 Template Upper Spread
 Damage Attribute Links
+Lower Attribute Ratio
+Upper Attribute Ratio
 Range / Reach
 Targeting
 Status / special-effect links
@@ -217,15 +220,61 @@ This remains the only dedicated Monster Level curve inside the Skill damage-rang
 
 ---
 
-# 10. Revised Lower / Upper Damage Architecture
+# 10. Locked Attribute-Ratio Damage Range
 
-The previous independent Lower / Upper variance Level-scaling model is superseded.
+Each damaging Skill stores:
+
+```text
+Template Lower Spread
+Template Upper Spread
+Lower Attribute Ratio
+Upper Attribute Ratio
+```
+
+The Template Spread values are static Profile baseline spread and do not have Level Growth Weights.
+
+Canonical Attribute contribution formulas:
+
+```text
+Attribute-derived Lower Contribution
+= round(Damage Attribute Basis × Lower Attribute Ratio)
+
+Attribute-derived Upper Contribution
+= round(Damage Attribute Basis × Upper Attribute Ratio)
+```
+
+Canonical range formulas:
+
+```text
+Calculated Minimum Raw Damage
+= max(
+    0,
+    Calculated Base Damage
+    - Template Lower Spread
+    - Attribute-derived Lower Contribution
+  )
+
+Calculated Maximum Raw Damage
+= Calculated Base Damage
+  + Template Upper Spread
+  + Attribute-derived Upper Contribution
+```
+
+If a Skill has no Damage Attribute Links, its Attribute-derived contributions are `0`.
+
+The two ratios remain independent so Skill design may intentionally widen the upper ceiling more than the lower side.
+
+Default ratio values remain a separate unresolved tuning decision.
+
+---
+
+# 11. Superseded Lower / Upper Level Curves
 
 Do not calculate:
 
 ```text
-Lower Variance × MonsterDamageGrowth(Level)
-Upper Variance × MonsterDamageGrowth(Level)
+Lower Spread × MonsterDamageGrowth(Level)
+Upper Spread × MonsterDamageGrowth(Level)
 ```
 
 and do not use the former standard variance-growth defaults:
@@ -235,54 +284,14 @@ Lower Growth Weight = 1.50
 Upper Growth Weight = 2.00
 ```
 
-Instead use:
+Monster Level already affects damage through:
 
 ```text
-Calculated Base Damage
-
-Template Lower Spread
-Template Upper Spread
-
-Damage Attribute Links
-selected Effective Attribute values
-Damage Attribute Basis
-
-→ Attribute-derived Lower contribution
-→ Attribute-derived Upper contribution
-→ Calculated Minimum / Maximum Raw Damage
-→ GM final damage adjustments
-→ Final Minimum / Maximum Raw Damage
+Level → Calculated Base Damage
+Level → Effective Attributes → Damage Attribute Basis
 ```
 
-The purpose is to avoid triple Level scaling:
-
-```text
-Level already scales Effective Attributes
-Level already scales Skill Base Damage
-Lower / Upper spread should therefore receive Level sensitivity through linked Effective Attributes,
-not through another independent Level curve
-```
-
----
-
-# 11. Template Lower / Upper Spread
-
-A Skill may store static Profile baseline spread:
-
-```text
-Template Lower Spread
-Template Upper Spread
-```
-
-These values do not have Level Growth Weights.
-
-For an unlinked Skill they may define the ordinary Profile band around Calculated Base Damage.
-
-For an Attribute-linked Skill they combine with the Attribute-derived lower / upper contribution.
-
-The exact coefficient / ratio converting `Damage Attribute Basis` into lower / upper contribution remains unresolved and must not be invented by implementation.
-
-Final Minimum Raw Damage must never be below `0`.
+No third Lower / Upper Level curve is permitted in the standard Simplified Monster Skill model.
 
 ---
 
@@ -310,8 +319,10 @@ GM Base Damage Adjustment
 
 Template Lower Spread
 Template Upper Spread
-Attribute-derived Lower contribution
-Attribute-derived Upper contribution
+Lower Attribute Ratio
+Upper Attribute Ratio
+Attribute-derived Lower Contribution
+Attribute-derived Upper Contribution
 Calculated Minimum Raw Damage
 Calculated Maximum Raw Damage
 GM lower / upper damage adjustments
@@ -366,9 +377,10 @@ Damage Attribute Links
 Damage Attribute Basis from Effective Attributes
 one Skill Base-Damage Level curve
 static Template Lower / Upper Spread
-Attribute-derived lower / upper damage contribution
+Lower / Upper Attribute Ratio
+Attribute-derived lower / upper contribution
 GM adjustments
-final damage-range resolver
+final damage range
 ```
 
 ---
@@ -377,6 +389,6 @@ final damage-range resolver
 
 Resolve separately:
 
-1. exact formula converting Damage Attribute Basis into Attribute-derived Lower / Upper contribution;
+1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for a new standard damaging Monster Skill;
 2. whether Monster Skill Accuracy itself automatically scales with Level;
 3. later Elite / Boss / richer-profile exceptions where needed.
