@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines GM-facing Monster Management for the Hybrid Monster/NPC system, including fixed over-100 Accuracy, Attribute-linked damage, Level-generated signed Spread Ranges, GM correction / overrides, and deferred Monster-specific critical follow-up pending AI design.
+> Scope: Defines GM-facing Monster Management for the Hybrid Monster/NPC system, including reusable Common Monster Skills, Boss common-plus-unique Skill loadouts, fixed over-100 Accuracy, Attribute-linked damage, Level-generated signed Spread Ranges, GM correction / overrides, and deferred Monster-specific critical follow-up pending AI design.
 
 ---
 
@@ -12,7 +12,9 @@ The GM workspace must include a dedicated `Monster Management` page/tab for:
 
 ```text
 Monster Templates
+Common Monster Skill Library
 Monster Skill Profiles
+Boss / Elite Skill Loadouts
 spawned Monster Instances
 instance-level GM adjustments
 ```
@@ -38,7 +40,58 @@ Template editing must not silently erase spawned-instance history.
 
 ---
 
-# 3. Spawn Workflow
+# 3. Common Monster Skill Library
+
+GM tooling should support a reusable Common Monster Skill Library.
+
+Each library entry is a normal Monster Skill Profile and may be reused by multiple Monster Templates.
+
+Typical common entries may include:
+
+```text
+Bite
+Claw
+Charge
+Tail Swipe
+Basic weapon strike
+Simple projectile
+Basic elemental attack
+```
+
+The library is intended to reduce repetitive authoring. It is not a separate combat system.
+
+---
+
+# 4. Boss Skill Authoring — Common + Unique
+
+Bosses use the same Monster Skill Profile architecture as ordinary Monsters.
+
+A Boss loadout may combine:
+
+```text
+Common Monster Skills
++ GM-authored unique Boss Skills
+```
+
+The GM may:
+
+```text
+1. Add an existing Common Monster Skill directly as a basic / ordinary Boss action
+2. Use a Common Monster Skill as an authoring reference / starting point
+3. Create a new unique Monster Skill specifically for that Boss
+```
+
+A unique Boss Skill uses the same Monster Skill Profile fields, Accuracy rules, damage resolver, Spread system, MP / cooldown handling, and audit model as other Monster Skills unless a later explicit exception is approved.
+
+Do not create a parallel Boss-only Skill engine merely because a Skill is unique.
+
+Player Character Skill / Ability progression remains separate. A standard Boss does not automatically use Player Skill Points, Player natural-skill progression, or Player Ability-learning rules.
+
+Only an important / persistent NPC intentionally built with the Full Character Model may use Player-like progression because of that NPC model.
+
+---
+
+# 5. Spawn Workflow
 
 For every spawned instance:
 
@@ -52,7 +105,7 @@ For every spawned instance:
 7. Calculate Effective Attributes
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
 9. Calculate Max MP = Effective INT × 3
-10. Attach approved Monster Skill Profiles
+10. Attach approved Monster Skill Profiles from Common Library and/or Template/Boss-specific authoring
 11. Preserve each Skill's Stored Accuracy exactly; Monster Level does not scale it
 12. Resolve Damage Attribute Links against current Effective Attributes
 13. Calculate Damage Attribute Basis
@@ -72,7 +125,7 @@ Group spawn runs the complete generation pipeline independently for every Monste
 
 ---
 
-# 4. Resource Handling
+# 6. Resource Handling
 
 ```text
 Calculated Max HP = ceil((Effective CON + Effective SIZ) / 2)
@@ -85,7 +138,7 @@ GM may adjust final/current HP and MP at instance level while calculated and man
 
 ---
 
-# 5. Monster Skill Profile Fields
+# 7. Monster Skill Profile Fields
 
 Each Monster Skill Profile may expose:
 
@@ -122,7 +175,7 @@ Standard Spread is generated from Monster Level and then corrected by GM.
 
 ---
 
-# 6. Accuracy Rules — No Automatic Level Scaling
+# 8. Accuracy Rules — No Automatic Level Scaling
 
 Stored Skill Accuracy may exceed 100.
 
@@ -165,7 +218,7 @@ GM UI must not present a calculated `Accuracy after Level scaling` field because
 
 ---
 
-# 7. Critical Follow-Up — Deferred to Monster AI Design
+# 9. Critical Follow-Up — Deferred to Monster AI Design
 
 The GM system must preserve the raw D100 extreme state, but must not assume a new Monster-only universal critical effect.
 
@@ -183,11 +236,9 @@ Monster Great Success / Great Failure should remain broadly aligned with the sha
 
 The exact Monster-specific follow-up is deferred until the future Monster Combat AI / behavioural AI design pass, when the project will also decide AI Skill selection and any Profile-specific critical behaviour.
 
-The GM UI should therefore avoid presenting a universal `Critical Damage Multiplier` or `Great Success = Max Spread` control as if it were already locked.
-
 ---
 
-# 8. Damage Attribute Links — GM Multi-Select
+# 10. Damage Attribute Links — GM Multi-Select
 
 Each damaging Skill may provide:
 
@@ -221,7 +272,7 @@ This basis modifies damage only, not Accuracy.
 
 ---
 
-# 9. Locked Skill Base-Damage Level Curve
+# 11. Locked Skill Base-Damage Level Curve
 
 ```text
 MonsterDamageGrowth(Level)
@@ -242,7 +293,7 @@ Standard Weight `1.0` reaches 8× Template Base Damage at Level 100.
 
 ---
 
-# 10. Locked Damage Center Formula
+# 12. Locked Damage Center Formula
 
 For an Attribute-linked Skill:
 
@@ -260,7 +311,7 @@ Calculated Damage Center = Calculated Base Damage
 
 ---
 
-# 11. Level-Generated Signed Damage Spread Range
+# 13. Level-Generated Signed Damage Spread Range
 
 Spread is one signed interval:
 
@@ -312,7 +363,7 @@ Calculated Maximum Raw Damage
 
 ---
 
-# 12. Spread Generation Is a Starting Point
+# 14. Spread Generation Is a Starting Point
 
 Canonical responsibility split:
 
@@ -340,12 +391,13 @@ Implementation should keep Spread tuning data-driven and easy to rebalance.
 
 ---
 
-# 13. Spawned Skill Inspection
+# 15. Spawned Skill Inspection
 
 For every spawned Monster Skill, GM should be able to inspect:
 
 ```text
 Skill Name
+Skill source / origin where available
 Stored Accuracy
 Current Stored Accuracy / authorised override
 active Hit Modifiers
@@ -377,13 +429,13 @@ Status / special-effect references
 MP / cooldown / usage state
 ```
 
-Changing Level must never silently mutate Stored Accuracy.
+Where practical, source/origin should distinguish a Common Library Skill from a Template-specific or Boss-specific unique Skill.
 
-Automatic, suggested, GM-corrected and runtime values must remain distinguishable.
+Changing Level must never silently mutate Stored Accuracy.
 
 ---
 
-# 14. GM UI Requirements
+# 16. GM UI Requirements
 
 Accuracy should appear as a Profile / override value rather than a Level-derived value:
 
@@ -401,15 +453,24 @@ GM Min / Max adjustment or override
 Final Spread
 ```
 
+Boss Skill loadout authoring should provide both routes in the same workflow:
+
+```text
+Add from Common Monster Skill Library
+Create New Unique Monster Skill
+```
+
+A unique Boss Skill editor uses the same Monster Skill Profile fields as the Common Library.
+
 Critical state may be displayed for audit, but Monster-specific critical-result controls should wait for the future AI / critical design pass.
 
 ---
 
-# 15. Template vs Instance Editing
+# 17. Template vs Instance Editing
 
 ```text
-Edit Template Skill
-→ changes reusable Skill definition / future use
+Edit reusable Common / Template Skill
+→ changes the reusable Skill definition / future use according to normal Template rules
 
 Edit Spawned Skill Override
 → changes only that Monster instance
@@ -419,13 +480,17 @@ Persistent instances must not silently lose historical calculated values or over
 
 ---
 
-# 16. Current Deferred / Unresolved Items
+# 18. Current Deferred / Unresolved Items
 
 Resolved:
 
 ```text
 Monster Skill Accuracy Level scaling
 → no automatic Level scaling
+
+Boss Skill authoring architecture
+→ Common Monster Skills + GM-authored unique Monster Skills
+→ same Monster Skill Profile system
 ```
 
 Deferred / tuning:
@@ -433,4 +498,4 @@ Deferred / tuning:
 1. Monster Great Success / Great Failure post-resolution behaviour — **DEFERRED to Monster AI design**;
 2. Monster AI Skill selection / behavioural logic — future AI design pass;
 3. numeric Spread-generation tuning — actual content creation / play balance;
-4. later Elite / Boss / richer-profile exceptions where needed.
+4. Boss stat / resource / phase / generation modifiers beyond the resolved Skill-loadout architecture.
