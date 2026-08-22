@@ -2,8 +2,8 @@
 
 > Status: Canonical Alpha Override  
 > Date: 2026-08-22  
-> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked damage, and the signed Level-linked `Damage Spread Range` model.  
-> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, used Attribute Ratios to widen damage, split spread into separate Lower / Upper mechanisms, or required a final fixed Spread progression formula before content tuning.
+> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, fixed Accuracy across Monster Levels, D100 extreme-result precedence, Attribute-linked damage, and the signed Level-linked `Damage Spread Range` model.  
+> This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, automatically scaled Skill Accuracy with Monster Level, used Attribute Ratios to widen damage, split spread into separate Lower / Upper mechanisms, or required a final fixed Spread progression formula before content tuning.
 
 ---
 
@@ -31,7 +31,7 @@ Accuracy and damage remain separate properties.
 
 ---
 
-# 2. Independent Skill Accuracy
+# 2. Independent Skill Accuracy — Fixed Across Level
 
 ```text
 Monster Skill Accuracy
@@ -39,6 +39,36 @@ Monster Skill Accuracy
 ```
 
 Stored Accuracy may exceed `100` and is not subject to the Player natural Skill-value cap of `98`.
+
+Canonical Level rule:
+
+```text
+Monster Level changes
+→ do not automatically change Stored Accuracy
+→ do not recalculate Stored Accuracy
+```
+
+Example:
+
+```text
+Skill Stored Accuracy = 80
+Lv1   → 80
+Lv50  → 80
+Lv100 → 80
+```
+
+Stored Accuracy changes only through an explicit authorised source such as:
+
+```text
+Template / Skill Profile edit
+GM authorised override
+Buff / Debuff
+Status
+Skill property / special effect
+other explicit Accuracy modifier
+```
+
+Ordinary runtime Accuracy remains:
 
 ```text
 Modified Accuracy
@@ -50,7 +80,7 @@ Effective Accuracy
 
 Accuracy above 100 acts as reserve against later negative Accuracy modifiers.
 
-Accuracy is not automatically calculated from STR / DEX / CON / POW / INT / SIZ, Natural Attributes, Effective Attributes, Attack Proficiency, Player weapon specialization, or Player Skill Point progression.
+Accuracy is not automatically calculated from STR / DEX / CON / POW / INT / SIZ, Natural Attributes, Effective Attributes, Attack Proficiency, Player weapon specialization, Player Skill Point progression, or Monster Level.
 
 ---
 
@@ -357,7 +387,8 @@ Spread Roll
 
 ```text
 Declare Monster Skill
-→ Stored Accuracy + active Hit Modifiers
+→ read fixed Stored Accuracy from Skill Profile
+→ apply active Hit Modifiers
 → calculate Modified Accuracy
 → cap Effective Accuracy at 100
 → roll D100
@@ -375,6 +406,8 @@ Declare Monster Skill
 → resolve approved secondary effects
 ```
 
+Monster Level is not an Accuracy step in this resolver.
+
 ---
 
 # 14. GM / Audit Requirements
@@ -383,6 +416,7 @@ For each spawned Skill, preserve at least:
 
 ```text
 Template Stored Accuracy
+Current Stored Accuracy / authorised override if any
 Current Hit Modifiers
 Modified Accuracy
 Effective Accuracy after 100 cap
@@ -411,13 +445,23 @@ Calculated Maximum Raw Damage
 Final Raw Damage
 ```
 
+Changing Monster Level must not silently mutate Stored Accuracy.
+
 System-generated, GM-corrected and runtime values must remain distinguishable.
 
 ---
 
 # 15. GM Skill / Instance UI Requirements
 
-The GM UI should show the Level-generated range and editable final controls together:
+The GM UI should display Accuracy as a Profile value, not a Level-derived calculated field:
+
+```text
+Stored Accuracy: 80
+Level: 1 / 50 / 100
+Accuracy after Level scaling: N/A
+```
+
+The Level-generated Spread range and editable final controls should remain visible together:
 
 ```text
 Monster Level
@@ -427,38 +471,38 @@ GM Max Adjustment / Override
 Final Spread: -2 to +2
 ```
 
-At another Level it may display, for example:
-
-```text
-Suggested Spread: -5 to +15
-```
-
-The GM must be able to correct either boundary without editing the underlying global tuning rule.
+The GM must be able to correct either Spread boundary without editing the underlying global tuning rule.
 
 ---
 
 # 16. Locked Conclusions
 
 1. Simplified Monster offensive actions use dedicated Monster Skill Profiles.
-2. Stored Accuracy is independent, may exceed 100, and only Effective Accuracy is capped at 100 after modifiers.
-3. Raw D100 `1` is Great Failure and raw D100 `100` is Great Success.
-4. Skill Accuracy is not Attribute-derived.
-5. Skill damage may link to zero, one or multiple STR / DEX / CON / POW / INT / SIZ values.
-6. Multiple linked Attributes use arithmetic mean of current Effective Attributes.
-7. Skill Base Damage retains the locked Monster damage Level curve.
-8. Attribute-linked Damage Center is `Calculated Base Damage + Damage Attribute Basis`.
-9. Spread is one signed inclusive interval `[Final Spread Min, Final Spread Max]`.
-10. Spread Roll is one random integer drawn from that signed interval after a successful hit.
-11. Raw Monster Damage is `max(0, Damage Center + Spread Roll)`.
-12. Standard Spread Range generation is linked to Monster Level.
-13. The system generates an approximate/suggested Level-appropriate range first.
-14. GM then manually corrects / overrides either boundary to obtain the Final Spread Range.
-15. Low-Level ranges may be roughly symmetric; high-Level ranges may become more positive-skewed.
-16. Exact Level-to-Spread numbers / curve remain Alpha Tuning and are intentionally deferred until content creation and play-balance work.
-17. Implementation should keep Spread tuning data-driven / easy to rebalance rather than hard-coding temporary coefficients into the core combat model.
+2. Stored Accuracy is independent and may exceed 100.
+3. **Stored Accuracy does not automatically scale with Monster Level.**
+4. Changing Monster Level does not recalculate Stored Accuracy.
+5. Accuracy changes only through explicit authorised Profile / GM / Buff / Debuff / Status / Skill effects or modifiers.
+6. Only Effective Accuracy used for the ordinary threshold is capped at 100 after modifiers.
+7. Raw D100 `1` is Great Failure and raw D100 `100` is Great Success.
+8. Skill Accuracy is not Attribute-derived.
+9. Skill damage may link to zero, one or multiple STR / DEX / CON / POW / INT / SIZ values.
+10. Multiple linked Attributes use arithmetic mean of current Effective Attributes.
+11. Skill Base Damage retains the locked Monster damage Level curve.
+12. Attribute-linked Damage Center is `Calculated Base Damage + Damage Attribute Basis`.
+13. Spread is one signed inclusive interval `[Final Spread Min, Final Spread Max]`.
+14. Spread Roll is one random integer drawn from that signed interval after a successful hit.
+15. Raw Monster Damage is `max(0, Damage Center + Spread Roll)`.
+16. Standard Spread Range generation is linked to Monster Level.
+17. The system generates an approximate/suggested Level-appropriate range first.
+18. GM then manually corrects / overrides either boundary to obtain the Final Spread Range.
+19. Low-Level ranges may be roughly symmetric; high-Level ranges may become more positive-skewed.
+20. Exact Level-to-Spread numbers / curve remain Alpha Tuning and are intentionally deferred until content creation and play-balance work.
+21. Implementation should keep Spread tuning data-driven / easy to rebalance rather than hard-coding temporary coefficients into the core combat model.
 
 ---
 
 # 17. Next Unresolved Decision
 
-The next Monster Skill decision is whether Stored Skill Accuracy itself normally receives automatic Monster-Level scaling, or remains a Profile value changed only by explicit modifiers / GM changes.
+Monster Skill Accuracy Level scaling is resolved: **no automatic Level scaling**.
+
+The next unresolved Monster-system work should proceed to another independent item, while numeric Spread-generation tuning remains deferred to actual content creation / play balance.
