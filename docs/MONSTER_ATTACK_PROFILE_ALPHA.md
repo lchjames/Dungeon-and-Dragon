@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Override  
 > Date: 2026-08-22  
-> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked fixed-range damage, one dedicated Base-Damage Level curve, and asymmetric lower/upper Attribute contribution.  
+> Scope: Defines Simplified Monster dedicated Skills, including independent per-Skill Accuracy, over-100 Accuracy storage, D100 extreme-result precedence, Attribute-linked fixed-range damage, one dedicated Base-Damage Level curve, and strongly asymmetric lower/upper Attribute contribution.  
 > This file supersedes older Monster-specific wording that derived hit chance from Effective Attributes / Attack Proficiency, gave Lower / Upper damage spread their own Monster Level growth curves, or treated the lower-side reduction as growing at a similar scale to the upper-side bonus.
 
 ---
@@ -227,11 +227,11 @@ No separate Lower / Upper Monster Level curve is applied.
 
 ---
 
-# 8. Locked Asymmetry Intent — Lower Penalty Must Grow Far More Slowly
+# 8. Locked Standard Asymmetry and Default Ratios
 
 The lower and upper sides are **not intended to expand symmetrically**.
 
-The design intent is:
+Canonical design intent:
 
 ```text
 successful hit
@@ -243,13 +243,16 @@ higher Monster power / Effective Attributes
 → upper-side bonus may increase substantially
 ```
 
-Therefore, for ordinary damaging Monster Skills:
+For ordinary damaging Monster Skills, the Canonical default pair is:
 
 ```text
-Upper Attribute Ratio > Lower Attribute Ratio
+Lower Attribute Ratio = 0.10
+Upper Attribute Ratio = 0.50
 ```
 
-and the normal tuning target is a **strong asymmetry** where:
+These are defaults, not mandatory values for every Skill. GM may override either ratio per Skill/Profile or by authorised instance adjustment.
+
+The normal relationship is therefore:
 
 ```text
 Upper Attribute Contribution ≫ Lower Attribute Contribution
@@ -257,22 +260,11 @@ Upper Attribute Contribution ≫ Lower Attribute Contribution
 
 The lower side remains a real low-roll penalty, but it must not scale at a similar magnitude to the upper-side reward.
 
-This corrects the earlier example that used relatively close ratios such as:
-
-```text
-Lower 0.30
-Upper 0.45
-```
-
-which made high-Level low rolls fall too far below the fixed/base damage.
-
-The exact default ratio pair remains unresolved, but any proposed default must preserve the principle that the lower reduction is much smaller than the upper increase.
+The earlier near-symmetric examples such as `0.30 / 0.45` are superseded as standard tuning examples.
 
 ---
 
-# 9. Correct Interpretation Example
-
-Illustrative only — not Canonical default values:
+# 9. Canonical Standard Example
 
 ```text
 Calculated Base Damage = 64
@@ -293,13 +285,13 @@ Minimum = 64 - 2 - 7 = 55
 Maximum = 64 + 2 + 33 = 99
 ```
 
-This illustrates the intended shape:
+Final calculated range:
 
 ```text
-55–99 around a Base Damage of 64
+55–99
 ```
 
-The Skill can still deal meaningfully less than its Base Damage, but the lower-side penalty is much smaller than the available high-end bonus.
+This preserves the intended shape: low rolls can still fall below Base Damage, while the late-game upside is much larger than the downside.
 
 ---
 
@@ -414,13 +406,14 @@ Usage restrictions
 Other approved flags
 ```
 
-The UI should make the asymmetry visible and should warn, rather than silently prevent, when a standard Skill is configured with:
+For a new standard damaging Skill, the UI should prefill:
 
 ```text
-Lower Attribute Ratio >= Upper Attribute Ratio
+Lower Attribute Ratio = 0.10
+Upper Attribute Ratio = 0.50
 ```
 
-because that normally conflicts with the intended standard damage-band shape. GM may still deliberately configure exceptional Skills differently.
+The UI should make the asymmetry visible and may warn, rather than silently prevent, when a standard Skill is configured with `Lower Attribute Ratio >= Upper Attribute Ratio`. GM may deliberately configure exceptional Skills differently.
 
 ---
 
@@ -441,17 +434,12 @@ because that normally conflicts with the intended standard damage-band shape. GM
 13. Minimum damage is `max(0, Base - Lower Spread - Lower Contribution)`.
 14. Maximum damage is `Base + Upper Spread + Upper Contribution`.
 15. Standard Skill design requires strong asymmetry: the upper-side Attribute bonus should be substantially larger than the lower-side reduction.
-16. The lower side remains capable of producing damage below Base Damage, but its late-game penalty must grow far more slowly than the high-end bonus.
-17. GM may deliberately override the asymmetry for exceptional Skills.
-18. Exact default `Lower Attribute Ratio` / `Upper Attribute Ratio` values remain unresolved.
+16. Canonical standard defaults are `Lower Attribute Ratio = 0.10` and `Upper Attribute Ratio = 0.50`.
+17. GM may override these defaults for exceptional Skills.
+18. GM may perform final instance adjustments while all calculation layers remain auditable.
 
 ---
 
 # 15. Next Decision
 
-The next decision is the default pair used when a new standard damaging Monster Skill is created, under the now-locked condition that the lower-side penalty must be much smaller than the upper-side bonus:
-
-```text
-Lower Attribute Ratio = ?
-Upper Attribute Ratio = ?
-```
+The next unresolved Monster Skill decision is whether Stored Skill Accuracy itself receives automatic Monster-Level scaling, or normally remains a Profile value changed only by explicit modifiers / GM changes.
