@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-22  
-> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including fixed-damage Attack / Skill Profiles and independent Monster damage Level scaling.
+> Scope: Defines the GM-facing Monster Management workspace required by the Hybrid Monster/NPC system, including fixed-damage Attack / Skill Profiles and the locked independent Monster damage Level curve.
 
 ---
 
@@ -68,9 +68,10 @@ For every requested Monster instance, the server independently runs:
 8. Calculate Max HP = ceil((Effective CON + Effective SIZ) / 2)
 9. Calculate Max MP = Effective INT × 3
 10. Attach approved Attack / Skill Profiles
-11. Calculate each Profile's Level-adjusted Base Damage from the independent Monster Damage Level Curve + Damage Growth Weight
-12. Save generated instance
-13. Permit GM final adjustment
+11. Calculate MonsterDamageGrowth(Level) = 7 × ((Level - 1) / 99)^1.5
+12. Calculate each Profile's Level-adjusted Base Damage using Damage Growth Weight
+13. Save generated instance
+14. Permit GM final adjustment
 ```
 
 Requesting N Monsters runs the full generation pipeline N separate times. A group spawn never clones one generated result across the group.
@@ -182,13 +183,18 @@ Variance uses a simple random integer in the configured ± range. It is not a D1
 
 ---
 
-# 9. Independent Monster Damage Level Scaling
+# 9. Locked Independent Monster Damage Level Curve
 
-Monster fixed Base Damage has its own Level-growth layer.
+Monster fixed Base Damage uses its own Level-growth layer and does not reuse the much stronger Attribute curve as a hidden second multiplier.
 
-It must not reuse the much stronger Attribute growth curve as a hidden second multiplier.
+Canonical global curve:
 
-Canonical architecture:
+```text
+MonsterDamageGrowth(Level)
+= 7 × ((Level - 1) / 99)^1.5
+```
+
+Per Profile:
 
 ```text
 Calculated Base Damage
@@ -198,25 +204,25 @@ Calculated Base Damage
   )
 ```
 
-where:
-
-```text
-MonsterDamageGrowth(Level)
-→ shared global Monster damage curve
-
-Damage Growth Weight
-→ per Attack / Skill Profile growth weight
-```
-
-The exact numerical `MonsterDamageGrowth(Level)` formula remains unresolved.
-
-The curve must satisfy:
+The curve satisfies:
 
 ```text
 MonsterDamageGrowth(1) = 0
+MonsterDamageGrowth(100) = 7
 ```
 
-so Level 1 preserves the Template Base Damage before GM adjustment.
+Therefore with standard `Damage Growth Weight = 1.0`:
+
+```text
+Level 1   → 1.00× Template Base Damage
+Level 30  → ~2.11×
+Level 50  → ~3.44×
+Level 70  → ~5.07×
+Level 90  → ~6.97×
+Level 100 → 8.00× Template Base Damage
+```
+
+The GM UI should expose the formula rather than showing only the final result.
 
 ---
 
@@ -240,6 +246,17 @@ GM Variance Adjustment
 Final Damage Variance
 ```
 
+Canonical order:
+
+```text
+Template Base Damage
+→ global Monster Damage Level Curve
+→ Damage Growth Weight
+→ Calculated Base Damage
+→ GM Base Damage Adjustment
+→ Final Base Damage
+```
+
 A GM instance adjustment affects only that Monster unless GM explicitly edits the reusable Template/Profile.
 
 Template values, calculated values and instance overrides must not be collapsed into one number internally.
@@ -250,16 +267,24 @@ Template values, calculated values and instance overrides must not be collapsed 
 
 GM must be able to edit `Damage Growth Weight` separately for each Attack / Skill Profile.
 
-Conceptually:
+Canonical meaning:
 
 ```text
 0.0 → no Level-derived damage growth
-0.5 → half standard damage growth
-1.0 → standard damage growth
-1.5 → 1.5× Level-derived damage growth component
+0.5 → half standard damage-growth component
+1.0 → standard damage growth; 8× total at Level 100
+1.5 → 1.5× standard Level-derived growth component
 ```
 
-The Weight only affects Level-derived growth and must not change the Level-1 baseline by itself.
+The Weight only affects the Level-derived component and does not change the Level-1 baseline.
+
+At Level 100:
+
+```text
+Weight 0.5 → 4.5× total damage baseline
+Weight 1.0 → 8.0×
+Weight 1.5 → 11.5×
+```
 
 ---
 
@@ -332,7 +357,6 @@ Player Character damage configuration remains unaffected.
 
 Still to be decided separately:
 
-1. exact `MonsterDamageGrowth(Level)` curve;
-2. whether Damage Variance stays constant with Level or scales;
-3. exact Effective Attribute → D100 hit conversion;
-4. later elite/boss/richer-profile exceptions where needed.
+1. whether Damage Variance stays constant with Level or scales;
+2. exact Effective Attribute → D100 hit conversion;
+3. later Elite/Boss/richer-profile exceptions where needed.
