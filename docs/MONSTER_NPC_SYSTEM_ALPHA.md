@@ -212,15 +212,6 @@ This is the only dedicated Monster Level curve in the Skill damage-range subsyst
 
 The older Lower / Upper variance Level-growth architecture is superseded.
 
-Do not use:
-
-```text
-Lower Variance Growth Weight
-Upper Variance Growth Weight
-```
-
-and do not separately multiply Lower / Upper spread by `MonsterDamageGrowth(Level)`.
-
 Each damaging Skill may instead store:
 
 ```text
@@ -259,13 +250,47 @@ Calculated Maximum Raw Damage
 
 If no Damage Attribute Links are selected, both Attribute-derived contributions are `0`.
 
-The two ratios are independent so a Skill may intentionally have stronger upper-end expansion than lower-side spread.
+---
 
-The default Ratio values remain a separate tuning decision.
+# 10. Locked Damage-Band Asymmetry
+
+The fixed/base damage is intended to have both downward and upward fluctuation, but the two directions do not scale equally.
+
+Canonical intent:
+
+```text
+low roll
+→ may still produce damage below Calculated Base Damage
+
+high roll
+→ may produce damage above Calculated Base Damage
+
+as Monster power rises
+→ low-roll penalty grows only modestly
+→ high-roll bonus grows much more strongly
+```
+
+For standard damaging Skills:
+
+```text
+Upper Attribute Ratio > Lower Attribute Ratio
+```
+
+and the normal target relationship is:
+
+```text
+Upper Attribute Contribution ≫ Lower Attribute Contribution
+```
+
+This means late-game damage may still roll low, but the reduction below Base Damage should be far smaller than the possible increase above Base Damage.
+
+Earlier near-symmetric ratio examples are superseded as standard tuning examples.
+
+The exact default pair remains unresolved.
 
 ---
 
-# 10. Why the Range Uses Attributes Instead of Another Level Curve
+# 11. Why the Range Uses Attributes Instead of Another Level Curve
 
 Monster Level already affects damage through:
 
@@ -286,11 +311,11 @@ Level
 
 Therefore the standard Simplified Monster Skill does not add another Lower / Upper Level-growth curve.
 
-This avoids triple Level scaling while allowing high-Level Monsters to naturally develop wider damage ranges from their actual Effective Attributes.
+This avoids triple Level scaling while allowing the high-end upside to grow substantially faster than the low-end downside.
 
 ---
 
-# 11. Full Spawn Pipeline
+# 12. Full Spawn Pipeline
 
 ```text
 1. Read Template
@@ -316,7 +341,7 @@ Group spawn runs the full pipeline independently for every Monster.
 
 ---
 
-# 12. GM / D1 Requirements
+# 13. GM / D1 Requirements
 
 D1 must preserve enough data to distinguish:
 
@@ -351,7 +376,7 @@ Changing Level recalculates Effective Attributes from preserved Natural values a
 
 ---
 
-# 13. GM Final Adjustment
+# 14. GM Final Adjustment
 
 GM may adjust a generated Monster Instance after automatic generation and calculation.
 
@@ -361,11 +386,11 @@ Template, calculated and GM-adjusted layers should remain auditable.
 
 ---
 
-# 14. Current Unresolved Items
+# 15. Current Unresolved Items
 
 Resolve separately:
 
-1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for standard damaging Monster Skills;
+1. default `Lower Attribute Ratio` and `Upper Attribute Ratio` for standard damaging Monster Skills, under the locked rule that the lower penalty must be much smaller than the upper bonus;
 2. whether Monster Skill Accuracy itself automatically scales with Level;
 3. Boss-specific generation / modifiers beyond the ordinary Elite rule;
 4. Skill status / Resistance / Immunity details;
