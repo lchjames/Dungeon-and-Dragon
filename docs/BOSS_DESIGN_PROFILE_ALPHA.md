@@ -2,7 +2,7 @@
 
 > Status: Canonical Alpha Rule  
 > Date: 2026-08-23  
-> Scope: Defines the dedicated GM-facing Boss design table/interface, shared-Monster baseline calculation flow, Boss-specific GM final-adjustment authority, and the locked Boss Design Profile → Boss Instance persistence model. Read with `MONSTER_NPC_SYSTEM_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, `MONSTER_LEVEL_SCALING_ALPHA.md`, and `MONSTER_ATTACK_PROFILE_ALPHA.md`.
+> Scope: Defines the dedicated GM-facing Boss design table/interface, baseline calculation flow, and Boss-specific GM final-adjustment authority. Read with `MONSTER_NPC_SYSTEM_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, `MONSTER_LEVEL_SCALING_ALPHA.md`, and `MONSTER_ATTACK_PROFILE_ALPHA.md`.
 
 ---
 
@@ -10,7 +10,7 @@
 
 Bosses use a **dedicated Boss Design Profile and dedicated GM interface**, but they do not use a separate mathematical combat engine by default.
 
-Canonical design-time architecture:
+Canonical architecture:
 
 ```text
 Boss Design Profile / Boss Design UI
@@ -18,15 +18,6 @@ Boss Design Profile / Boss Design UI
 → produce calculated / suggested baseline values
 → GM performs Boss-specific manual adjustment
 → Final Boss Profile
-```
-
-Canonical runtime architecture:
-
-```text
-Final Boss Profile
-→ Spawn Boss Instance
-→ snapshot Final Boss design values
-→ track runtime combat state on the Instance
 ```
 
 The dedicated Boss interface exists because every Boss is expected to receive bespoke GM design work.
@@ -85,8 +76,8 @@ The GM may manually adjust or override Boss-facing values including, where suppo
 
 ```text
 Natural / Effective Attribute outcome or final Attribute values
-Max HP
-Max MP
+Max / Current HP
+Max / Current MP
 Skill loadout
 Skill Accuracy / explicit Accuracy override
 Skill damage inputs / final damage tuning
@@ -95,12 +86,10 @@ Damage Type
 Range / targeting
 Status / special effects
 Resistance / Immunity once those systems are locked
-Phase definitions / triggers once those systems are locked
+Phase behaviour / triggers once those systems are locked
 special Boss-only mechanics
 other explicitly authorised Boss fields
 ```
-
-Design-time defaults for Current HP / MP may be previewed, but runtime Current HP / MP belong to the spawned Boss Instance.
 
 The exact set of editable fields may expand as other Canonical systems are completed.
 
@@ -160,7 +149,7 @@ Baseline Calculation
 
 Boss Final Values
 - final Attributes / authorised overrides
-- final Max HP / MP
+- final HP / MP
 - final Skill values
 - final Spread values
 - other final combat values
@@ -171,20 +160,16 @@ Skill Loadout
 - reorder / enable / disable Boss Skills
 
 Special Boss Design
-- Phase definitions / placeholders
+- Phase placeholders
 - Resistance / Immunity placeholders
 - Trigger / special-mechanic placeholders
 - GM notes
 
 Audit
 - baseline vs override vs final values
-
-Runtime
-- Spawn Boss Instance
-- inspect existing Boss Instances
 ```
 
-The UI may evolve, but the separation between baseline calculation, GM final adjustment, and runtime Instance state is Canonical.
+The UI may evolve, but the separation between baseline calculation and GM final adjustment is Canonical.
 
 ---
 
@@ -221,153 +206,7 @@ An important NPC may instead intentionally use the Full Character Model. In that
 
 ---
 
-# 9. Locked Profile → Instance Model
-
-Boss persistence uses two explicit layers:
-
-```text
-Boss Design Profile
-→ reusable / persistent design-time definition
-
-Boss Instance
-→ one spawned runtime copy used in an encounter
-```
-
-The Boss Design Profile stores the GM-approved final design.
-
-A Boss Instance stores the actual state of one spawned appearance of that Boss.
-
-This split is Canonical even for a narratively unique Boss that may only be fought once.
-
----
-
-# 10. Spawn Snapshot Rule
-
-When the GM spawns a Boss:
-
-```text
-Final Boss Profile
-→ create Boss Instance
-→ snapshot the Profile's current Final Boss Values
-```
-
-The Instance must receive enough resolved design data to run independently during the encounter.
-
-Typical copied / snapshotted data includes:
-
-```text
-Boss Profile ID / source revision where available
-Boss identity
-Level
-Final Attributes
-Final Max HP / MP
-Skill loadout and resolved Skill references / values
-Final Spread values
-Damage / Accuracy overrides
-Phase definitions once locked
-Resistance / Immunity definitions once locked
-special Boss mechanics once locked
-other final design-time combat values
-```
-
-The exact storage may use references plus snapshots where safe, but runtime correctness must not depend on silently changing design data.
-
----
-
-# 11. Boss Instance Runtime State
-
-Boss Instance owns encounter/runtime state such as:
-
-```text
-Current HP
-Current MP
-current Phase / Phase progress
-Status effects
-Buffs / Debuffs
-Cooldowns
-usage counters
-ongoing effects
-turn / initiative state where applicable
-temporary combat modifiers
-runtime Skill state
-other encounter-local state
-```
-
-Runtime changes must not write back into the Boss Design Profile.
-
-Example:
-
-```text
-Boss Design Profile
-Final Max HP = 420
-
-Spawn Boss Instance #1
-Current HP = 420
-
-During battle
-Current HP = 267
-Phase = 2
-Burning = active
-
-Boss Design Profile remains:
-Final Max HP = 420
-```
-
----
-
-# 12. Profile Edits Must Not Mutate Existing Instances
-
-After a Boss Instance has been spawned:
-
-```text
-Edit Boss Design Profile
-→ affects future Boss spawns / future design use
-→ does NOT silently rewrite existing Boss Instances
-```
-
-Example:
-
-```text
-Profile originally spawned with Final Max HP = 420
-Instance #1 snapshot Max HP = 420
-
-GM later edits Profile Final Max HP = 500
-
-Instance #1 remains based on 420
-Future Instance #2 may spawn from 500
-```
-
-If the GM intentionally wants to update an existing Instance, that must be a separate explicit GM action and remain auditable.
-
----
-
-# 13. Instance Overrides
-
-The GM may make encounter-specific corrections to a spawned Boss Instance without altering the reusable Boss Design Profile.
-
-Canonical separation:
-
-```text
-Boss Design Profile Final Value
-→ Boss Instance Snapshot Value
-→ optional Instance-specific GM Override
-→ current runtime value / state
-```
-
-Example:
-
-```text
-Profile Final Max HP = 420
-Instance Snapshot Max HP = 420
-Encounter-specific GM Override = 460
-Instance Max HP = 460
-```
-
-Such an override must not silently mutate the Boss Design Profile.
-
----
-
-# 14. GM Authority and Content-Tuning Philosophy
+# 9. GM Authority and Content-Tuning Philosophy
 
 Boss design is deliberately GM-authoritative.
 
@@ -378,70 +217,45 @@ System
 → calculate a reasonable baseline using shared Monster rules
 → expose useful suggested values
 → preserve audit data
-→ spawn runtime Instances from Final Boss Profiles
 
 GM
 → decide the actual Boss encounter numbers
 → design unique Skills and mechanics
 → correct any baseline value that does not fit the encounter
-→ optionally perform explicit Instance-specific corrections
 ```
 
 This is intentional because exact Boss balance cannot be reliably locked before actual campaign / encounter content is authored and play-tested.
 
 ---
 
-# 15. D1 / Persistence Requirements
+# 10. D1 / Persistence Requirements
 
-Boss persistence must distinguish at least:
+Boss persistence should distinguish at least:
 
 ```text
-Boss Design Profile
-→ profile identity
-→ Boss Level
-→ baseline Natural / Effective Attributes
-→ baseline calculated HP / MP
-→ baseline / referenced Skill data
-→ System Suggested Spread values
-→ GM Attribute overrides
-→ GM HP / MP overrides
-→ GM Skill loadout / unique Skill references
-→ GM Skill-value overrides
-→ GM Spread overrides
-→ GM special-mechanic data
-→ Final Boss values
-→ created / updated timestamps
+Boss Profile identity
+Monster Level
+baseline Natural / Effective Attributes
+baseline calculated HP / MP
+baseline / referenced Skill data
+System Suggested Spread values
 
-Boss Instance
-→ instance identity
-→ source Boss Profile ID
-→ source Profile revision / updated timestamp where practical
-→ snapshotted Final Boss values needed for runtime
-→ instance-specific GM overrides
-→ Current HP / MP
-→ Status / Buff / Debuff state
-→ Phase state
-→ cooldown / usage state
-→ temporary modifiers
-→ encounter / combat state
-→ created / spawned / updated timestamps
+GM Attribute overrides
+GM HP / MP overrides
+GM Skill loadout / unique Skill references
+GM Skill-value overrides
+GM Spread overrides
+GM special-mechanic data
+
+Final Boss values
+created / updated timestamps
 ```
 
-Profile and Instance records must remain distinguishable in D1 and in the GM interface.
+Where practical, reusable Boss Profiles and spawned Boss Instances should remain distinguishable so runtime state does not silently rewrite design-time data.
 
 ---
 
-# 16. Delete / Edit Safety
-
-Deleting or editing a Boss Design Profile must not silently corrupt historical or active Boss Instances.
-
-Implementation should preserve instance runtime integrity through one of the approved persistence techniques, such as immutable snapshots, retained source revisions, or equivalent auditable data.
-
-A future implementation may define archival / soft-delete behaviour, but destructive cascade semantics must not be assumed without an explicit later decision.
-
----
-
-# 17. Locked Conclusions
+# 11. Locked Conclusions
 
 1. Every Boss is designed through a dedicated Boss Design Profile / GM interface.
 2. Bosses initially apply the ordinary Monster canonical rules to generate a coherent baseline.
@@ -452,18 +266,65 @@ A future implementation may define archival / soft-delete behaviour, but destruc
 7. Boss Skills use the same Monster Skill Profile system.
 8. Boss loadouts may combine Common Monster Skills and GM-authored unique Boss Skills.
 9. Boss status does not automatically switch the entity to the Player Skill progression system.
-10. Boss persistence uses a locked **Boss Design Profile + Boss Instance** two-layer model.
-11. Boss Design Profile stores the reusable GM-approved design; Boss Instance stores one spawned encounter/runtime copy.
-12. Spawning snapshots the current Final Boss design into the Instance.
-13. Editing the Boss Design Profile does not silently mutate existing Boss Instances.
-14. Runtime Current HP / MP, Status, Phase, cooldown and other combat state belong to the Boss Instance.
-15. Instance-specific GM overrides are allowed as explicit audited corrections and do not mutate the Boss Design Profile.
-16. Exact Boss numbers and special mechanics remain content-design / play-balance work and are intentionally GM-controlled.
+10. Exact Boss numbers and special mechanics are content-design / play-balance work and are intentionally GM-controlled.
 
 ---
 
-# 18. Next Unresolved Boss Decision
+# 12. Locked Boss Phase Architecture — Condition Triggers + GM Override
 
-Boss Profile vs Instance persistence semantics are resolved.
+Boss Phase progression uses a hybrid architecture:
 
-The next Boss-specific design item should move to another independent subsystem, such as Phase / trigger behaviour, while Monster AI critical handling and numeric Spread tuning remain deferred to their already designated future passes.
+```text
+Phase Definition
+→ one or more trigger conditions
+→ system evaluates / detects trigger state
+→ Phase transition becomes applicable
+→ GM retains explicit manual override authority
+```
+
+A Phase condition may later use implemented trigger types such as:
+
+```text
+HP threshold / percentage
+round / turn condition
+specific encounter event / flag
+Skill / mechanic state
+other approved condition
+```
+
+The complete trigger catalogue is intentionally **not** locked yet.
+
+GM must be able to perform explicit Phase control conceptually equivalent to:
+
+```text
+Force Enter Phase
+Delay / hold Phase transition
+Skip Phase
+Move to another allowed Phase
+```
+
+Therefore Boss Phase is neither restricted to HP-only automation nor restricted to manual-only switching.
+
+The exact UI/runtime behaviour when a condition becomes true — for example immediate automatic transition versus GM confirmation — remains an implementation / Alpha-tuning detail unless explicitly locked later.
+
+Phase definitions belong to the Boss Design Profile and are snapshotted into the Boss Instance. Runtime current Phase, trigger progress and manual override state belong to the Boss Instance.
+
+---
+
+# 13. Scope Boundary for Initial Playable Implementation
+
+The Boss architecture is now structurally sufficient for an initial playable implementation without resolving every advanced Boss detail first.
+
+The following may remain incremental / later tuning unless they block the playable core:
+
+```text
+complete Phase-trigger catalogue
+exact Phase transition UI behaviour
+advanced Resistance / Immunity interactions
+Monster/Boss AI Skill selection
+Monster-specific critical follow-up
+exact Spread tuning coefficients
+advanced Boss-only special mechanics
+```
+
+Future additions must preserve the locked shared Monster baseline, GM-authoritative Boss adjustment, Profile/Instance separation, auditability, and Phase condition + GM override architecture.
