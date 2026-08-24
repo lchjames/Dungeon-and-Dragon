@@ -118,17 +118,17 @@ Current implementation priority:
 5. Round / Combat State Engine                            IMPLEMENTED
 6. Player Combat Control                                  IMPLEMENTED
 7. D100 Combat Resolver + Damage + HP 0                   IMPLEMENTED MVP CHARACTER PATH
-8. Scenario / Scene / Encounter Foundation                NEXT / REQUIRED BEFORE MONSTER INTEGRATION
-9. Monster Template / Skill / Instance runtime
+8. Scenario / Scene / Encounter Foundation                IMPLEMENTED MVP FOUNDATION
+9. Monster Template / Skill / Instance runtime            NEXT
 10. Boss Design Profile / Boss Instance minimum runtime
 11. First End-to-End Scenario Test
 ```
 
 The Character-only attack test path uses the temporary GM-authored bridge defined by `PLAYER_ATTACK_PROFILE_MVP.md`. It is not a replacement for the future Weapon / Equipment / Specialisation source system.
 
-`SCENARIO_SCENE_ENCOUNTER_MVP.md` defines why the narrative/context layer is inserted before Monster Runtime is connected into the first complete scenario flow.
+`SCENARIO_SCENE_ENCOUNTER_MVP.md` defines the implemented narrative/context layer. The current product remains a single-campaign MVP using `settings.campaign_name`, with D1-persistent Scenario → Scene → Encounter entities, Character participant assignment, simple Scene Map references and an Encounter → optional Combat link.
 
-The full Tactical Map Engine remains Deferred; Scenario / Scene may later reference a simple Map asset without requiring token movement, LOS, terrain, or fog-of-war in the first MVP.
+The full Tactical Map Engine remains Deferred; Scene Map support is metadata only and does not implement token movement, LOS, terrain or fog-of-war.
 
 Do not begin with advanced Boss AI, full Phase mechanics, Loot, Economy, Quest automation or Tactical Map simulation before the end-to-end scenario path works.
 
@@ -136,7 +136,7 @@ Do not begin with advanced Boss AI, full Phase mechanics, Loot, Economy, Quest a
 
 # 6. Implemented Foundation
 
-The Character and Combat foundations have moved onto the Canonical model.
+The Character, Combat and narrative/context foundations have moved onto the Canonical model.
 
 Implemented outcomes include:
 
@@ -175,6 +175,14 @@ Dying rounds = ceil(CON / 5)
 Dying Turn-end countdown with idempotency marker
 further effective damage while DYING → DEAD
 DEAD Character lock enforcement on ordinary Player / GM write paths
+single-campaign Scenario persistence
+Scenario → Scene → Encounter D1 relationships
+Scenario / Scene / Encounter GM status controls
+Scene simple Map metadata / asset reference
+Encounter Character participant assignment
+participant schema reserved for monster_instance / boss_instance
+Encounter → zero-or-one Combat link
+Encounter Start Combat reuses the existing Combat Start resolver
 ```
 
 Current post-hit `Effective Defence` in the temporary Character Attack Profile bridge is `0`. Armour / resistance / shields remain a future source integration into the same Damage resolver rather than a reason to duplicate the resolver.
@@ -209,6 +217,8 @@ mixing design-time Profile data with runtime Instance state
 allowing direct Player edits to authoritative resources
 creating a second browser-only Turn model
 letting Player requests submit their own Accuracy or Damage numbers
+duplicating Combat Round / Turn state inside Encounter records
+building multi-campaign or tactical Map systems before they are required
 ```
 
 ---
@@ -261,25 +271,27 @@ After this milestone, numeric curves and advanced mechanics should be adjusted u
 
 # 10. Current Immediate Blocker
 
-The Character-only D100 / Damage / HP0 path now exists for MVP integration testing.
-
-The resolver authority is:
+The narrative/context foundation now exists in D1 and the GM workspace:
 
 ```text
-GM-approved Attack Profile
-+ authenticated Current Combatant ownership
-+ server D100 rolls
-+ target Canonical Dodge
-+ shared Damage resolver
-+ D1 HP / Life State mutation
+current Campaign setting
+→ Scenario
+→ Scene
+→ Encounter
+→ Character participants
+→ optional linked Combat
 ```
 
-Player never supplies authoritative attack Accuracy or Damage values.
+The Encounter Start Combat path delegates to the existing Combat resolver so Initiative and Round / Turn state remain single-source.
 
 The next major implementation blocker is now:
 
 ```text
-Scenario / Scene / Encounter Foundation
+Monster Template
++ Monster Skill
++ Monster Instance runtime
++ GM controls
++ Encounter / Combat integration
 ```
 
-That slice should establish the minimum narrative/context relationship before Monster Instances are connected into the first end-to-end scenario flow. Full Tactical Map simulation remains Deferred.
+Monster runtime must reuse the already-confirmed Monster Natural / Effective Attribute model, HP / MP formulas, fixed-damage skill architecture and shared D100 / Damage boundaries. Exact deferred tuning values such as the final Spread curve must not block the minimum ordinary Monster runtime.
