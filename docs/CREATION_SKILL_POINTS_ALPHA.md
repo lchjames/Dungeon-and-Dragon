@@ -1,7 +1,7 @@
 # Character Creation Skill Points — Alpha
 
 > Status: Canonical Alpha Override
-> Date: 2026-08-21
+> Date: 2026-08-24
 > Scope: Character creation allocation for the 23 base skills.
 > This file supersedes any earlier Creation Skill Point pool formula, 90–120 clamp, per-skill default Base Value proposal, derived starting Dodge exception, or Level-1 skill cap of 70 in older documents.
 
@@ -48,3 +48,31 @@ Creation Skill Points:
 - follow the global natural permanent D100 skill ceiling of 98% after creation, while the special Character-creation ceiling remains 30.
 
 The fixed 200-point pool replaces the older composite CSP formula and its 90–120 clamp.
+
+## MVP Draft Save Behaviour
+
+During the MVP Character-creation flow, Creation Skill allocation and Character finalization are separate operations.
+
+While a Character remains in `draft` state:
+
+```text
+0 <= saved Creation Skill Points spent <= 200
+```
+
+The Player may save a partial allocation and return to adjust it later. Every save must submit all 23 base-skill values, and the server must independently validate:
+
+- every base skill is present exactly once in the authoritative Character skill set;
+- each allocation is an integer from 0 to 30;
+- the total allocation does not exceed 200;
+- only the owning Player may update the draft Character;
+- a Character that has left the creation stage cannot use this draft-allocation endpoint.
+
+For a draft Character:
+
+```text
+Natural Skill Value = current saved Creation Allocation
+```
+
+until later post-creation growth sources exist.
+
+This partial-save rule does **not** decide whether all 200 Creation Skill Points must be spent before finalizing Character creation. The finalization requirement remains unresolved and must be decided only when the MVP Finalize Character step requires it.
