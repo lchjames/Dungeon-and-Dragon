@@ -116,13 +116,15 @@ Current implementation priority:
 3. Character Creation initialization / migration          IMPLEMENTED
 4. GM D1 Character controls                               IMPLEMENTED
 5. Round / Combat State Engine                            IMPLEMENTED
-6. Player Combat Control                                  IMPLEMENTED / current slice
-7. D100 Combat Resolver + Damage + HP 0                   NEXT
-8. Scenario / Scene / Encounter Foundation                REQUIRED BEFORE MONSTER INTEGRATION
+6. Player Combat Control                                  IMPLEMENTED
+7. D100 Combat Resolver + Damage + HP 0                   IMPLEMENTED MVP CHARACTER PATH
+8. Scenario / Scene / Encounter Foundation                NEXT / REQUIRED BEFORE MONSTER INTEGRATION
 9. Monster Template / Skill / Instance runtime
 10. Boss Design Profile / Boss Instance minimum runtime
 11. First End-to-End Scenario Test
 ```
+
+The Character-only attack test path uses the temporary GM-authored bridge defined by `PLAYER_ATTACK_PROFILE_MVP.md`. It is not a replacement for the future Weapon / Equipment / Specialisation source system.
 
 `SCENARIO_SCENE_ENCOUNTER_MVP.md` defines why the narrative/context layer is inserted before Monster Runtime is connected into the first complete scenario flow.
 
@@ -162,7 +164,20 @@ Player active Combat visibility
 Player own Action / Move allowance mutation
 Player End Own Turn
 stale-state / double-advance protection
+GM-authored Character Attack Profiles
+server-authoritative D100 attack vs Dodge
+shared opposed Result comparison
+server-side Damage dice + Character Damage Bonus
+Damage Result / HP Damage separation
+Action reservation before attack resolution
+HP 0 → DYING
+Dying rounds = ceil(CON / 5)
+Dying Turn-end countdown with idempotency marker
+further effective damage while DYING → DEAD
+DEAD Character lock enforcement on ordinary Player / GM write paths
 ```
+
+Current post-hit `Effective Defence` in the temporary Character Attack Profile bridge is `0`. Armour / resistance / shields remain a future source integration into the same Damage resolver rather than a reason to duplicate the resolver.
 
 The exact Character creation Attribute reroll cap may remain unresolved while the MVP supports Roll → Reroll → Confirm without hard-coding a permanent limit.
 
@@ -193,6 +208,7 @@ using browser localStorage as authoritative campaign data
 mixing design-time Profile data with runtime Instance state
 allowing direct Player edits to authoritative resources
 creating a second browser-only Turn model
+letting Player requests submit their own Accuracy or Damage numbers
 ```
 
 ---
@@ -245,24 +261,25 @@ After this milestone, numeric curves and advanced mechanics should be adjusted u
 
 # 10. Current Immediate Blocker
 
-Player Combat Control now uses the shared D1 Combat state rather than a browser-local duplicate.
+The Character-only D100 / Damage / HP0 path now exists for MVP integration testing.
 
-Player authority is resolved through:
+The resolver authority is:
 
 ```text
-authenticated User
-→ combatant.controller_user_id
-→ Current Combatant
+GM-approved Attack Profile
++ authenticated Current Combatant ownership
++ server D100 rolls
++ target Canonical Dodge
++ shared Damage resolver
++ D1 HP / Life State mutation
 ```
 
-The Player may only mutate Action / Move or End Turn while controlling the Current Combatant. Stale concurrent requests are rejected instead of silently double-advancing the Turn state.
+Player never supplies authoritative attack Accuracy or Damage values.
 
 The next major implementation blocker is now:
 
 ```text
-D100 Combat Resolver
-+ Damage
-+ HP 0 / Down-Dying baseline
+Scenario / Scene / Encounter Foundation
 ```
 
-Once that core resolver exists, implement the Scenario / Scene / Encounter Foundation before connecting Monster Runtime into the first full scenario flow.
+That slice should establish the minimum narrative/context relationship before Monster Instances are connected into the first end-to-end scenario flow. Full Tactical Map simulation remains Deferred.
