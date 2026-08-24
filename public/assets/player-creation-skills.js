@@ -57,14 +57,18 @@ function ensureCreationUI() {
             <h3>Creation Skill Points</h3>
             <span id="creation-skill-summary" class="muted">Spent 0 / 200 · Remaining 200</span>
           </div>
-          <button id="save-creation-skills" class="button" type="button">Save Allocation</button>
+          <div class="row-inline">
+            <button id="save-creation-skills" class="button button-ghost" type="button">Save Allocation</button>
+            <button id="finalize-character" class="button" type="button" disabled>Finalize Character</button>
+          </div>
         </div>
-        <p class="muted">Draft Character only. 每個基礎技能可分配 0–30 點；目前可保存未用盡嘅配置，Finalize 規則會喺下一個 blocker 再處理。</p>
+        <p class="muted">Draft Character only. 每個基礎技能可分配 0–30 點；可以先保存部分配置，但必須完整使用 200 點先可以 Finalize。</p>
         <div id="creation-skill-status" class="auth-status" hidden role="status" aria-live="polite"></div>
         <div id="creation-skill-list" class="stack-list"></div>
       </section>`;
     overviewPanel.insertAdjacentElement('afterend', panel);
     $('#save-creation-skills')?.addEventListener('click', saveAllocation);
+    $('#finalize-character')?.addEventListener('click', finalizeCharacter);
   }
 
   return true;
@@ -125,17 +129,21 @@ function refreshAllocationSummary() {
   const state = allocationState();
   const summary = $('#creation-skill-summary');
   const save = $('#save-creation-skills');
+  const finalize = $('#finalize-character');
   if (summary) {
     summary.textContent = `Spent ${state.spent} / ${state.pool} · Remaining ${state.remaining}`;
   }
   if (save) save.disabled = !state.valid;
+  if (finalize) finalize.disabled = !state.valid || state.spent !== state.pool;
 
   if (state.spent > state.pool) {
     setStatus(`超出 Creation Skill Point 上限 ${state.pool} 點。`, 'error');
   } else if (!state.valid) {
     setStatus(`每個技能必須係 0–${CREATION_SKILL_CAP} 嘅整數。`, 'error');
+  } else if (state.spent < state.pool) {
+    setStatus(`仲有 ${state.remaining} 點未分配；可以 Save，但未可以 Finalize。`);
   } else {
-    setStatus('');
+    setStatus('已分配完整 200 點，可以 Save 或 Finalize。', 'success');
   }
 }
 
@@ -158,6 +166,7 @@ function renderCreationSkills(character) {
   if (skills.length !== 23) {
     list.innerHTML = '<p class="muted">23 個基礎技能未完整初始化，暫時無法分配 Creation Skill Points。</p>';
     $('#save-creation-skills').disabled = true;
+    $('#finalize-character').disabled = true;
     setStatus('Character Skill initialization is incomplete.', 'error');
     return;
   }
@@ -208,8 +217,18 @@ async function loadSelectedCharacter(force = false) {
   }
 }
 
+async function persistAllocation() {
+  if (!currentCharacterId || !currentCharacter) throw new Error('No Draft Character selected.');
+  const state = allocationState();
+  if (!state.valid) throw new Error('Creation Skill allocation is invalid.');
+
+  return api(`/api/player/characters/${encodeURIComponent(currentCharacterId)}/creation-skills`, {
+    method: 'PATCH',
+    body: JSON.stringify({ allocations: state.allocations })
+  });
+}
+
 async function saveAllocation() {
-  if (!currentCharacterId || !currentCharacter) return;
   const state = allocationState();
   if (!state.valid) {
     refreshAllocationSummary();
@@ -217,13 +236,12 @@ async function saveAllocation() {
   }
 
   const button = $('#save-creation-skills');
+  const finalize = $('#finalize-character');
   button.disabled = true;
+  if (finalize) finalize.disabled = true;
   setStatus('正在保存 Creation Skill Points…');
   try {
-    const payload = await api(`/api/player/characters/${encodeURIComponent(currentCharacterId)}/creation-skills`, {
-      method: 'PATCH',
-      body: JSON.stringify({ allocations: state.allocations })
-    });
+    const payload = await persistAllocation();
     setStatus(
       `已保存：Spent ${payload.progression.creationSkillPointsSpent} · Remaining ${payload.progression.creationSkillPointsRemaining}`,
       'success'
@@ -235,6 +253,42 @@ async function saveAllocation() {
     setStatus(error.message, 'error');
   } finally {
     button.disabled = false;
+    refreshAllocationSummary();
+  }
+}
+
+async function finalizeCharacter() {
+  if (!currentCharacterId || !currentCharacter) return;
+  const state = allocationState();
+  if (!state.valid || state.spent !== state.pool) {
+    refreshAllocationSummary();
+    setStatus(`必須完整分配 ${state.pool} 點先可以 Finalize。`, 'error');
+    return;
+  }
+
+  if (!globalThis.confirm('Finalize 後 Creation Skill Points 將鎖定，不能再用建角介面修改。確定完成角色建立？')) return;
+
+  const save = $('#save-creation-skills');
+  const finalize = $('#finalize-character');
+  save.disabled = true;
+  finalize.disabled = true;
+  setStatus('正在保存並完成角色建立…');
+
+  try {
+    const saved = await persistAllocation();
+    if (Number(saved?.progression?.creationSkillPointsRemaining) !== 0) {
+      throw new Error('Server 顯示仍有 Creation Skill Points 未分配。');
+    }
+
+    await api(`/api/player/characters/${encodeURIComponent(currentCharacterId)}/finalize-creation`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+
+    toast('Character creation finalized.', 'success');
+    location.reload();
+  } catch (error) {
+    setStatus(error.message, 'error');
     refreshAllocationSummary();
   }
 }
