@@ -82,8 +82,8 @@ User authentication
 → Character + Monster Encounter participants
 → shared DEX Initiative / Combat
 → Player / GM D100 actions
-→ damage / HP updates
-→ defeat handling
+→ damage / Armor / HP updates
+→ ordinary Monster defeat handling
 → Combat completion
 → Encounter resolution
 → Scene continuation
@@ -104,16 +104,16 @@ A simple Boss Instance is the next validation layer after the ordinary Monster l
 6. Player Combat Control                                  IMPLEMENTED
 7. D100 Combat Resolver + Damage + HP 0                   IMPLEMENTED MVP CHARACTER PATH
 8. Scenario / Scene / Encounter Foundation                IMPLEMENTED MVP FOUNDATION
-9. Monster Template / Skill / Instance runtime            IMPLEMENTED NON-BLOCKED PATH
-10. Monster Dedicated Defence + Armor data foundation      IMPLEMENTED MVP FOUNDATION
-11. Monster HP0 lifecycle + Player → Monster path          CURRENT BLOCKER
-12. Boss Design Profile / Boss Instance minimum runtime
+9. Monster Template / Skill / Instance runtime            IMPLEMENTED
+10. Monster Dedicated Defence + Armor                     IMPLEMENTED
+11. Monster HP0 + Player → Monster path                   IMPLEMENTED MVP PATH
+12. Boss Design Profile / Boss Instance minimum runtime   NEXT
 13. First End-to-End Scenario Test
 ```
 
 The Character-only attack test path continues to use the temporary GM-authored bridge in `PLAYER_ATTACK_PROFILE_MVP.md` until Weapon / Equipment / Specialisation source profiles exist.
 
-The Monster runtime uses `MONSTER_RUNTIME_MVP.md`, `MONSTER_DEFENCE_ARMOR_MVP.md`, and the existing Monster Canonical documents. Full Tactical Map simulation remains Deferred.
+The Monster runtime uses `MONSTER_RUNTIME_MVP.md`, `MONSTER_DEFENCE_ARMOR_MVP.md`, `MONSTER_DEFEAT_MVP.md`, and the existing Monster Canonical documents. Full Tactical Map simulation remains Deferred.
 
 ---
 
@@ -195,11 +195,23 @@ Instance Armor Base Defence / Adjustment / Final Defence audit chain
 GM Instance Defence Modifier correction
 GM Instance Armor Defence Adjustment correction
 D100 Defence explicitly separated from post-hit Armor reduction
+
+Player → Monster target support
+Player Attack Profile vs Monster Effective D100 Defence
+Monster Armor-aware post-hit Damage Result
+Monster HP clamp at 0
+ordinary Monster HP0 → immediate defeated
+no ordinary Monster Player-style DYING countdown
+defeated Monster loses normal Action / Move
+normal hostile targeting rejects defeated / removed Monsters
+GM HP correction reconciles active / defeated status
+removed Monster remains removed
+Player → Monster dedicated action audit
 ```
 
 Monster source edits do not silently rewrite already spawned Instance snapshots.
 
-Current Character post-hit `Effective Defence` and Monster → Character post-hit `Effective Defence` are `0` in their existing MVP paths until Character armour / resistance / shield sources are integrated. For the Player → Monster path, the confirmed post-hit fixed defence source is the Monster Instance's Final Armor Defence; that resolver remains blocked only by the ordinary Monster HP0 lifecycle decision.
+Current Character post-hit `Effective Defence` and Monster → Character post-hit `Effective Defence` are `0` in their existing MVP paths until Character armour / resistance / shield sources are integrated. Player → Monster uses the Monster Instance's Final Armor Defence as the confirmed fixed post-hit defence source.
 
 ---
 
@@ -244,6 +256,14 @@ Effective D100 Defence
 
 Armor remains a post-hit fixed defence source and is not added to the D100 opposed check.
 
+Ordinary Monster HP0:
+
+```text
+Current HP <= 0
+→ clamp 0
+→ status = defeated
+```
+
 Exact Spread balance remains Alpha Tuning. The executable MVP keeps one centralized replaceable suggestion function; GM Final Spread overrides remain available per spawned Instance Skill.
 
 ---
@@ -273,7 +293,9 @@ duplicating Combat state inside Encounter records
 deriving Monster D100 Defence from Effective DEX
 adding Armor Defence directly to the D100 defence check
 bypassing Monster Armor data after a successful Player hit
-inventing Player-style ordinary Monster Dying rules without confirmation
+inventing Player-style ordinary Monster Dying rules
+negative Monster HP
+automatically ending Combat / Encounter from one Monster defeat
 ```
 
 ---
@@ -310,7 +332,7 @@ one ordinary Monster Template
 one ordinary Monster Instance
 Character + Monster Initiative
 Player and GM turns
-D100 hit resolution in both required directions
+D100 hit resolution in both directions
 Damage
 Armor-aware Monster damage reduction
 HP updates
@@ -321,27 +343,25 @@ Encounter resolution
 Scene continuation
 ```
 
-A simple Boss may then be added as the next validation layer.
+The ordinary Monster rules required for this milestone are now locked. A simple Boss may be added as the next validation layer.
 
 ---
 
-# 11. Current Immediate Blocker
+# 11. Current Immediate Direction
 
-The ordinary Monster runtime now has confirmed authoritative sources for both parts of defending against a Player attack:
+There is no remaining ordinary Simplified Monster combat-rule blocker in the MVP loop.
 
-```text
-D100 opposed defence
-= Dedicated Stored Defence
-
-Post-hit fixed damage reduction
-= Monster Armor data / Final Armor Defence
-```
-
-The remaining genuine rule blocker is now only the ordinary Simplified Monster HP0 lifecycle:
+The next implementation slice is:
 
 ```text
-When Current HP reaches 0,
-what exact runtime state should an ordinary Simplified Monster enter?
+Boss Design Profile
+→ persistent reusable Profile
+→ ordinary Monster Canonical baseline
+→ GM final bespoke values
+→ spawn Boss Instance snapshot
+→ Boss Instance runtime state
+→ minimum Phase support
+→ Encounter / Combat integration
 ```
 
-Do not silently inherit the Player DYING countdown. Once this lifecycle is confirmed, the Player → Monster resolver can use the already-locked Stored Defence + Armor pipeline and complete the ordinary Monster combat loop.
+Advanced Boss Phase trigger catalogues, AI, exact Boss balance numbers and special-case mechanics remain Deferred unless they become genuine blockers for the minimum Boss runtime.
