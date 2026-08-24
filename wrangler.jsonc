@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  "main": "./src/player-create.js",
+  "main": "./src/player-skill-allocation.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
   "routes": [
