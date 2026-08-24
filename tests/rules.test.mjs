@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   BASIC_SKILLS,
+  buildCombatInitiative,
   calculatePlayerResources,
   expThresholdForLevel,
   levelFromExp,
@@ -21,9 +22,22 @@ assert.equal(levelFromExp(999999999), 100);
 
 const resources = calculatePlayerResources({ CON: 12, SIZ: 14, INT: 13 }, 1);
 assert.deepEqual({ hp: resources.finalMaxHP, mp: resources.finalMaxMP }, { hp: 13, mp: 39 });
-assert.equal(reconcileResourceCurrentOnMaxChange(7, 10, 15), 12);
-assert.equal(reconcileResourceCurrentOnMaxChange(7, 10, 6), 6);
-assert.equal(reconcileResourceCurrentOnMaxChange(2, 10, 6), 2);
+assert.equal(reconcileResourceCurrentOnMaxChange(5, 10, 15), 10);
+assert.equal(reconcileResourceCurrentOnMaxChange(12, 15, 8), 8);
+assert.equal(reconcileResourceCurrentOnMaxChange(4, 15, 8), 4);
+
+const randomValues = [0, 0];
+const initiative = buildCombatInitiative([
+  { id: 'a', dex: 12 },
+  { id: 'b', dex: 18 },
+  { id: 'c', dex: 12 }
+], () => randomValues.shift() ?? 0);
+assert.equal(initiative[0].id, 'b');
+assert.equal(initiative[0].initiativeOrder, 0);
+assert.deepEqual(initiative.slice(1).map(item => item.id), ['c', 'a']);
+assert.deepEqual(initiative.map(item => item.initiativeOrder), [0, 1, 2]);
+assert.throws(() => buildCombatInitiative([{ id: 'a', dex: 10 }, { id: 'a', dex: 9 }]));
+assert.throws(() => buildCombatInitiative([{ id: 'a', dex: 'not-a-number' }]));
 
 const allocation = validateCreationSkillAllocations({ perception: 30, dodge: 10 });
 assert.deepEqual({ spent: allocation.spent, remaining: allocation.remaining }, { spent: 40, remaining: 160 });
