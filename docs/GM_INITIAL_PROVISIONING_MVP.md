@@ -175,22 +175,23 @@ The GM workspace remains protected independently by server-side `gm/admin` role 
 
 Code support alone does not provision a production GM.
 
-Before first use, deployment must configure:
+Before first use, configure the production Worker Secret from the project directory:
 
-```text
-INITIAL_GM_PROVISION_TOKEN
+```bash
+npx wrangler secret put INITIAL_GM_PROVISION_TOKEN
 ```
 
-as a Cloudflare Worker Secret.
+Enter a strong random token when Wrangler prompts for the value. Do not place the token in `wrangler.jsonc`.
 
 Then:
 
 ```text
-1. register / log in the intended GM User
-2. open /gm/setup/
-3. submit the configured Secret once
-4. verify /gm/ access
-5. remove or rotate the Secret
+1. deploy the Worker with the provisioning gateway
+2. register / log in the intended GM User
+3. open /gm/setup/
+4. submit the same configured Secret once
+5. verify /gm/ access
+6. remove or rotate INITIAL_GM_PROVISION_TOKEN
 ```
 
 No permanent bootstrap credential should be placed in the repository.
