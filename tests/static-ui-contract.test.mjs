@@ -18,6 +18,7 @@ const monsterWorker = await readFile(new URL('../src/monster.js', import.meta.ur
 const monsterDefenceWorker = await readFile(new URL('../src/monster-defence.js', import.meta.url), 'utf8');
 const monsterDefeatWorker = await readFile(new URL('../src/monster-defeat.js', import.meta.url), 'utf8');
 const bossWorker = await readFile(new URL('../src/boss.js', import.meta.url), 'utf8');
+const bossRuntimeWorker = await readFile(new URL('../src/boss-runtime.js', import.meta.url), 'utf8');
 const monsterRules = await readFile(new URL('../src/monster-rules.js', import.meta.url), 'utf8');
 const monsterLife = await readFile(new URL('../src/monster-life.js', import.meta.url), 'utf8');
 const bossRules = await readFile(new URL('../src/boss-rules.js', import.meta.url), 'utf8');
@@ -186,10 +187,19 @@ assert.match(bossWorker, /action_available=0|action_available = 0/, 'Boss attack
 assert.match(bossWorker, /currentHp.*min:1|Current HP.*min:1/, 'Boss runtime correction must block HP0 until the Boss lifecycle is confirmed.');
 assert.match(bossWorker, /boss_action_log/, 'Boss attack must preserve an audit trail.');
 
+assert.match(bossRuntimeWorker, /import baseWorker from '\.\/boss\.js'/, 'Hardened Boss runtime must layer over the Boss feature gateway.');
+assert.match(bossRuntimeWorker, /hasOwnProperty/, 'Boss Profile PATCH must distinguish an explicitly cleared nullable override from an omitted field.');
+assert.match(bossRuntimeWorker, /vals\.length !== 57|vals\.length!==57/, 'Boss Profile INSERT must guard its 57-value D1 bind contract.');
+assert.match(bossRuntimeWorker, /vals\.length !== 55|vals\.length!==55/, 'Boss Profile UPDATE must guard its 55-value D1 bind contract.');
+assert.match(bossRuntimeWorker, /bossVals\.length !== 27|bossVals\.length!==27/, 'Boss Instance spawn must guard its 27-value D1 bind contract.');
+assert.match(bossRuntimeWorker, /Array\(57\)\.fill\('\?'\)/, 'Boss Profile INSERT placeholder count must be generated from the exact 57-column contract.');
+assert.match(bossRuntimeWorker, /\/api\/gm\/boss-profiles/, 'Hardened Boss runtime must own Boss Profile create/update routes.');
+assert.match(bossRuntimeWorker, /\/api\/gm\/boss-instances/, 'Hardened Boss runtime must own Boss Instance spawn.');
+
 assert.match(bossRules, /calculateBossProfile/, 'Boss rules must centralize baseline → override → final calculation.');
 assert.match(bossRules, /effectiveMonsterAttribute/, 'Boss Attribute baseline must reuse shared Monster Attribute mathematics.');
 assert.match(bossRules, /monsterCalculatedResources/, 'Boss HP / MP baseline must reuse shared Monster resource mathematics.');
 assert.match(bossRules, /bossPhaseApplicability/, 'Boss rules must centralize Phase applicability without forcing transition.');
 assert.match(bossRules, /validateBossPhases/, 'Boss Phase definitions must be validated centrally.');
 
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/boss\.js"/, 'Wrangler must route through the Boss runtime gateway.');
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/boss-runtime\.js"/, 'Wrangler must route through the hardened Boss runtime gateway.');
