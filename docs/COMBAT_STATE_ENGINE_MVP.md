@@ -172,6 +172,31 @@ all Combatants:
 
 Attack and Ability execution will later consume these allowances through server-authoritative Action endpoints.
 
+## 6.1 Stale-State / Double-Advance Protection
+
+Turn advancement is a server-authoritative state transition and must not trust that a browser still holds the latest Round / Turn pointer.
+
+The End Turn update therefore compares the previously-read authoritative state before advancing:
+
+```text
+Expected Round
++ Expected Current Turn Index
++ Combat status = active
+→ conditional D1 update
+```
+
+If another request has already changed that state:
+
+```text
+conditional update changes 0 rows
+→ reject with COMBAT_STATE_CHANGED
+→ caller must reload current Combat state
+```
+
+This prevents two near-simultaneous End Turn requests from silently skipping a Combatant or advancing the Round twice.
+
+The same principle must be reused by future Player-owned turn/action mutation endpoints where stale concurrent writes could consume or advance authoritative Combat state incorrectly.
+
 ---
 
 # 7. GM Override
@@ -195,6 +220,8 @@ Round number
 This avoids silently granting duplicate actions.
 
 A future explicit allowance-reset correction may be added separately if required.
+
+Force Turn must still fail rather than report success if the Combat ceased to be active before the authoritative write completed.
 
 ---
 
@@ -274,10 +301,10 @@ The GM UI exposes the same narrow capabilities.
 
 # 12. Next Blocker
 
-Once this state engine is implemented, the next MVP blocker is:
+Once this state engine is implemented and the recheck hotfixes are applied, the next MVP blocker is:
 
 ```text
 Player server-authoritative Action / Move / End Own Turn
 ```
 
-That layer must consume this Combat state rather than introducing a separate browser-only Turn model.
+That layer must consume this Combat state rather than introducing a separate browser-only Turn model, and must use the same stale-state protection for authoritative mutation endpoints.
