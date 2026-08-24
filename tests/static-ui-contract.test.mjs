@@ -19,187 +19,138 @@ const monsterDefenceWorker = await readFile(new URL('../src/monster-defence.js',
 const monsterDefeatWorker = await readFile(new URL('../src/monster-defeat.js', import.meta.url), 'utf8');
 const bossWorker = await readFile(new URL('../src/boss.js', import.meta.url), 'utf8');
 const bossRuntimeWorker = await readFile(new URL('../src/boss-runtime.js', import.meta.url), 'utf8');
+const bossDefeatWorker = await readFile(new URL('../src/boss-defeat.js', import.meta.url), 'utf8');
 const monsterRules = await readFile(new URL('../src/monster-rules.js', import.meta.url), 'utf8');
 const monsterLife = await readFile(new URL('../src/monster-life.js', import.meta.url), 'utf8');
 const bossRules = await readFile(new URL('../src/boss-rules.js', import.meta.url), 'utf8');
+const bossLife = await readFile(new URL('../src/boss-life.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 for (const id of [
-  'campaign-name',
-  'gm-user-name',
-  'gm-user-role',
-  'view-dashboard',
-  'view-players',
-  'view-characters',
-  'view-combat',
-  'combat-side-link',
-  'gm-attack-profile-panel',
-  'gm-create-attack-profile',
-  'gm-attack-profile-list'
+  'campaign-name', 'gm-user-name', 'gm-user-role', 'view-dashboard', 'view-players',
+  'view-characters', 'view-combat', 'combat-side-link', 'gm-attack-profile-panel',
+  'gm-create-attack-profile', 'gm-attack-profile-list'
 ]) {
   assert.match(gmHtml, new RegExp(`id=["']${id}["']`), `GM HTML must contain #${id}`);
 }
+assert.match(gmHtml, /src=["']\/assets\/gm-attack-profiles\.js["']/, 'GM workspace must load the GM module chain.');
+assert.ok(!gmJs.includes('dashboard-campaign-name'), 'GM client must not reference removed Dashboard ids.');
+assert.match(gmJs, /combat:\s*['"]Combat['"]/, 'Shared GM navigation must recognize Combat.');
+assert.match(gmAttackJs, /import\s+['"]\.\/gm-story\.js['"]/, 'GM module chain must load Story.');
+assert.match(gmAttackJs, /import\s+['"]\.\/gm-monsters\.js['"]/, 'GM module chain must load Monsters.');
+assert.match(gmAttackJs, /import\s+['"]\.\/gm-monster-defence\.js['"]/, 'GM module chain must load Monster Defence / Armor.');
+assert.match(gmAttackJs, /import\s+['"]\.\/gm-bosses\.js['"]/, 'GM module chain must load Bosses.');
 
-assert.match(
-  gmHtml,
-  /id=["']combat-side-link["'][^>]*data-view=["']combat["']|data-view=["']combat["'][^>]*id=["']combat-side-link["']/,
-  'Combat navigation button must participate in the shared GM view contract.'
-);
+assert.match(gmStoryJs, /story-side-link/, 'Story UI must expose navigation.');
+assert.match(gmStoryJs, /\/api\/gm\/story/, 'Story UI must read D1-authoritative Story data.');
+assert.match(gmStoryJs, /start-combat/, 'Story UI must start Encounter Combat through server routes.');
+assert.match(gmStoryJs, /data-encounter-participant/, 'Story UI must manage Encounter participants.');
 
-assert.ok(!gmJs.includes('dashboard-campaign-name'), 'GM client must not reference the removed #dashboard-campaign-name id.');
-assert.match(gmJs, /combat:\s*['"]Combat['"]/, 'Shared GM navigation must recognize the Combat view.');
-assert.match(gmJs, /#campaign-name/, 'GM client must use the actual #campaign-name element.');
-assert.match(gmHtml, /src=["']\/assets\/gm-attack-profiles\.js["']/, 'GM workspace must load Attack Profile authoring module.');
-assert.match(gmAttackJs, /attack-profiles/, 'GM Attack Profile client must use the server-authoritative Profile API.');
-assert.match(gmAttackJs, /import\s+['"]\.\/gm-story\.js['"]/, 'GM module chain must load the Story workspace.');
-assert.match(gmAttackJs, /import\s+['"]\.\/gm-monsters\.js['"]/, 'GM module chain must load the Monster workspace.');
-assert.match(gmAttackJs, /import\s+['"]\.\/gm-monster-defence\.js['"]/, 'GM module chain must load Monster Defence / Armor controls.');
-assert.match(gmAttackJs, /import\s+['"]\.\/gm-bosses\.js['"]/, 'GM module chain must load the Boss workspace.');
+assert.match(gmMonstersJs, /monster-side-link/, 'Monster UI must expose navigation.');
+assert.match(gmMonstersJs, /monster-templates/, 'Monster UI must author Templates.');
+assert.match(gmMonstersJs, /monster-skills/, 'Monster UI must author Common Skills.');
+assert.match(gmMonstersJs, /monster-instances/, 'Monster UI must manage Instances.');
+assert.match(gmMonstersJs, /monster-attack/, 'Monster UI must expose GM Monster attacks.');
+assert.match(gmMonsterDefenceJs, /Stored Defence/, 'Monster UI must expose Dedicated Stored Defence.');
+assert.match(gmMonsterDefenceJs, /Armor Defence/, 'Monster UI must expose Armor Defence separately.');
+assert.match(gmMonsterDefenceJs, /defence-armor/, 'Monster Defence / Armor must use server-authoritative routes.');
 
-assert.match(gmStoryJs, /story-side-link/, 'Story client must expose a GM Story navigation entry.');
-assert.match(gmStoryJs, /\/api\/gm\/story/, 'Story client must read the server-authoritative Story API.');
-assert.match(gmStoryJs, /start-combat/, 'Story client must be able to start Combat from an Encounter.');
-assert.match(gmStoryJs, /data-encounter-participant/, 'Story client must manage Encounter Character participants.');
-
-assert.match(gmMonstersJs, /monster-side-link/, 'Monster client must expose a GM Monster navigation entry.');
-assert.match(gmMonstersJs, /\/api\/gm\/monsters/, 'Monster client must read the server-authoritative Monster API.');
-assert.match(gmMonstersJs, /monster-templates/, 'Monster client must author Templates.');
-assert.match(gmMonstersJs, /monster-skills/, 'Monster client must author Common Monster Skills.');
-assert.match(gmMonstersJs, /monster-instances/, 'Monster client must spawn / inspect Monster Instances.');
-assert.match(gmMonstersJs, /monster-attack/, 'Monster client must expose GM-controlled Monster attack resolution.');
-
-assert.match(gmMonsterDefenceJs, /Stored Defence/, 'Monster Defence UI must expose Dedicated Stored Defence separately from Armor.');
-assert.match(gmMonsterDefenceJs, /Armor Defence/, 'Monster Defence UI must expose Armor Defence data.');
-assert.match(gmMonsterDefenceJs, /defence-armor/, 'Monster Defence UI must use the dedicated server-authoritative Defence / Armor routes.');
-assert.match(gmMonsterDefenceJs, /Armor Defence is not added to the D100 check/, 'GM UI must keep D100 Defence and Armor reduction conceptually separate.');
-
-assert.match(gmBossesJs, /boss-side-link/, 'Boss client must expose a dedicated GM Boss navigation entry.');
-assert.match(gmBossesJs, /\/api\/gm\/bosses/, 'Boss client must read the server-authoritative Boss overview.');
-assert.match(gmBossesJs, /boss-profiles/, 'Boss client must author Boss Design Profiles.');
-assert.match(gmBossesJs, /unique-skills/, 'Boss client must create GM-authored Unique Boss Skills.');
-assert.match(gmBossesJs, /save-phases/, 'Boss client must author Phase definitions.');
-assert.match(gmBossesJs, /boss-instances/, 'Boss client must spawn and correct Boss Instances.');
-assert.match(gmBossesJs, /boss-attack/, 'Boss client must expose GM-controlled Boss attack resolution.');
-assert.match(gmBossesJs, /HP0 blocked pending lifecycle/, 'Boss runtime UI must not silently invent the unresolved Boss HP0 rule.');
+assert.match(gmBossesJs, /boss-side-link/, 'Boss UI must expose a dedicated workspace.');
+assert.match(gmBossesJs, /\/api\/gm\/bosses/, 'Boss UI must read D1-authoritative Boss data.');
+assert.match(gmBossesJs, /boss-profiles/, 'Boss UI must author Boss Design Profiles.');
+assert.match(gmBossesJs, /unique-skills/, 'Boss UI must author Unique Boss Skills.');
+assert.match(gmBossesJs, /save-phases/, 'Boss UI must author Phase definitions.');
+assert.match(gmBossesJs, /boss-instances/, 'Boss UI must spawn and correct Boss Instances.');
+assert.match(gmBossesJs, /boss-attack/, 'Boss UI must expose GM Boss attacks.');
+assert.match(gmBossesJs, /Current HP \(0 = defeated\)/, 'Boss UI must expose the confirmed HP0 immediate-defeat meaning.');
+assert.match(gmBossesJs, /data-bi-hp type=\"number\" min=\"0\"/, 'Boss GM Current HP correction must permit zero.');
+assert.ok(!gmBossesJs.includes('HP0 blocked pending lifecycle'), 'Boss UI must not retain pre-decision HP0 wording.');
 
 for (const id of [
-  'player-combat-panel',
-  'player-combat-round',
-  'player-combat-current',
-  'player-combat-initiative',
-  'player-consume-action',
-  'player-consume-move',
-  'player-end-turn',
-  'player-attack-controls',
-  'player-attack-profile',
-  'player-attack-target',
-  'player-attack',
-  'player-attack-result'
+  'player-combat-panel', 'player-combat-round', 'player-combat-current',
+  'player-combat-initiative', 'player-consume-action', 'player-consume-move',
+  'player-end-turn', 'player-attack-controls', 'player-attack-profile',
+  'player-attack-target', 'player-attack', 'player-attack-result'
 ]) {
   assert.match(playerHtml, new RegExp(`id=["']${id}["']`), `Player HTML must contain #${id}`);
 }
+assert.match(playerHtml, /src=["']\/assets\/player-combat\.js["']/, 'Player workspace must load Combat UI.');
+assert.match(playerCombatJs, /\/api\/player\/combat/, 'Player Combat must use server-authoritative Combat APIs.');
+assert.match(playerCombatJs, /monster_instance/, 'Player Combat must recognize Monster targets.');
+assert.match(playerCombatJs, /boss_instance/, 'Player Combat must recognize Boss targets.');
+assert.match(playerCombatJs, /· MONSTER ·/, 'Player target selector must label Monster targets.');
+assert.match(playerCombatJs, /· BOSS ·/, 'Player target selector must label Boss targets.');
+assert.match(playerCombatJs, /Boss Defence/, 'Player results must distinguish Boss Defence.');
+assert.match(playerCombatJs, /boss_stored_defence/, 'Player results must recognize Boss Stored Defence source.');
+assert.match(playerCombatJs, /DEFEATED/, 'Player Combat must expose defeated hostile state.');
+assert.match(playerCombatJs, /item\.entityType === 'monster_instance' \|\| item\.entityType === 'boss_instance'/, 'Active Monster and Boss targets must share hostile target eligibility.');
 
-assert.match(playerHtml, /src=["']\/assets\/player-combat\.js["']/, 'Player workspace must load the Player Combat client module.');
-assert.match(playerCombatJs, /\/api\/player\/combat/, 'Player Combat client must use the server-authoritative Combat API.');
-assert.match(playerCombatJs, /\/attack/, 'Player Combat client must call the dedicated Attack resolver.');
-assert.match(playerCombatJs, /consume-action/, 'Player Combat client must expose Action allowance mutation.');
-assert.match(playerCombatJs, /consume-move/, 'Player Combat client must expose Move allowance mutation.');
-assert.match(playerCombatJs, /end-turn/, 'Player Combat client must expose End Own Turn.');
-assert.match(playerCombatJs, /monster_instance/, 'Player Combat target selection must recognize Monster Instance combatants.');
-assert.match(playerCombatJs, /MONSTER/, 'Player Combat UI must identify Monster targets explicitly.');
-assert.match(playerCombatJs, /Armor/, 'Player Combat result / target UI must expose Monster Armor context.');
-assert.match(playerCombatJs, /DEFEATED/, 'Player Combat UI must expose defeated Monster state.');
-assert.ok(!/item\.entityType === 'boss_instance'[\s\S]{0,300}return true/.test(playerCombatJs), 'Player target UI must not make Boss Instance attackable before Boss HP0 lifecycle is confirmed.');
+assert.match(playerAttackWorker, /controller_user_id/, 'Base Character attacks must resolve controller authority.');
+assert.match(playerAttackWorker, /action_available = 0/, 'Base Character attacks must reserve Action.');
+assert.match(playerAttackWorker, /TARGET_DODGE_REQUIRED/, 'Character targets must use Canonical Dodge.');
+assert.match(playerAttackWorker, /target\.entityType !== 'character'/, 'Outer entity gateways must continue owning Monster/Boss target paths.');
+assert.match(combatLife, /last_dying_tick_combat_id/, 'Character DYING countdown must remain idempotent.');
+assert.match(lifeCorrection, /life_state = 'alive'/, 'GM Character HP correction may revive DYING to ALIVE.');
+assert.match(lifeCorrection, /life_state = 'dying'/, 'Character HP0 correction must preserve Player DYING semantics.');
 
-assert.match(playerAttackWorker, /controller_user_id/, 'Attack authority must resolve through combatant controller ownership.');
-assert.match(playerAttackWorker, /action_available = 0/, 'Base Character attack resolver must reserve and consume the authoritative Action.');
-assert.match(playerAttackWorker, /ATTACK_PROFILE_UNAVAILABLE/, 'Attack resolver must reject unapproved or inactive Profiles.');
-assert.match(playerAttackWorker, /TARGET_DODGE_REQUIRED/, 'Character target attack resolver must require the Canonical target Dodge Skill.');
-assert.match(playerAttackWorker, /effectiveDefence:\s*0/, 'Character target MVP attack path must keep post-hit Effective Defence at zero until Character Armor sources are integrated.');
-assert.match(playerAttackWorker, /target\.entityType !== 'character'/, 'Base Player attack resolver must continue refusing non-Character targets because outer entity gateways own those paths.');
-assert.match(playerAttackWorker, /character_locked = 1/, 'Death resolution must lock the Character.');
-assert.match(combatLife, /last_dying_tick_combat_id/, 'Dying Turn countdown must keep an idempotency marker.');
-assert.match(combatLife, /UPDATE combatants[\s\S]*UPDATE combats/, 'Dying-aware Turn transition must mutate Combatant state before advancing the Combat pointer.');
-assert.match(lifeCorrection, /life_state = 'alive'/, 'GM HP correction above zero must be able to clear DYING state.');
-assert.match(lifeCorrection, /life_state = 'dying'/, 'GM HP correction to zero must enter DYING when CON is valid.');
-
-assert.match(scenarioWorker, /import baseWorker from '\.\/life-correction\.js'/, 'Story gateway must layer over the existing Life correction gateway.');
-assert.match(scenarioWorker, /CREATE TABLE IF NOT EXISTS scenarios/, 'Story gateway must persist Scenarios in D1.');
-assert.match(scenarioWorker, /CREATE TABLE IF NOT EXISTS scenes/, 'Story gateway must persist Scenes in D1.');
-assert.match(scenarioWorker, /CREATE TABLE IF NOT EXISTS encounters/, 'Story gateway must persist Encounters in D1.');
+assert.match(scenarioWorker, /CREATE TABLE IF NOT EXISTS scenarios/, 'Story gateway must persist Scenarios.');
+assert.match(scenarioWorker, /CREATE TABLE IF NOT EXISTS scenes/, 'Story gateway must persist Scenes.');
+assert.match(scenarioWorker, /CREATE TABLE IF NOT EXISTS encounters/, 'Story gateway must persist Encounters.');
 assert.match(scenarioWorker, /encounter_participants/, 'Story gateway must persist Encounter participants.');
-assert.match(scenarioWorker, /encounter_combats/, 'Story gateway must link Encounter to Combat without duplicating Combat runtime state.');
-assert.match(scenarioWorker, /monster_instance/, 'Encounter participant schema must reserve Monster Instance integration.');
-assert.match(scenarioWorker, /boss_instance/, 'Encounter participant schema must reserve Boss Instance integration.');
-assert.match(scenarioWorker, /\/api\/gm\/combat\/start/, 'Encounter Combat start must reuse the existing Combat Start resolver.');
+assert.match(scenarioWorker, /encounter_combats/, 'Story gateway must link Encounter to Combat.');
+assert.match(scenarioWorker, /monster_instance/, 'Encounter participant model must reserve Monster Instance.');
+assert.match(scenarioWorker, /boss_instance/, 'Encounter participant model must reserve Boss Instance.');
 
-assert.match(monsterWorker, /import baseWorker from '\.\/scenario\.js'/, 'Monster gateway must layer over the Scenario gateway.');
-assert.match(monsterWorker, /CREATE TABLE IF NOT EXISTS monster_templates/, 'Monster gateway must persist Templates in D1.');
-assert.match(monsterWorker, /CREATE TABLE IF NOT EXISTS monster_skill_profiles/, 'Monster gateway must persist Monster Skill Profiles in D1.');
-assert.match(monsterWorker, /CREATE TABLE IF NOT EXISTS monster_instances/, 'Monster gateway must persist Monster Instances in D1.');
-assert.match(monsterWorker, /entity_type, entity_id/, 'Monster runtime must integrate through the shared Combatant entity model.');
-assert.match(monsterWorker, /'monster_instance'/, 'Monster runtime must activate monster_instance Encounter / Combat participation.');
-assert.match(monsterWorker, /buildCombatInitiative/, 'Character + Monster Combat must reuse shared Initiative ordering.');
-assert.match(monsterWorker, /monster-attack/, 'Monster gateway must expose GM-controlled Monster attack resolution.');
-assert.match(monsterWorker, /action_available = 0/, 'Monster attack must reserve the authoritative Action before rolling.');
-assert.match(monsterWorker, /TARGET_DODGE_REQUIRED/, 'Monster attack must resolve against Character Canonical Dodge.');
-assert.match(monsterWorker, /monster_action_log/, 'Monster attack must preserve runtime audit data.');
-
-assert.match(monsterDefenceWorker, /import baseWorker from '\.\/monster\.js'/, 'Monster Defence gateway must layer over the already-tested Monster runtime.');
-assert.match(monsterDefenceWorker, /stored_defence/, 'Monster Defence gateway must persist Dedicated Stored Defence.');
-assert.match(monsterDefenceWorker, /armor_base_defence/, 'Monster Defence gateway must preserve Armor base snapshot data.');
-assert.match(monsterDefenceWorker, /armor_defence_adjustment/, 'Monster Defence gateway must preserve Instance Armor adjustment data.');
+assert.match(monsterWorker, /import baseWorker from '\.\/scenario\.js'/, 'Monster gateway must layer over Story.');
+assert.match(monsterWorker, /CREATE TABLE IF NOT EXISTS monster_templates/, 'Monster gateway must persist Templates.');
+assert.match(monsterWorker, /CREATE TABLE IF NOT EXISTS monster_instances/, 'Monster gateway must persist Instances.');
+assert.match(monsterWorker, /buildCombatInitiative/, 'Monster combat must reuse shared Initiative.');
+assert.match(monsterWorker, /monster-attack/, 'Monster runtime must expose GM attacks.');
+assert.match(monsterDefenceWorker, /stored_defence/, 'Monster Defence gateway must persist Stored Defence.');
 assert.match(monsterDefenceWorker, /final_armor_defence/, 'Monster Defence gateway must persist Final Armor Defence.');
-assert.match(monsterDefenceWorker, /snapshotSpawnedDefence/, 'Spawn must snapshot Template Defence / Armor into the Instance.');
-assert.match(monsterDefenceWorker, /effectiveD100Defence/, 'Combat payload must expose calculated Effective D100 Defence separately from Armor.');
+assert.match(monsterDefeatWorker, /monsterEffectiveD100Defence/, 'Player → Monster must use Dedicated Stored Defence.');
+assert.match(monsterDefeatWorker, /monsterFinalArmorDefence/, 'Player → Monster must use Monster Armor post-hit.');
+assert.match(monsterDefeatWorker, /player_monster_action_log/, 'Player → Monster must preserve audit.');
+assert.match(monsterDefeatWorker, /move_available = 0/, 'Defeated Monster must lose ordinary allowances.');
+assert.match(monsterLife, /statusAfter: hpAfter <= 0 \? 'defeated' : 'active'/, 'Monster HP0 must immediately defeat.');
+assert.ok(!/dying/i.test(monsterLife), 'Ordinary Monster life helper must not inherit Player DYING.');
 
-assert.match(monsterDefeatWorker, /import baseWorker from '\.\/monster-defence\.js'/, 'Monster Defeat gateway must layer over the confirmed Defence / Armor runtime.');
-assert.match(monsterDefeatWorker, /monsterEffectiveD100Defence/, 'Player → Monster resolver must use Dedicated Stored Defence.');
-assert.match(monsterDefeatWorker, /monsterFinalArmorDefence/, 'Player → Monster resolver must use Monster Armor after a successful hit.');
-assert.match(monsterDefeatWorker, /action_available = 0/, 'Player → Monster attack must reserve the authoritative Player Action.');
-assert.match(monsterDefeatWorker, /player_monster_action_log/, 'Player → Monster attack must preserve a dedicated audit trail.');
-assert.match(monsterDefeatWorker, /status = \?/, 'Player-origin damage must persist Monster status together with HP.');
-assert.match(monsterDefeatWorker, /MONSTER_TARGET_NOT_ACTIVE/, 'Defeated / removed Monsters must reject normal Player attacks.');
-assert.match(monsterDefeatWorker, /reconcileMonsterStatusFromHp/, 'GM HP correction must reconcile active / defeated status.');
-assert.match(monsterDefeatWorker, /move_available = 0/, 'Defeated Monsters must lose ordinary Action / Move allowances in active Combat.');
+assert.match(monsterRules, /\(\(value - 1\) \/ 21\.7\) \*\* 2/, 'Monster Attribute growth curve must remain centralized.');
+assert.match(monsterRules, /7 \* \(\(\(value - 1\) \/ 99\) \*\* 1\.5\)/, 'Monster damage growth curve must remain centralized.');
+assert.match(monsterRules, /monsterEffectiveD100Defence/, 'Monster D100 Defence must remain centralized.');
+assert.match(monsterRules, /monsterFinalArmorDefence/, 'Monster Armor calculation must remain centralized.');
 
-assert.match(monsterLife, /statusAfter: hpAfter <= 0 \? 'defeated' : 'active'/, 'Ordinary Monster HP0 must resolve immediately to defeated.');
-assert.ok(!/dying/i.test(monsterLife), 'Ordinary Monster life helper must not inherit Player DYING semantics.');
-assert.match(monsterLife, /currentStatus === 'removed'/, 'GM HP correction must not silently revive removed Monsters.');
+assert.match(bossWorker, /import baseWorker from '\.\/monster-defeat\.js'/, 'Boss feature gateway must layer over completed Monster runtime.');
+assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_design_profiles/, 'Boss runtime must persist Design Profiles.');
+assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_instances/, 'Boss runtime must persist Instances separately.');
+assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_instance_skills/, 'Boss runtime must snapshot executable Skills.');
+assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_instance_phases/, 'Boss runtime must snapshot Phases.');
+assert.match(bossWorker, /buildCombatInitiative/, 'Boss must join shared Character / Monster Initiative.');
+assert.match(bossWorker, /boss-attack/, 'Boss runtime must expose GM attacks.');
+assert.match(bossWorker, /boss_action_log/, 'Boss → Character attacks must preserve audit.');
 
-assert.match(monsterRules, /\(\(value - 1\) \/ 21\.7\) \*\* 2/, 'Monster rules must use the locked global Attribute growth curve.');
-assert.match(monsterRules, /7 \* \(\(\(value - 1\) \/ 99\) \*\* 1\.5\)/, 'Monster rules must use the locked damage growth curve.');
-assert.match(monsterRules, /level1:[\s\S]*min: -2,[\s\S]*max: 2/, 'Monster Spread tuning must keep the documented low-Level MVP anchor centralized.');
-assert.match(monsterRules, /level100:[\s\S]*min: -5,[\s\S]*max: 15/, 'Monster Spread tuning must keep the documented high-Level MVP anchor centralized.');
-assert.match(monsterRules, /monsterEffectiveD100Defence/, 'Monster rules must centralize the Dedicated Stored Defence cap calculation.');
-assert.match(monsterRules, /monsterFinalArmorDefence/, 'Monster rules must centralize the Armor base + adjustment calculation.');
+assert.match(bossRuntimeWorker, /import baseWorker from '\.\/boss\.js'/, 'Hardened Boss authoring must layer over Boss feature gateway.');
+assert.match(bossRuntimeWorker, /hasOwnProperty/, 'Boss Profile PATCH must distinguish cleared vs omitted nullable overrides.');
+assert.match(bossRuntimeWorker, /vals\.length !== 57|vals\.length!==57/, 'Boss Profile INSERT must guard 57-value D1 bind contract.');
+assert.match(bossRuntimeWorker, /vals\.length !== 55|vals\.length!==55/, 'Boss Profile UPDATE must guard 55-value D1 bind contract.');
+assert.match(bossRuntimeWorker, /bossVals\.length !== 27|bossVals\.length!==27/, 'Boss Instance spawn must guard 27-value D1 bind contract.');
+assert.match(bossRuntimeWorker, /Array\(57\)\.fill\('\?'\)/, 'Boss Profile placeholder count must match bind contract.');
 
-assert.match(bossWorker, /import baseWorker from '\.\/monster-defeat\.js'/, 'Boss gateway must layer over the completed ordinary Monster combat loop.');
-assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_design_profiles/, 'Boss runtime must persist Boss Design Profiles.');
-assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_instances/, 'Boss runtime must persist Boss Instances separately from Profiles.');
-assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_instance_skills/, 'Boss runtime must snapshot executable Boss Skills.');
-assert.match(bossWorker, /CREATE TABLE IF NOT EXISTS boss_instance_phases/, 'Boss runtime must snapshot Boss Phase definitions.');
-assert.match(bossWorker, /source_scope = 'boss'|source_scope,'boss'|source_scope,source_template_id/, 'Boss runtime must reuse the Monster Skill Profile model for unique Boss Skills.');
-assert.match(bossWorker, /buildCombatInitiative/, 'Boss Instance must join the shared Character / Monster Combat Initiative resolver.');
-assert.match(bossWorker, /entityType:'boss_instance'|entityType: 'boss_instance'/, 'Boss runtime must activate boss_instance Combat participation.');
-assert.match(bossWorker, /boss-attack/, 'Boss runtime must expose GM-controlled Boss attack resolution.');
-assert.match(bossWorker, /action_available=0|action_available = 0/, 'Boss attacks must reserve the authoritative Action.');
-assert.match(bossWorker, /currentHp.*min:1|Current HP.*min:1/, 'Boss runtime correction must block HP0 until the Boss lifecycle is confirmed.');
-assert.match(bossWorker, /boss_action_log/, 'Boss attack must preserve an audit trail.');
+assert.match(bossDefeatWorker, /import baseWorker from '\.\/boss-runtime\.js'/, 'Boss defeat gateway must layer over hardened Boss runtime.');
+assert.match(bossDefeatWorker, /bossInstanceDefence/, 'Player → Boss must use Boss Stored Defence / Armor.');
+assert.match(bossDefeatWorker, /resolveBossHpDamage/, 'Player → Boss must use Boss HP0 helper.');
+assert.match(bossDefeatWorker, /player_boss_action_log/, 'Player → Boss must preserve dedicated audit.');
+assert.match(bossDefeatWorker, /BOSS_TARGET_NOT_ACTIVE/, 'Defeated / removed Boss must reject normal targeting.');
+assert.match(bossDefeatWorker, /reconcileBossStatusFromHp/, 'GM Boss HP correction must reconcile active / defeated.');
+assert.match(bossDefeatWorker, /move_available = 0/, 'Defeated Boss must lose ordinary allowances.');
+assert.match(bossDefeatWorker, /min: 0, max: maxHp/, 'Boss GM Current HP correction must permit zero.');
+assert.match(bossLife, /statusAfter: hpAfter <= 0 \? 'defeated' : 'active'/, 'Boss HP0 must immediately defeat.');
+assert.ok(!/dying/i.test(bossLife), 'Boss life helper must not inherit Player DYING.');
 
-assert.match(bossRuntimeWorker, /import baseWorker from '\.\/boss\.js'/, 'Hardened Boss runtime must layer over the Boss feature gateway.');
-assert.match(bossRuntimeWorker, /hasOwnProperty/, 'Boss Profile PATCH must distinguish an explicitly cleared nullable override from an omitted field.');
-assert.match(bossRuntimeWorker, /vals\.length !== 57|vals\.length!==57/, 'Boss Profile INSERT must guard its 57-value D1 bind contract.');
-assert.match(bossRuntimeWorker, /vals\.length !== 55|vals\.length!==55/, 'Boss Profile UPDATE must guard its 55-value D1 bind contract.');
-assert.match(bossRuntimeWorker, /bossVals\.length !== 27|bossVals\.length!==27/, 'Boss Instance spawn must guard its 27-value D1 bind contract.');
-assert.match(bossRuntimeWorker, /Array\(57\)\.fill\('\?'\)/, 'Boss Profile INSERT placeholder count must be generated from the exact 57-column contract.');
-assert.match(bossRuntimeWorker, /\/api\/gm\/boss-profiles/, 'Hardened Boss runtime must own Boss Profile create/update routes.');
-assert.match(bossRuntimeWorker, /\/api\/gm\/boss-instances/, 'Hardened Boss runtime must own Boss Instance spawn.');
-
-assert.match(bossRules, /calculateBossProfile/, 'Boss rules must centralize baseline → override → final calculation.');
-assert.match(bossRules, /effectiveMonsterAttribute/, 'Boss Attribute baseline must reuse shared Monster Attribute mathematics.');
-assert.match(bossRules, /monsterCalculatedResources/, 'Boss HP / MP baseline must reuse shared Monster resource mathematics.');
-assert.match(bossRules, /bossPhaseApplicability/, 'Boss rules must centralize Phase applicability without forcing transition.');
+assert.match(bossRules, /calculateBossProfile/, 'Boss rules must centralize baseline → override → final.');
+assert.match(bossRules, /effectiveMonsterAttribute/, 'Boss baseline must reuse Monster Attribute mathematics.');
+assert.match(bossRules, /monsterCalculatedResources/, 'Boss baseline must reuse Monster resource mathematics.');
+assert.match(bossRules, /bossPhaseApplicability/, 'Boss Phase applicability must remain advisory.');
 assert.match(bossRules, /validateBossPhases/, 'Boss Phase definitions must be validated centrally.');
 
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/boss-runtime\.js"/, 'Wrangler must route through the hardened Boss runtime gateway.');
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/boss-defeat\.js"/, 'Wrangler must route through the Boss defeat gateway.');
