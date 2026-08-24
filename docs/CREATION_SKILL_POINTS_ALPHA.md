@@ -75,4 +75,43 @@ Natural Skill Value = current saved Creation Allocation
 
 until later post-creation growth sources exist.
 
-This partial-save rule does **not** decide whether all 200 Creation Skill Points must be spent before finalizing Character creation. The finalization requirement remains unresolved and must be decided only when the MVP Finalize Character step requires it.
+## Locked Finalization Requirement
+
+A normal Player-created Character may finalize creation only after the full Creation Skill Point pool has been allocated.
+
+Canonical:
+
+```text
+Creation Skill Points Total = 200
+Creation Skill Points Spent = 200
+Creation Skill Points Remaining = 0
+→ Finalize allowed
+```
+
+If any Creation Skill Points remain unspent:
+
+```text
+Creation Skill Points Spent < 200
+→ Save allocation allowed
+→ Finalize rejected
+```
+
+The server must recalculate the authoritative spent total from the 23 stored `creation_value` records when finalization is requested. The UI-computed total and the cached progression total are not sufficient authority by themselves.
+
+Finalization must also verify that:
+
+- the Character belongs to the authenticated Player;
+- the Character is still in `draft` state;
+- all 23 base skills exist exactly once;
+- every stored creation value is an integer from 0 to 30;
+- the authoritative sum is exactly 200;
+- `creation_complete` has not already been set.
+
+Successful finalization changes the creation state atomically:
+
+```text
+character_progression.creation_complete = 1
+characters.status = 'active'
+```
+
+Creation Skill Points do not carry forward after finalization and are never converted into Level-up Skill Points. After finalization, the draft Creation Skill allocation endpoint is locked for that Character.
