@@ -8,6 +8,7 @@ import {
   monsterDamageGrowth,
   monsterEffectiveAccuracy,
   monsterGlobalGrowth,
+  rollSignedSpread,
   snapshotMonsterSkill,
   suggestedMonsterSpread
 } from '../src/monster-rules.js';
@@ -26,6 +27,7 @@ assert.equal(monsterDamageAttributeBasis({ STR: 20, DEX: 10 }, ['STR', 'DEX']).b
 
 assert.deepEqual(suggestedMonsterSpread(1), { min: -2, max: 2 });
 assert.deepEqual(suggestedMonsterSpread(100), { min: -5, max: 15 });
+assert.equal(rollSignedSpread(4, 4, () => { throw new Error('Fixed Spread must not consume RNG.'); }), 4);
 
 assert.deepEqual(monsterEffectiveAccuracy(130, -20), {
   storedAccuracy: 130,
@@ -36,12 +38,6 @@ assert.deepEqual(monsterEffectiveAccuracy(130, -20), {
 assert.equal(monsterEffectiveAccuracy(130, -40).effectiveAccuracy, 90);
 
 const deterministic = [
-  0, // STR range -> min
-  0, // DEX
-  0, // CON
-  0, // POW
-  0, // INT
-  0, // SIZ
   0, // elite roll -> 1, elite
   0  // elite bonus -> 1
 ];
@@ -52,8 +48,10 @@ const generated = buildMonsterAttributes({
   level: 1,
   randomUint32: () => deterministic[index++] ?? 0
 });
+assert.equal(index, 2, 'Fixed Attribute ranges must not consume RNG.');
 assert.equal(generated.isElite, true);
 assert.equal(generated.eliteBonus, 1);
+assert.equal(generated.baseRolls.STR, 10);
 assert.equal(generated.natural.STR, 11);
 assert.equal(generated.effective.STR, 11);
 
