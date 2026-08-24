@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  "main": "./src/player-skill-allocation.js",
+  "main": "./src/gm-d1.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
   "routes": [
@@ -23,7 +23,9 @@
     "run_worker_first": [
       "/api/*",
       "/player",
-      "/player/*"
+      "/player/*",
+      "/gm",
+      "/gm/*"
     ],
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash"
