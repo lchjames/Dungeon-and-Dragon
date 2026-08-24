@@ -339,40 +339,63 @@ async function endCurrentTurn(request, env, combatId) {
   const current = combat.currentCombatant;
   if (!current) return apiError('Current Turn state 無效。', 409, 'CURRENT_TURN_INVALID');
 
+  const expectedRound = combat.roundNumber;
+  const expectedIndex = combat.currentTurnIndex;
   const lastIndex = combat.combatants.length - 1;
-  const wrapsRound = combat.currentTurnIndex >= lastIndex;
+  const wrapsRound = expectedIndex >= lastIndex;
   const now = Date.now();
+  let results;
 
   if (!wrapsRound) {
-    await env.DB.batch([
+    const nextIndex = expectedIndex + 1;
+    results = await env.DB.batch([
+      env.DB.prepare(`
+        UPDATE combats
+        SET current_turn_index = ?, updated_at = ?
+        WHERE id = ?
+          AND status = 'active'
+          AND round_number = ?
+          AND current_turn_index = ?
+      `).bind(nextIndex, now, combat.id, expectedRound, expectedIndex),
       env.DB.prepare(`
         UPDATE combatants
         SET action_available = 0, move_available = 0,
             turn_completed = 1, updated_at = ?
         WHERE id = ? AND combat_id = ?
-      `).bind(now, current.id, combat.id),
-      env.DB.prepare(`
-        UPDATE combats
-        SET current_turn_index = ?, updated_at = ?
-        WHERE id = ? AND status = 'active'
-      `).bind(combat.currentTurnIndex + 1, now, combat.id)
+          AND EXISTS (
+            SELECT 1 FROM combats
+            WHERE id = ? AND status = 'active'
+              AND round_number = ? AND current_turn_index = ?
+          )
+      `).bind(now, current.id, combat.id, combat.id, expectedRound, nextIndex)
     ]);
   } else {
-    await env.DB.batch([
+    const nextRound = expectedRound + 1;
+    results = await env.DB.batch([
+      env.DB.prepare(`
+        UPDATE combats
+        SET round_number = ?, current_turn_index = 0, updated_at = ?
+        WHERE id = ?
+          AND status = 'active'
+          AND round_number = ?
+          AND current_turn_index = ?
+      `).bind(nextRound, now, combat.id, expectedRound, expectedIndex),
       env.DB.prepare(`
         UPDATE combatants
         SET action_available = 1, move_available = 1,
             turn_completed = 0, updated_at = ?
         WHERE combat_id = ?
-      `).bind(now, combat.id),
-      env.DB.prepare(`
-        UPDATE combats
-        SET round_number = round_number + 1,
-            current_turn_index = 0,
-            updated_at = ?
-        WHERE id = ? AND status = 'active'
-      `).bind(now, combat.id)
+          AND EXISTS (
+            SELECT 1 FROM combats
+            WHERE id = ? AND status = 'active'
+              AND round_number = ? AND current_turn_index = 0
+          )
+      `).bind(now, combat.id, combat.id, nextRound)
     ]);
+  }
+
+  if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
+    return apiError('Combat state 已經由另一個操作更新，請重新載入。', 409, 'COMBAT_STATE_CHANGED');
   }
 
   return json({ ok: true, roundAdvanced: wrapsRound, combat: await loadCombat(env, combat.id) });
@@ -392,11 +415,15 @@ async function forceTurn(request, env, combatId) {
   if (!target) return apiError('指定 Combatant 不屬於此 Combat。', 400, 'COMBATANT_NOT_FOUND');
 
   const now = Date.now();
-  await env.DB.prepare(`
+  const result = await env.DB.prepare(`
     UPDATE combats
     SET current_turn_index = ?, updated_at = ?
     WHERE id = ? AND status = 'active'
   `).bind(target.initiativeOrder, now, combatId).run();
+
+  if (Number(result?.meta?.changes || 0) !== 1) {
+    return apiError('Combat state 已經改變，請重新載入。', 409, 'COMBAT_STATE_CHANGED');
+  }
 
   return json({ ok: true, combat: await loadCombat(env, combatId) });
 }
