@@ -2,15 +2,13 @@
 
 > Status: Canonical Alpha Implementation Scope  
 > Date: 2026-08-25  
-> Purpose: Define the minimum playable vertical slice and stop over-designing non-blocking details before implementation and play-testing.
+> Purpose: Define the minimum playable vertical slice and prevent non-blocking design details from delaying implementation and play-testing.
 
 ---
 
 # 1. Active Development Mode
 
 The project is in **MVP Implementation Mode**.
-
-The immediate objective is not to finish every TRPG subsystem or lock every tuning coefficient. The objective is to produce a playable build in which GM and Players can complete an actual Scenario / Encounter using D1-authoritative data and confirmed Canonical rules.
 
 ```text
 If a decision is required to implement the playable vertical slice
@@ -20,24 +18,24 @@ If a detail is not required to make the playable vertical slice work
 → defer it to Alpha Tuning / Future Update
 ```
 
-Do not continue decomposing systems into increasingly fine design questions merely because more detail could theoretically be specified.
+Do not decompose already-implementable systems into extra design questions merely because more detail could theoretically be specified.
 
 ---
 
 # 2. Architecture That Must Remain Stable
 
 ```text
-Authoritative data ownership
+D1 authoritative data ownership
 Core entity relationships
 Profile vs Instance boundaries
 EXP / Level authority
-core Attribute storage
+Attribute storage
 HP / MP authority
 Player vs GM write permissions
 shared D100 resolution
 shared damage pipeline boundaries
 Monster / Boss persistence boundaries
-round / turn ownership
+Round / Turn ownership
 Scenario / Scene / Encounter relationships
 ```
 
@@ -45,8 +43,10 @@ Scenario / Scene / Encounter relationships
 
 # 3. Details That May Remain Incomplete
 
+The following do not block the first playable Alpha unless they become concrete integration blockers:
+
 ```text
-exact Monster Spread numeric curve
+exact Monster Spread tuning
 exact Boss balance numbers
 advanced Boss Phase trigger catalogue
 Monster / Boss AI
@@ -56,18 +56,18 @@ advanced Status stacking
 Encounter Difficulty rating
 Loot tables
 Economy
-Quest engine
-full tactical Map / movement system
+Quest automation
+full tactical Map / movement engine
 advanced UI polish
 special-case Boss mechanics
 late-game progression tuning
 ```
 
-A missing advanced feature must not force duplication of the core engine.
-
 ---
 
-# 4. First Playable Vertical Slice
+# 4. Playable Vertical Slice
+
+The MVP path is now:
 
 ```text
 User authentication
@@ -77,19 +77,18 @@ User authentication
 → Scenario
 → Scene
 → Encounter
-→ Monster Template / Skill content
-→ spawned Monster Instance
-→ Character + Monster Encounter participants
+→ Character / Monster / Boss participants
 → shared DEX Initiative / Combat
 → Player / GM D100 actions
-→ damage / Armor / HP updates
-→ ordinary Monster defeat handling
-→ Combat completion
+→ Armor-aware damage where implemented
+→ HP / life-state updates
+→ Monster / Boss defeat
+→ GM ends Combat
 → Encounter resolution
 → Scene continuation
 ```
 
-Boss Profile / Instance is the next validation layer after the ordinary Monster loop.
+The remaining milestone is no longer another combat-rule design pass. It is the first real end-to-end Scenario play-test and integration correction cycle.
 
 ---
 
@@ -102,32 +101,41 @@ Boss Profile / Instance is the next validation layer after the ordinary Monster 
 4. GM D1 Character controls                               IMPLEMENTED
 5. Round / Combat State Engine                            IMPLEMENTED
 6. Player Combat Control                                  IMPLEMENTED
-7. D100 Combat Resolver + Damage + HP 0                   IMPLEMENTED MVP CHARACTER PATH
+7. D100 Combat Resolver + Damage + Character HP0          IMPLEMENTED MVP PATH
 8. Scenario / Scene / Encounter Foundation                IMPLEMENTED MVP FOUNDATION
 9. Monster Template / Skill / Instance runtime            IMPLEMENTED
 10. Monster Dedicated Defence + Armor                     IMPLEMENTED
-11. Monster HP0 + Player → Monster path                   IMPLEMENTED MVP PATH
-12. Boss Design Profile / Boss Instance minimum runtime   IMPLEMENTED NON-HP0 PATH
-13. Boss HP0 + Player → Boss final damage path            CURRENT BLOCKER
-14. First End-to-End Scenario Test
+11. Monster HP0 + Player ↔ Monster loop                   IMPLEMENTED
+12. Boss Design Profile / Boss Instance runtime           IMPLEMENTED MVP PATH
+13. Boss HP0 + Player ↔ Boss loop                         IMPLEMENTED MVP PATH
+14. First End-to-End Scenario Test                        NEXT
 ```
 
-The Character attack path continues to use the temporary GM-authored bridge in `PLAYER_ATTACK_PROFILE_MVP.md` until Weapon / Equipment / Specialisation source profiles exist.
+Character physical attacks continue to use the temporary GM-authored bridge in `PLAYER_ATTACK_PROFILE_MVP.md` until Weapon / Equipment / Specialisation source profiles exist.
 
-The Monster runtime uses `MONSTER_RUNTIME_MVP.md`, `MONSTER_DEFENCE_ARMOR_MVP.md`, `MONSTER_DEFEAT_MVP.md`, and the existing Monster Canonical documents. Boss runtime uses `BOSS_DESIGN_PROFILE_ALPHA.md` and `BOSS_RUNTIME_MVP.md`. Full Tactical Map simulation remains Deferred.
+Relevant Monster/Boss Canonical documents include:
+
+```text
+MONSTER_RUNTIME_MVP.md
+MONSTER_DEFENCE_ARMOR_MVP.md
+MONSTER_DEFEAT_MVP.md
+BOSS_DESIGN_PROFILE_ALPHA.md
+BOSS_RUNTIME_MVP.md
+BOSS_DEFEAT_MVP.md
+```
 
 ---
 
-# 6. Implemented Foundation
+# 6. Implemented Character / Combat Foundation
 
-Implemented outcomes now include:
+Implemented outcomes include:
 
 ```text
 EXP authoritative
-Level server-derived and capped at 100
+Level server-derived, cap 100
 Player creation EXP 1 / Level 1
 server-rolled Character Attributes
-Canonical Player HP / MP initialization
+Canonical HP / MP initialization
 23 Canonical basic Skills
 fixed 200 Creation Skill Points
 all 200 Creation points required before Finalize
@@ -145,190 +153,228 @@ Player own Turn controls
 stale-state protection
 
 GM-authored Character Attack Profiles
-server D100 Attack vs Character Dodge
+server D100 attacks
 shared opposed Result comparison
 shared Damage Result pipeline
-Character HP 0 → DYING
+Character HP0 → DYING
 Dying countdown / further-damage death
 DEAD Character lock
+```
 
-single-campaign Scenario persistence
-Scenario → Scene → Encounter D1 relationships
+Character post-hit armour / resistance sources remain a later extension. Existing Monster/Boss-origin attacks therefore keep Character `Effective Defence = 0` until those sources are implemented.
+
+---
+
+# 7. Implemented Scenario Foundation
+
+```text
+single-campaign persistence
+Scenario → Scene → Encounter
 Story status controls
 simple Scene Map metadata
-Encounter Character participant assignment
+Encounter participant assignment
 Encounter → optional Combat link
+```
 
+Encounter participant entity types:
+
+```text
+character
+monster_instance
+boss_instance
+```
+
+A full tactical Map engine remains Deferred.
+
+---
+
+# 8. Implemented Ordinary Monster Runtime
+
+```text
 Monster Template persistence
-six mandatory Monster Attribute ranges
-six independent Monster Attribute Growth Weights
+six mandatory Attribute ranges
+six independent Attribute Growth Weights
 Common Monster Skill Library
 Template → Common Skill loadout
-ordinary Monster spawn into an Encounter
-10% Elite generation + one +1..+5 all-Attribute bonus
-Natural / Effective Monster Attribute layers
-locked Monster Level growth formula
-calculated Monster HP / MP
-snapshotted Monster Instance Skill values
-locked Monster Skill damage Level curve
+ordinary Monster spawn into Encounter
+10% Elite generation
+one +1..+5 Elite bonus applied to all six Natural Attributes
+Natural / Effective Attribute layers
+calculated HP / MP
+snapshotted Instance Skills
+Monster damage Level curve
 Damage Attribute Links / arithmetic-mean basis
 Calculated Damage Center
-central replaceable Suggested Spread tuning
+replaceable Suggested Spread tuning
 GM per-Instance Skill Final Spread override
 Monster Instance resource correction
-monster_instance Encounter participation
 Character + Monster shared Initiative
 GM-controlled Monster Turn
 Monster Action reservation
 Monster Stored / Modified / Effective Accuracy audit
-Monster D100 attack vs Character Dodge
+Monster Skill vs Character Dodge
 Monster signed Spread damage
-Character HP / DYING / DEAD integration from Monster damage
-Monster action audit log
-
-Dedicated Monster Stored Defence
-Monster Stored Defence may exceed 100 and does not Level-scale
-Monster Defence Modifier separate from Stored Defence
-Effective D100 Defence capped at 100 after modifiers
-Monster Template Armor Name / Defence / Notes
-Template Defence / Armor snapshot into spawned Instance
-Instance Armor Base Defence / Adjustment / Final Defence audit chain
-GM Instance Defence Modifier correction
-GM Instance Armor Defence Adjustment correction
-D100 Defence explicitly separated from post-hit Armor reduction
-
-Player → Monster target support
-Player Attack Profile vs Monster Effective D100 Defence
-Monster Armor-aware post-hit Damage Result
-Monster HP clamp at 0
-ordinary Monster HP0 → immediate defeated
-no ordinary Monster Player-style DYING countdown
-defeated Monster loses normal Action / Move
-normal hostile targeting rejects defeated / removed Monsters
-GM HP correction reconciles active / defeated status
-removed Monster remains removed
-Player → Monster dedicated action audit
-
-Dedicated Boss Design Profile persistence
-Boss Calculated Baseline → GM Override → Final Value separation
-Boss baseline reuses Monster Attribute / HP / MP mathematics
-Boss Final Attribute / HP / MP / Defence / Armor overrides
-Common Monster Skill + Unique Boss Skill loadout
-Boss Phase definition persistence
-HP-threshold Phase applicability detection
-manual Boss Phase control
-Boss Profile → Boss Instance snapshots
-Boss runtime Current HP / MP separated from Profile
-Boss Instance Defence / Armor runtime adjustments
-boss_instance Encounter participation
-Character + Monster + Boss shared Initiative
-GM-controlled Boss Turn
-Boss Action reservation
-Boss Skill vs Character Dodge
-Boss damage through shared Monster-style damage mathematics
-Character HP / DYING / DEAD integration from Boss damage
-Boss action audit log
+Character HP / DYING / DEAD integration
+Monster action audit
 ```
 
-Monster/Boss source edits do not silently rewrite already spawned Instance snapshots.
-
-Current Character post-hit `Effective Defence` for Monster/Boss-origin attacks remains `0` until Character armour / resistance / shield sources are integrated. Player → Monster uses the Monster Instance Final Armor Defence. Player → Boss final damage remains deliberately blocked only by the unresolved Boss HP0 lifecycle.
-
----
-
-# 7. Monster Runtime Boundary
-
-Confirmed Monster rules are centralized rather than copied into UI code.
+Monster D100 defence and Armor are separate:
 
 ```text
-GlobalGrowth(Level)
-= ((Level - 1) / 21.7)^2
+Modified Defence
+= Stored Defence + Defence Modifier
 
-Effective Attribute
-= round(Natural × [1 + GlobalGrowth × Attribute Growth Weight])
+Effective D100 Defence
+= min(100, Modified Defence)
 
-Calculated Max HP
-= ceil((Effective CON + Effective SIZ) / 2)
-
-Calculated Max MP
-= Effective INT × 3
-
-MonsterDamageGrowth(Level)
-= 7 × ((Level - 1) / 99)^1.5
-
-Calculated Base Damage
-= round(Template Base Damage × [1 + MonsterDamageGrowth × Damage Growth Weight])
-
-Calculated Damage Center
-= Calculated Base Damage + Damage Attribute Basis
+Final Armor Defence
+= Armor Base Defence + Armor Defence Adjustment
 ```
 
-Stored Monster / Boss Skill Accuracy does not Level-scale and may exceed 100. Runtime Effective Accuracy is capped at 100 after modifiers.
+Stored Defence may exceed 100 and does not automatically Level-scale. Armor participates after a successful hit, not in the opposed D100 check.
 
-Monster/Boss D100 defence uses Dedicated Stored Defence; Armor remains a separate post-hit fixed defence source.
+Player → Monster is implemented using:
+
+```text
+Player Attack Profile
+vs Monster Effective D100 Defence
+→ opposed D100
+→ Player Raw Damage
+→ Monster Final Armor Defence
+→ Damage Result
+→ Monster HP
+```
 
 Ordinary Monster HP0:
 
 ```text
 Current HP <= 0
 → clamp 0
-→ status = defeated
+→ status = defeated immediately
 ```
 
-Exact Spread balance remains Alpha Tuning. The executable MVP keeps one centralized replaceable suggestion function; GM Final Spread overrides remain available where implemented.
+Ordinary Monsters do not inherit Player DYING.
 
 ---
 
-# 8. Boss Runtime Boundary
+# 9. Implemented Boss Runtime
 
-Boss runtime preserves the locked architecture:
+Bosses reuse Monster mathematics instead of introducing a second combat engine.
 
 ```text
 Boss Design Profile
-→ Monster-style calculated baseline
-→ GM final bespoke overrides
-→ Final Boss Profile
-→ Spawn Boss Instance snapshot
-→ Encounter / Combat runtime
+→ Monster-style Calculated Baseline
+→ GM Override
+→ Final Boss Values
+→ Spawn Boss Instance
+→ snapshot Final Profile values
+→ Encounter / shared Combat runtime
 ```
 
-No universal Boss multiplier is introduced.
+Implemented Boss Profile / Instance boundaries include:
+
+```text
+Natural Attributes + Growth Weights
+Calculated Effective Attributes
+optional Final Attribute overrides
+Calculated / Final Max HP and MP
+Final Stored Defence
+Final Armor data
+Common + Unique Boss Skills
+ordered Phase definitions
+Profile → Instance snapshots
+Instance Current HP / MP
+Instance runtime Defence / Armor adjustments
+Current Phase
+Phase hold state
+```
+
+Profile edits do not silently mutate existing Boss Instances.
 
 Boss Skills:
 
 ```text
 Common Monster Skills
 + GM-authored Unique Boss Skills
-→ shared Monster Skill Profile mathematics
+→ same Monster Skill Profile fields
+→ same Accuracy / damage / Attribute-link / Spread mathematics
 ```
 
 Boss Phase MVP:
 
 ```text
 ordered Phase definitions
-optional HP % thresholds
-system reports applicable later Phase
-GM explicitly controls actual current Phase
+optional HP % threshold applicability signal
+GM Force / Hold / Move Phase control
 ```
 
-The complete trigger catalogue and automatic-transition policy remain Deferred.
+Threshold applicability does not automatically force an irreversible transition.
 
-Boss runtime corrections intentionally require `Current HP >= 1` until the Boss HP0 lifecycle is confirmed. This prevents implementation from silently choosing ordinary-Monster Defeated, Player DYING, or a scripted final Phase rule.
+Boss → Character is implemented through the shared opposed D100 and Character life-state pipeline.
+
+Player → Boss is implemented through:
+
+```text
+Player Attack Profile Stored Accuracy
+vs Boss Effective D100 Defence
+→ opposed D100
+→ Player Raw Damage
+→ Boss Final Armor Defence
+→ Damage Result
+→ Boss HP
+```
+
+Boss HP0 is now Canonical:
+
+```text
+Current HP > 0
+→ status = active
+
+Current HP <= 0
+→ clamp 0
+→ status = defeated immediately
+```
+
+A defeated Boss:
+
+```text
+loses ordinary Action / Move
+cannot use normal Boss Skill attacks
+cannot be selected as a normal active hostile target
+remains in Combat history / audit as needed
+```
+
+Bosses do not inherit Player DYING. Lethal damage does not automatically force a final Phase. A future explicit Boss mechanic may define an exception, but the default lifecycle remains immediate defeat.
+
+GM Current HP correction reconciles Boss status:
+
+```text
+defeated + HP > 0
+→ active
+
+active + HP = 0
+→ defeated
+
+removed
+→ remains removed
+```
 
 ---
 
-# 9. Implementation Design Rule
+# 10. Shared Implementation Design Rules
 
 Prefer:
 
 ```text
 shared resolver functions
 data-driven tuning
-calculated / override / final layers
+Calculated / Override / Final layers
 Profile → Instance snapshot boundaries
 migration scripts
 server-side validation
-conditional D1 state transitions
+conditional / stale-safe D1 state transitions
+server-owned authoritative combat numbers
+explicit audit trails
 ```
 
 Avoid:
@@ -340,21 +386,21 @@ mixing design-time Profile data with runtime Instance state
 allowing Player requests to submit authoritative combat numbers
 duplicating Combat state inside Encounter records
 deriving Monster/Boss D100 Defence from Effective DEX
-adding Armor Defence directly to the D100 defence check
-bypassing Armor data after a successful Player hit
-inventing Player-style ordinary Monster Dying rules
-negative Monster HP
-automatically ending Combat / Encounter from one Monster defeat
-inventing Boss HP0 lifecycle before confirmation
+adding Armor Defence directly to the D100 opposed check
+bypassing Armor after a successful Player hit
+negative Monster / Boss HP
+applying Player DYING to ordinary Monster / Boss by default
+automatically ending Combat / Encounter when one hostile is defeated
+automatically converting lethal Boss damage into a new Phase without an explicit mechanic
 ```
 
 ---
 
-# 10. Definition of Implemented
+# 11. Definition of Implemented
 
 A rule is not implemented merely because it appears in Markdown.
 
-For MVP purposes, implementation requires the relevant production-style path where needed:
+Implementation requires the relevant production-style path where applicable:
 
 ```text
 D1 schema / migration
@@ -362,16 +408,18 @@ server-side resolver
 API validation
 Player / GM control path
 runtime state
-regression contracts
+regression / static contracts
 ```
 
-GitHub `main` is the source tree, but a commit on `main` does not prove Cloudflare production deployment.
+GitHub `main` is the source tree; a commit on `main` does not by itself prove Cloudflare production deployment.
 
 ---
 
-# 11. First Play-Test Milestone
+# 12. First End-to-End Scenario Test — Current Immediate Direction
 
-The MVP milestone requires at least:
+There is no remaining required Character / ordinary Monster / minimum Boss combat-rule blocker before the first integrated play-test.
+
+The next milestone should exercise at minimum:
 
 ```text
 one Player Character
@@ -379,45 +427,23 @@ one Scenario
 one Scene
 one Encounter
 one ordinary Monster Template / Instance
-Character + Monster Initiative
-Player and GM turns
-D100 hit resolution in both directions
-Damage
-Armor-aware Monster damage reduction
-HP updates
-Monster defeat
-Character HP0 handling
-Combat completion
+one simple Boss Design Profile / Boss Instance
+Character + Monster + Boss shared Initiative
+Player Turn controls
+GM Monster Turn
+GM Boss Turn
+Player → Monster
+Monster → Character
+Player → Boss
+Boss → Character
+Armor-aware hostile damage reduction
+Character HP0 / DYING
+Monster HP0 / defeated
+Boss HP0 / defeated
+Boss Phase applicability + GM manual Phase control
+GM End Combat
 Encounter resolution
 Scene continuation
 ```
 
-A simple Boss Instance should then validate Profile → Instance snapshots, shared Skills, Phase control and Boss turn runtime.
-
----
-
-# 12. Current Immediate Blocker
-
-The non-HP0 Boss runtime is structurally implemented around:
-
-```text
-Boss Design Profile
-→ calculated baseline
-→ GM Final values
-→ Common + Unique Skills
-→ Phase definitions
-→ Spawn Boss Instance
-→ Encounter / shared Combat
-→ GM Boss Turn
-→ Boss Skill vs Character Dodge
-→ Damage
-```
-
-The remaining genuine rule blocker is narrow:
-
-```text
-When a Boss Instance reaches HP = 0,
-what exact lifecycle should apply?
-```
-
-Do not silently assume ordinary Monster immediate Defeated, Player DYING, or a scripted final Phase exception. Once confirmed, Player → Boss final damage and the first Boss-capable end-to-end test can be completed.
+Failures found in this play-test should be treated as integration bugs or Alpha tuning items unless they reveal a genuine missing Canonical rule.
