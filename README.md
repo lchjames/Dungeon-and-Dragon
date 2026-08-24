@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/monster-defence.js
+src/monster-defeat.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-monster-defence.js
+monster-defeat.js
+→ monster-defence.js
 → monster.js
 → scenario.js
 → life-correction.js
@@ -74,6 +75,10 @@ Current authoritative areas include:
 - Monster Template Armor source data
 - spawned Monster Defence / Armor snapshots
 - Instance Defence Modifier and Armor Defence Adjustment
+- Player → Monster D100 attacks
+- Monster Armor-aware damage reduction
+- ordinary Monster active / defeated / removed lifecycle
+- Player → Monster action audit
 
 Reference / migration SQL lives under `schema/`.
 
@@ -129,6 +134,7 @@ Current GM workspace supports:
 - spawned Instance Defence / Armor snapshot inspection
 - Instance Defence Modifier correction
 - Instance Armor Defence Adjustment correction
+- defeated ↔ active status reconciliation through GM HP correction
 - Encounter → Combat start
 - Combat creation / control
 - GM-controlled Monster Turn attack resolution
@@ -160,6 +166,7 @@ combats
 combatants
 combat_action_log
 monster_action_log
+player_monster_action_log
 ```
 
 Character flow:
@@ -196,11 +203,26 @@ Character Encounter participants
 → Character HP / DYING / DEAD integration
 ```
 
+Player → Monster flow:
+
+```text
+Player selects approved Attack Profile + active Monster target
+→ server reserves Player Action
+→ Player Stored Accuracy vs Monster Effective D100 Defence
+→ successful hit
+→ Player Raw Damage
+→ Monster Final Armor Defence
+→ Damage Result
+→ HP Damage if positive
+→ Monster HP clamp at 0
+→ HP 0 = immediate defeated
+```
+
 Monster AI is not implemented. The GM explicitly selects Monster Skills and targets.
 
 ## Monster Defence / Armor MVP
 
-Simplified Monster defence is now explicitly split into two layers:
+Simplified Monster defence is explicitly split into two layers:
 
 ```text
 D100 Defence
@@ -243,15 +265,37 @@ Effective D100 Defence
 
 Stored Defence may exceed 100 and does not automatically scale with Monster Level.
 
-Armor is intentionally separate from the D100 opposed check. After a successful hit, the shared Damage Result model uses the Monster's final Armor data as the current MVP fixed defence contribution.
+Armor is intentionally separate from the D100 opposed check. After a successful hit, the shared Damage Result model uses the Monster's Final Armor Defence as the current MVP fixed defence contribution.
 
 See `docs/MONSTER_DEFENCE_ARMOR_MVP.md`.
 
-### Remaining Player → Monster blocker
+## Ordinary Monster HP0 / Defeat MVP
 
-The defence source is no longer unresolved. The remaining narrow lifecycle decision is what an ordinary Simplified Monster does at `HP = 0`.
+Ordinary Simplified Monsters do not inherit Player DYING rounds.
 
-Until that is confirmed, the existing Player attack resolver still refuses Monster targets rather than silently inventing a Player-style DYING lifecycle.
+```text
+Current HP > 0
+→ status = active
+
+Current HP <= 0
+→ HP = 0
+→ status = defeated immediately
+```
+
+A defeated Monster:
+
+```text
+cannot use ordinary Action / Move
+cannot use ordinary Monster Skill attacks
+cannot be selected as a normal living hostile target
+cannot join a new Combat as an active Monster
+```
+
+Its Combatant row may remain in an existing Combat for initiative / audit history. Combat and Encounter completion remain GM-controlled.
+
+GM corrective HP changes reconcile `active` / `defeated`; `removed` remains a separate state and is never auto-revived by ordinary HP correction.
+
+See `docs/MONSTER_DEFEAT_MVP.md`.
 
 ## Monster runtime MVP
 
@@ -320,7 +364,7 @@ monster_instance
 boss_instance
 ```
 
-`character` and `monster_instance` are now active in the ordinary Monster MVP path. `boss_instance` remains reserved for the next Boss slice.
+`character` and `monster_instance` are active in the ordinary Monster MVP path. `boss_instance` remains reserved for the next Boss slice.
 
 For MVP, one Encounter may link to zero or one Combat. A full tactical Map engine remains Deferred; current Map support is metadata only.
 
@@ -335,6 +379,7 @@ node --check for src/*.js and public/assets/*.js
 node tests/rules.test.mjs
 node tests/combat-rules.test.mjs
 node tests/monster-rules.test.mjs
+node tests/monster-life.test.mjs
 node tests/static-ui-contract.test.mjs
 ```
 
@@ -361,10 +406,9 @@ The project is in MVP Implementation Mode. Current path:
 ```text
 Character D100 / Damage / HP0 resolver              implemented MVP path
 Scenario / Scene / Encounter Foundation             implemented MVP foundation
-Monster Template / Skill / Instance runtime         implemented non-blocked path
-Monster Dedicated Defence + Armor data foundation   implemented in current slice
-→ confirm ordinary Simplified Monster HP0 lifecycle
-→ complete Player → Monster damage / defeat integration
+Monster Template / Skill / Instance runtime         implemented
+Monster Dedicated Defence + Armor                   implemented
+Monster HP0 + Player → Monster combat loop          implemented in current slice
 → Boss Profile / Boss Instance minimum runtime
 → first end-to-end Scenario test
 ```
