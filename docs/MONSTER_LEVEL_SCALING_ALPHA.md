@@ -1,9 +1,9 @@
 # Monster Level Scaling — Alpha
 
 > Status: Canonical Alpha Rule
-> Date: 2026-08-21
+> Date: 2026-08-24
 > Scope: Defines the locked conversion from Monster Natural Attributes into Effective Attributes after per-instance generation and Elite adjustment, plus Monster HP/MP derivation from Effective Attributes.
-> Use together with `MONSTER_NPC_SYSTEM_ALPHA.md` and `GM_MONSTER_MANAGEMENT_ALPHA.md`.
+> Use together with `MONSTER_NPC_SYSTEM_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, and `MONSTER_RUNTIME_MVP.md`.
 
 ---
 
@@ -255,6 +255,15 @@ so all final resource values are explainable and auditable.
 
 ---
 
-# 11. Next Unresolved Monster Design Item
+# 11. Remaining Monster D100 Design Item
 
-The next Monster-system decision is the ordinary Monster Attack / Defence model and how Simplified Monsters participate in D100 combat checks.
+Monster offensive D100 resolution is no longer unresolved: `MONSTER_ATTACK_PROFILE_ALPHA.md` defines independent Monster Skill Stored Accuracy and `MONSTER_RUNTIME_MVP.md` implements the GM-controlled Monster → Character path.
+
+The remaining blocker is specifically the defence source used when a Simplified Monster is the target of a Player attack:
+
+```text
+Player attack
+→ what authoritative Monster defence value participates in the opposed D100 check?
+```
+
+No Canonical rule currently says this value is Effective DEX, a dedicated Stored Defence value, or a defensive Monster Skill/Profile. Until that decision is intentionally confirmed, implementation must not invent one.
