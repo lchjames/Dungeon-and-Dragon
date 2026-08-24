@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  "main": "./src/monster.js",
+  "main": "./src/monster-defence.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
   "routes": [
