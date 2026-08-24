@@ -1,3 +1,4 @@
+import './gm-story.js';
 import { $, escapeHtml, toast } from './common.js';
 
 let selectedCharacterId = '';
