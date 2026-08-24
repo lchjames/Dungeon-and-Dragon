@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/assets/styles.css">
   <script type="module" src="/assets/player.js"></script>
   <script type="module" src="/assets/player-creation-skills.js"></script>
+  <script type="module" src="/assets/player-combat.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -34,6 +35,26 @@
     </section>
 
     <section id="player-content" class="hidden">
+      <section id="player-combat-panel" class="panel hidden">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ACTIVE COMBAT</p>
+            <h2>Combat Turn</h2>
+            <span id="player-combat-round" class="muted">Round 1</span>
+          </div>
+          <button id="player-refresh-combat" class="button button-small button-ghost" type="button">Refresh</button>
+        </div>
+        <div id="player-combat-status" class="auth-status" hidden role="status" aria-live="polite"></div>
+        <div id="player-combat-current" class="tool-result muted">No active Combat.</div>
+        <div class="form-actions wrap">
+          <button id="player-consume-action" class="button" type="button" disabled>Mark Action Spent</button>
+          <button id="player-consume-move" class="button button-ghost" type="button" disabled>Mark Move Spent</button>
+          <button id="player-end-turn" class="button button-ghost" type="button" disabled>End Own Turn</button>
+        </div>
+        <p class="muted">暫時只管理 Turn allowance。攻擊、技能、傷害等實際 Action resolver 會喺下一個 Combat slice 接入，並由 resolver 自動消耗 Action。</p>
+        <div id="player-combat-initiative" class="stack-list"></div>
+      </section>
+
       <div class="section-heading">
         <div><p class="eyebrow">YOUR CHARACTERS</p><h2 id="player-heading">Characters</h2></div>
         <button id="new-character" class="button" type="button">+ New Character</button>
