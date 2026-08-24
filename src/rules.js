@@ -108,6 +108,14 @@ export function calculatePlayerResources(attributes, level = 1, hpMaxModifier = 
   };
 }
 
+export function reconcileResourceCurrentOnMaxChange(currentValue, oldMaxValue, newMaxValue) {
+  const current = Math.max(0, Number(currentValue) || 0);
+  const oldMax = Math.max(0, Number(oldMaxValue) || 0);
+  const newMax = Math.max(0, Number(newMaxValue) || 0);
+  if (newMax > oldMax) return Math.min(newMax, current + (newMax - oldMax));
+  return Math.min(current, newMax);
+}
+
 export function expRequiredForNextLevel(level) {
   const safeLevel = Math.max(1, Math.min(MAX_LEVEL - 1, Math.trunc(Number(level) || 1)));
   return 5 * safeLevel * Math.ceil(6 * safeLevel ** 1.5);
