@@ -43,9 +43,15 @@ function renderNoCombat() {
   $('#player-attack-controls')?.classList.add('hidden');
 }
 
+function hostileStatus(combatant) {
+  if (combatant?.entityType === 'monster_instance') return String(combatant?.monsterStatus || 'active').toLowerCase();
+  if (combatant?.entityType === 'boss_instance') return String(combatant?.status || combatant?.boss?.status || 'active').toLowerCase();
+  return '';
+}
+
 function lifeLabel(combatant) {
-  if (combatant?.entityType === 'monster_instance') {
-    const status = String(combatant?.monsterStatus || 'active').toLowerCase();
+  if (combatant?.entityType === 'monster_instance' || combatant?.entityType === 'boss_instance') {
+    const status = hostileStatus(combatant);
     if (status === 'defeated') return 'DEFEATED';
     if (status === 'removed') return 'REMOVED';
     return 'ACTIVE';
@@ -58,12 +64,9 @@ function lifeLabel(combatant) {
 
 function isNormalAttackTarget(item, current) {
   if (!item || item.id === current?.id) return false;
-  if (item.entityType === 'character') {
-    return String(item.lifeState || 'alive').toLowerCase() !== 'dead';
-  }
-  if (item.entityType === 'monster_instance') {
-    return String(item.monsterStatus || 'active').toLowerCase() === 'active'
-      && Number(item.hp?.current ?? 0) > 0;
+  if (item.entityType === 'character') return String(item.lifeState || 'alive').toLowerCase() !== 'dead';
+  if (item.entityType === 'monster_instance' || item.entityType === 'boss_instance') {
+    return hostileStatus(item) === 'active' && Number(item.hp?.current ?? item.boss?.hp?.current ?? 0) > 0;
   }
   return false;
 }
@@ -75,6 +78,19 @@ function monsterTargetMeta(target) {
   if (target?.hp) bits.push(`HP ${target.hp.current}/${target.hp.max}`);
   if (Number.isFinite(Number(defence))) bits.push(`Def ${defence}`);
   if (Number.isFinite(Number(armor))) bits.push(`Armor ${armor}`);
+  return bits.length ? ` · ${bits.join(' · ')}` : '';
+}
+
+function bossTargetMeta(target) {
+  const boss = target?.boss || {};
+  const defence = boss?.defence?.d100?.effectiveDefence;
+  const armor = boss?.defence?.armor?.finalDefence;
+  const hp = target?.hp || boss?.hp;
+  const bits = [];
+  if (hp) bits.push(`HP ${hp.current}/${hp.max}`);
+  if (Number.isFinite(Number(defence))) bits.push(`Def ${defence}`);
+  if (Number.isFinite(Number(armor))) bits.push(`Armor ${armor}`);
+  if (boss.currentPhaseNumber) bits.push(`Phase ${boss.currentPhaseNumber}`);
   return bits.length ? ` · ${bits.join(' · ')}` : '';
 }
 
@@ -100,6 +116,9 @@ function renderAttackControls(combat) {
   targetSelect.innerHTML = '<option value="">Select target</option>' + targets.map(target => {
     if (target.entityType === 'monster_instance') {
       return `<option value="${escapeHtml(target.id)}">${escapeHtml(target.displayName)} · MONSTER · ${escapeHtml(lifeLabel(target))}${escapeHtml(monsterTargetMeta(target))}</option>`;
+    }
+    if (target.entityType === 'boss_instance') {
+      return `<option value="${escapeHtml(target.id)}">${escapeHtml(target.displayName)} · BOSS · ${escapeHtml(lifeLabel(target))}${escapeHtml(bossTargetMeta(target))}</option>`;
     }
     return `<option value="${escapeHtml(target.id)}">${escapeHtml(target.displayName)} · ${escapeHtml(lifeLabel(target))}${target.hp ? ` · HP ${escapeHtml(target.hp.current)}/${escapeHtml(target.hp.max)}` : ''}</option>`;
   }).join('');
@@ -141,11 +160,7 @@ function renderCombat(combat) {
 
   const initiative = $('#player-combat-initiative');
   initiative.innerHTML = (combat.combatants || []).map(combatant => {
-    const flags = [
-      combatant.isCurrent ? 'Current Turn' : '',
-      combatant.controlledByCurrentUser ? 'Yours' : '',
-      lifeLabel(combatant)
-    ].filter(Boolean);
+    const flags = [combatant.isCurrent ? 'Current Turn' : '', combatant.controlledByCurrentUser ? 'Yours' : '', lifeLabel(combatant)].filter(Boolean);
     return `<article class="stack-item compact-item ${combatant.isCurrent ? 'selected' : ''}">
       <div>
         <div class="row-inline">
@@ -169,15 +184,17 @@ function renderAttackResult(attack) {
   const greatAttack = attackCheck.greatSuccess ? ' · Great Success' : attackCheck.greatFailure ? ' · Great Failure' : '';
   const greatDefence = defenceCheck.greatSuccess ? ' · Great Success' : defenceCheck.greatFailure ? ' · Great Failure' : '';
   const hitText = attack.hit ? 'HIT' : 'MISS / DEFENDED';
-  const monsterTarget = attack.target?.entityType === 'monster_instance' || attack.defenceSource === 'monster_stored_defence';
-  const defenceName = monsterTarget ? 'Monster Defence' : 'Dodge';
-  const armorText = monsterTarget && attack.hit
+  const bossTarget = attack.target?.entityType === 'boss_instance' || attack.defenceSource === 'boss_stored_defence';
+  const monsterTarget = !bossTarget && (attack.target?.entityType === 'monster_instance' || attack.defenceSource === 'monster_stored_defence');
+  const hostileTarget = monsterTarget || bossTarget;
+  const defenceName = bossTarget ? 'Boss Defence' : monsterTarget ? 'Monster Defence' : 'Dodge';
+  const armorText = hostileTarget && attack.hit
     ? ` · Armor ${attack.armor?.finalDefence ?? attack.damage?.effectiveDefence ?? 0}`
     : '';
   const damageText = attack.hit
     ? ` · Raw Damage ${attack.damage?.rawDamage ?? '—'}${armorText} · Damage Result ${attack.damage?.damageResult ?? '—'} · HP Damage ${attack.damage?.hpDamage ?? 0}`
     : '';
-  const targetState = monsterTarget
+  const targetState = hostileTarget
     ? (attack.target?.statusAfter ? ` · Target ${String(attack.target.statusAfter).toUpperCase()} · HP ${attack.target.hpBefore ?? '—'}→${attack.target.hpAfter ?? '—'}` : '')
     : (attack.target?.lifeStateAfter ? ` · Target ${String(attack.target.lifeStateAfter).toUpperCase()}${attack.target.dyingRoundsRemaining !== null ? ` (${attack.target.dyingRoundsRemaining})` : ''}` : '');
   target.textContent = `${hitText} · Attack D100 ${attackCheck.roll} → Result ${attackCheck.result}${greatAttack} · ${defenceName} D100 ${defenceCheck.roll} → Result ${defenceCheck.result}${greatDefence}${damageText}${targetState}`;
@@ -205,9 +222,7 @@ async function consumeAllowance(kind) {
   const button = kind === 'action' ? $('#player-consume-action') : $('#player-consume-move');
   if (button) button.disabled = true;
   try {
-    const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/consume-${kind}`, {
-      method: 'POST', body: JSON.stringify({})
-    });
+    const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/consume-${kind}`, { method: 'POST', body: JSON.stringify({}) });
     renderState(payload);
     toast(`${kind === 'action' ? 'Action' : 'Move'} marked as spent.`, 'success');
   } catch (error) {
@@ -243,9 +258,7 @@ async function endOwnTurn() {
   const button = $('#player-end-turn');
   if (button) button.disabled = true;
   try {
-    const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/end-turn`, {
-      method: 'POST', body: JSON.stringify({})
-    });
+    const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/end-turn`, { method: 'POST', body: JSON.stringify({}) });
     renderState(payload);
     toast(payload.roundAdvanced ? `Round ${payload.combat?.roundNumber || ''} started.` : 'Turn ended.', 'success');
   } catch (error) {
