@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/player-combat.js
+src/player-attack.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-player-combat.js
+player-attack.js
+→ player-combat.js
 → combat-state.js
 → gm-provision.js
 → gm-d1.js
@@ -54,8 +55,12 @@ Current authoritative areas include:
 - 23 basic Skills and Creation Skill progression
 - inventory and notes
 - GM Character controls
+- Player Attack Profiles approved by GM
+- Character life state: alive / dying / dead
 - Combat identity, combatants, Initiative, Round / Turn state
 - Player own Action / Move allowance state and End Own Turn
+- Character-vs-Character D100 attack / Dodge resolution
+- Damage and HP0 / Dying baseline
 
 Reference / migration SQL lives under `schema/`.
 
@@ -99,6 +104,7 @@ The current GM workspace reads D1 directly and supports:
 - server-derived Level recalculation
 - formula HP / MP Max recalculation when required Attributes exist
 - Current HP / MP correction within `0..Max`
+- temporary Player Attack Profile authoring
 - Combat creation and control
 - fixed DEX Initiative
 - stable one-time random ordering for equal DEX
@@ -144,12 +150,13 @@ The current Combat runtime stores:
 ```text
 combats
 combatants
+combat_action_log
 ```
 
 The implemented Character-only flow is:
 
 ```text
-GM selects active Characters with valid DEX
+GM selects active living Characters with valid DEX
 → Start Combat
 → snapshot DEX
 → higher DEX first
@@ -159,13 +166,25 @@ GM selects active Characters with valid DEX
 → each Combatant has 1 Action + 1 Move
 → Player can inspect active Combat when participating
 → Player can consume own Action / Move on own Current Turn
+→ Player can choose a GM-approved Attack Profile and Character Target
+→ server consumes Action
+→ server rolls Attack D100 vs target Dodge D100
+→ Attack Result must strictly exceed Defence Result
+→ on Hit, server rolls Damage + applicable Character Damage Bonus
+→ current MVP Effective Defence = 0
+→ HP damage applies only when Damage Result > 0
+→ HP 0 enters DYING with ceil(CON / 5) rounds
+→ DYING Turn-end decrements once per normal Round
+→ further effective damage while DYING causes DEAD + Character lock
 → Player can End Own Turn
 → GM can End / Force Turn
 → Round advances after final Turn
 → GM End Combat
 ```
 
-Normal Player/GM End Turn transitions use conditional D1 stale-state protection so delayed duplicate requests do not silently skip Turn state or re-reset a new Round.
+Normal End Turn transitions use conditional D1 stale-state protection. Dying countdown additionally stores a per-Combat/per-Round idempotency marker so duplicate Turn-end requests cannot double-decrement the countdown.
+
+The current `PLAYER_ATTACK_PROFILE_MVP.md` bridge is intentionally temporary. Player cannot submit Accuracy or Damage values; GM-approved Profiles supply the current base attack data until Weapon / Equipment / Specialisation source profiles are implemented.
 
 The Combatant schema already reserves entity types for later:
 
@@ -175,7 +194,7 @@ monster_instance
 boss_instance
 ```
 
-Only `character` is active in the current slice.
+Only `character` is active in the current resolver path.
 
 ## Scenario / Scene / Encounter direction
 
@@ -204,6 +223,7 @@ Current checks include:
 ```bash
 node --check for src/*.js and public/assets/*.js
 node tests/rules.test.mjs
+node tests/combat-rules.test.mjs
 node tests/static-ui-contract.test.mjs
 ```
 
@@ -230,9 +250,8 @@ The project is in MVP Implementation Mode. The remaining path is focused on reac
 Current high-level path:
 
 ```text
-Player Combat Control                              current slice
-→ D100 Combat Resolver + Damage + HP 0
-→ Scenario / Scene / Encounter Foundation
+Character D100 / Damage / HP0 resolver               implemented MVP path
+→ Scenario / Scene / Encounter Foundation             next
 → Monster Template / Skill / Instance runtime
 → Boss Profile / Boss Instance minimum runtime
 → first end-to-end Scenario test
