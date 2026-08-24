@@ -41,7 +41,7 @@ export function rollMonsterBaseAttributes(ranges, randomUint32) {
     if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) {
       throw new RangeError(`${key} range requires integer min <= max.`);
     }
-    result[key] = min + rollDie(max - min + 1, randomUint32) - 1;
+    result[key] = min === max ? min : min + rollDie(max - min + 1, randomUint32) - 1;
   }
   return result;
 }
@@ -126,7 +126,7 @@ export function validateSpreadRange(minValue, maxValue) {
 
 export function rollSignedSpread(minValue, maxValue, randomUint32) {
   const { min, max } = validateSpreadRange(minValue, maxValue);
-  return min + rollDie(max - min + 1, randomUint32) - 1;
+  return min === max ? min : min + rollDie(max - min + 1, randomUint32) - 1;
 }
 
 export function snapshotMonsterSkill(skill, instance) {
