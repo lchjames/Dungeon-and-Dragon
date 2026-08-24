@@ -57,7 +57,16 @@ Registration continues to create ordinary `player` Users by default.
 
 The MVP must **not** provide an insecure self-promotion route where any authenticated Player can assign themselves the `gm` or `admin` role.
 
-Initial GM/admin provisioning remains a separate deployment/administration task until a secure provisioning flow is implemented.
+The first GM is provisioned only through the separate secure one-time bootstrap contract in `GM_INITIAL_PROVISIONING_MVP.md`:
+
+```text
+authenticated current player
++ deployment Secret INITIAL_GM_PROVISION_TOKEN
++ no existing gm/admin in D1
+→ current User becomes gm
+```
+
+The bootstrap endpoint never accepts an arbitrary target User or arbitrary target role, and it closes permanently once any `gm/admin` exists.
 
 ---
 
@@ -193,8 +202,7 @@ Legacy optional browser-only GM utilities such as maze generation, local JSON da
 The following are not required by this slice:
 
 ```text
-secure first-GM provisioning UI
-User role administration UI
+general User role administration UI
 GM direct Attribute correction
 structured Attribute modifiers
 structured HP / MP Max modifiers
@@ -205,4 +213,6 @@ Monster management
 Boss management
 ```
 
-They should be added only when the playable vertical slice reaches the corresponding blocker.
+Secure first-GM provisioning is no longer Deferred; it is defined by `GM_INITIAL_PROVISIONING_MVP.md`.
+
+The next active implementation blocker is the Round / Combat State Engine.
