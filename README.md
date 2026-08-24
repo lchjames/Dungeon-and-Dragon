@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/monster.js
+src/monster-defence.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-monster.js
+monster-defence.js
+→ monster.js
 → scenario.js
 → life-correction.js
 → player-attack.js
@@ -69,6 +70,10 @@ Current authoritative areas include:
 - spawned Monster Instances and snapshotted Instance Skills
 - Monster Instance HP / MP and Spread overrides
 - Monster → Character D100 attacks and action audit
+- Monster Template Dedicated Stored Defence
+- Monster Template Armor source data
+- spawned Monster Defence / Armor snapshots
+- Instance Defence Modifier and Armor Defence Adjustment
 
 Reference / migration SQL lives under `schema/`.
 
@@ -119,6 +124,11 @@ Current GM workspace supports:
 - inspecting Elite generation and calculated HP / MP
 - Monster Instance resource correction
 - per-Instance Skill Spread override
+- Template Dedicated Stored Defence authoring
+- Template Armor Name / Defence / Notes authoring
+- spawned Instance Defence / Armor snapshot inspection
+- Instance Defence Modifier correction
+- Instance Armor Defence Adjustment correction
 - Encounter → Combat start
 - Combat creation / control
 - GM-controlled Monster Turn attack resolution
@@ -188,18 +198,60 @@ Character Encounter participants
 
 Monster AI is not implemented. The GM explicitly selects Monster Skills and targets.
 
-### Current Monster defence blocker
+## Monster Defence / Armor MVP
 
-The project has **not yet confirmed the source value used when a Simplified Monster defends against a Player attack**.
-
-Therefore the current MVP deliberately keeps:
+Simplified Monster defence is now explicitly split into two layers:
 
 ```text
-Monster → Character attack = implemented
-Player → Monster attack = not yet enabled
+D100 Defence
+= Dedicated Stored Defence
+
+Post-hit Effective Defence
+= Armor / other fixed defence sources
 ```
 
-Do not infer Effective DEX, a hidden Dodge score, or another defence source until that rule is explicitly confirmed. See `docs/MONSTER_RUNTIME_MVP.md`.
+Template data:
+
+```text
+Stored Defence
+Armor Name
+Armor Defence
+Armor Notes
+```
+
+Spawned Instance data:
+
+```text
+Stored Defence snapshot
+Defence Modifier
+Effective D100 Defence
+Armor Name snapshot
+Armor Base Defence snapshot
+Armor Defence Adjustment
+Final Armor Defence
+```
+
+Runtime D100 calculation:
+
+```text
+Modified Defence
+= Stored Defence + Defence Modifier
+
+Effective D100 Defence
+= min(100, Modified Defence)
+```
+
+Stored Defence may exceed 100 and does not automatically scale with Monster Level.
+
+Armor is intentionally separate from the D100 opposed check. After a successful hit, the shared Damage Result model uses the Monster's final Armor data as the current MVP fixed defence contribution.
+
+See `docs/MONSTER_DEFENCE_ARMOR_MVP.md`.
+
+### Remaining Player → Monster blocker
+
+The defence source is no longer unresolved. The remaining narrow lifecycle decision is what an ordinary Simplified Monster does at `HP = 0`.
+
+Until that is confirmed, the existing Player attack resolver still refuses Monster targets rather than silently inventing a Player-style DYING lifecycle.
 
 ## Monster runtime MVP
 
@@ -216,6 +268,7 @@ Template Attribute ranges
 → HP / MP
 → snapshotted Template Skill loadout
 → damage calculation / Spread snapshot
+→ Defence / Armor snapshot
 → Encounter participant
 → Combat participant
 ```
@@ -308,8 +361,9 @@ The project is in MVP Implementation Mode. Current path:
 ```text
 Character D100 / Damage / HP0 resolver              implemented MVP path
 Scenario / Scene / Encounter Foundation             implemented MVP foundation
-Monster Template / Skill / Instance runtime         implemented except Player → Monster defence path
-→ confirm Simplified Monster defence source
+Monster Template / Skill / Instance runtime         implemented non-blocked path
+Monster Dedicated Defence + Armor data foundation   implemented in current slice
+→ confirm ordinary Simplified Monster HP0 lifecycle
 → complete Player → Monster damage / defeat integration
 → Boss Profile / Boss Instance minimum runtime
 → first end-to-end Scenario test
