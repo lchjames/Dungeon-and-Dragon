@@ -1,9 +1,9 @@
 # Monster Level Scaling — Alpha
 
 > Status: Canonical Alpha Rule
-> Date: 2026-08-24
+> Date: 2026-08-25
 > Scope: Defines the locked conversion from Monster Natural Attributes into Effective Attributes after per-instance generation and Elite adjustment, plus Monster HP/MP derivation from Effective Attributes.
-> Use together with `MONSTER_NPC_SYSTEM_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, and `MONSTER_RUNTIME_MVP.md`.
+> Use together with `MONSTER_NPC_SYSTEM_ALPHA.md`, `MONSTER_ATTACK_PROFILE_ALPHA.md`, `MONSTER_DEFENCE_ARMOR_MVP.md`, `GM_MONSTER_MANAGEMENT_ALPHA.md`, and `MONSTER_RUNTIME_MVP.md`.
 
 ---
 
@@ -234,9 +234,15 @@ Final Max HP / Current HP
 Calculated Max MP
 MP GM adjustment
 Final Max MP / Current MP
+Stored Defence snapshot
+Defence Modifier
+Effective D100 Defence
+Armor source snapshot
+Armor Defence Adjustment
+Final Armor Defence
 ```
 
-so all final resource values are explainable and auditable.
+so all final resource, defence and Armor values are explainable and auditable.
 
 ---
 
@@ -252,18 +258,31 @@ so all final resource values are explainable and auditable.
 8. Neither HP nor MP receives a second Level multiplier after Effective Attributes are calculated.
 9. Effective POW is not used by the default Max MP formula.
 10. GM may finally adjust Max HP, Current HP, Max MP and Current MP at instance level while calculated values remain auditable.
+11. Monster D100 Defence is **not** derived from Effective DEX.
+12. Dedicated Stored Defence is a separate non-Level-scaling combat source defined by `MONSTER_DEFENCE_ARMOR_MVP.md`.
+13. Monster Armor Defence is a post-hit fixed defence source and is not part of the D100 defence check.
 
 ---
 
-# 11. Remaining Monster D100 Design Item
+# 11. Remaining Monster Design Item
 
-Monster offensive D100 resolution is no longer unresolved: `MONSTER_ATTACK_PROFILE_ALPHA.md` defines independent Monster Skill Stored Accuracy and `MONSTER_RUNTIME_MVP.md` implements the GM-controlled Monster → Character path.
-
-The remaining blocker is specifically the defence source used when a Simplified Monster is the target of a Player attack:
+The ordinary Monster D100 attack and defence sources are now both resolved:
 
 ```text
-Player attack
-→ what authoritative Monster defence value participates in the opposed D100 check?
+Monster offence
+→ independent Monster Skill Stored Accuracy
+
+Monster defence against Player attack
+→ Dedicated Stored Defence
 ```
 
-No Canonical rule currently says this value is Effective DEX, a dedicated Stored Defence value, or a defensive Monster Skill/Profile. Until that decision is intentionally confirmed, implementation must not invent one.
+Armor is separately resolved as the post-hit fixed defence source.
+
+The remaining ordinary Monster blocker is now the HP0 lifecycle:
+
+```text
+When an ordinary Simplified Monster reaches HP = 0,
+what exact runtime state should it enter?
+```
+
+Do not infer a Player-style DYING countdown unless that lifecycle is explicitly confirmed.
