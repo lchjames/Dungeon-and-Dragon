@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  "main": "./src/gm-d1.js",
+  "main": "./src/gm-provision.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
   "routes": [
