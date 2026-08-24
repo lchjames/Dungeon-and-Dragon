@@ -7,7 +7,8 @@ let currentView = 'dashboard';
 const viewTitles = {
   dashboard: 'Dashboard',
   players: 'Players',
-  characters: 'Characters'
+  characters: 'Characters',
+  combat: 'Combat'
 };
 
 async function api(url, options = {}) {
@@ -49,7 +50,8 @@ function renderDashboard() {
   $('#metric-characters').textContent = metrics.characters ?? 0;
   $('#metric-active').textContent = metrics.activeCharacters ?? 0;
   $('#metric-drafts').textContent = metrics.draftCharacters ?? 0;
-  $('#dashboard-campaign-name').textContent = bootstrap?.campaign?.name || 'D&D Campaign';
+  const campaignName = $('#campaign-name');
+  if (campaignName) campaignName.textContent = bootstrap?.campaign?.name || 'D&D Campaign';
   $('#dashboard-gm-name').textContent = bootstrap?.user?.displayName || 'GM';
   $('#dashboard-gm-role').textContent = bootstrap?.user?.role || 'gm';
 
@@ -258,7 +260,8 @@ async function refreshBootstrap(render = true) {
   bootstrap = await api('/api/gm/bootstrap');
   $('#gm-user-name').textContent = bootstrap.user.displayName;
   $('#gm-user-role').textContent = bootstrap.user.role;
-  $('#campaign-name').textContent = bootstrap.campaign.name;
+  const campaignName = $('#campaign-name');
+  if (campaignName) campaignName.textContent = bootstrap.campaign.name;
   if (render) navigate(currentView);
   else {
     if (currentView === 'dashboard') renderDashboard();
