@@ -24,6 +24,14 @@ function validOrigin(request) {
   return !origin || origin === new URL(request.url).origin;
 }
 
+function numericDex(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const dex = Number(text);
+  return Number.isFinite(dex) ? dex : null;
+}
+
 async function currentUser(request, env) {
   const authRequest = new Request(new URL('/api/auth/me', request.url), {
     method: 'GET',
@@ -125,14 +133,14 @@ async function candidateCharacters(env) {
   `).all();
 
   return (rows.results || []).map(row => {
-    const dex = Number(row.dex_value);
+    const dex = numericDex(row.dex_value);
     return {
       id: row.id,
       name: row.name,
       ownerUserId: row.owner_user_id,
       ownerDisplayName: row.owner_display_name || 'Unassigned',
-      dex: Number.isFinite(dex) ? dex : null,
-      eligible: Number.isFinite(dex)
+      dex,
+      eligible: dex !== null
     };
   });
 }
@@ -253,8 +261,8 @@ async function startCombat(request, env) {
     if (row.status !== 'active') {
       return apiError(`${row.name} 目前唔係 active Character。`, 409, 'COMBATANT_NOT_ACTIVE');
     }
-    const dex = Number(row.dex_value);
-    if (!Number.isFinite(dex)) {
+    const dex = numericDex(row.dex_value);
+    if (dex === null) {
       return apiError(`${row.name} 缺少有效 DEX，不能建立 Initiative。`, 409, 'COMBATANT_DEX_REQUIRED');
     }
     participants.push({
