@@ -2,7 +2,7 @@
 
 > Status: Canonical MVP Implementation Contract  
 > Date: 2026-08-25  
-> Scope: Minimum Boss Design Profile → Boss Instance runtime required before the first end-to-end Scenario test. Use with `BOSS_DESIGN_PROFILE_ALPHA.md`, the ordinary Monster Canonical documents, and the shared Combat / Damage rules.
+> Scope: Minimum Boss Design Profile → Boss Instance runtime required before the first end-to-end Scenario test. Use with `BOSS_DESIGN_PROFILE_ALPHA.md`, `BOSS_DEFEAT_MVP.md`, the ordinary Monster Canonical documents, and the shared Combat / Damage rules.
 
 ---
 
@@ -99,14 +99,6 @@ For Boss-authoritative values the system preserves:
 Calculated Baseline
 → GM Override
 → Final Boss Value
-```
-
-Example:
-
-```text
-Calculated Max HP = 180
-GM Override = 420
-Final Max HP = 420
 ```
 
 A missing override means the baseline value becomes the Final value.
@@ -209,17 +201,57 @@ No Boss AI is implemented.
 
 ---
 
-# 9. Phase MVP
+# 9. Player → Boss / HP0
 
-The full trigger catalogue remains Deferred, but the MVP stores ordered Phase definitions and runtime current Phase.
+Boss HP0 is now locked by `BOSS_DEFEAT_MVP.md`.
 
-Minimum Phase support:
+Player-origin attack pipeline:
 
 ```text
-Phase 1
-Phase 2
-...
+Player Attack Profile Stored Accuracy
+vs
+Boss Effective D100 Defence
+→ opposed D100
 ```
+
+On successful hit:
+
+```text
+Player Raw Damage
+→ Boss Final Armor Defence
+→ Damage Result
+→ HP Damage
+```
+
+Life-state resolution:
+
+```text
+Current HP > 0
+→ status = active
+
+Current HP <= 0
+→ clamp Current HP to 0
+→ status = defeated immediately
+```
+
+Bosses do not use Player DYING by default.
+
+When defeated:
+
+```text
+ordinary Action unavailable
+ordinary Move unavailable
+Boss Skill attack unavailable
+normal hostile targeting unavailable
+```
+
+The Combatant record may remain for initiative / audit history. Defeating a Boss does not automatically End Combat or Resolve Encounter.
+
+---
+
+# 10. Phase MVP
+
+The full trigger catalogue remains Deferred, but the MVP stores ordered Phase definitions and runtime current Phase.
 
 Optional executable trigger supported in the first build:
 
@@ -235,11 +267,11 @@ Hold current Phase
 Move to another configured Phase
 ```
 
-The MVP does not require automatic irreversible Phase transition.
+At HP0 the default defeated lifecycle wins. The system must not automatically convert lethal damage into a new Phase unless a future explicit Boss mechanic defines such an exception.
 
 ---
 
-# 10. Instance Corrections
+# 11. Instance Corrections
 
 GM may explicitly correct Boss Instance runtime values without mutating the Profile:
 
@@ -251,24 +283,20 @@ Armor adjustment
 Current Phase
 ```
 
-Such corrections remain Instance-local.
-
----
-
-# 11. Boss HP0 — Remaining Narrow Blocker
-
-`BOSS_DESIGN_PROFILE_ALPHA.md` does not currently define the exact Boss HP0 lifecycle.
-
-Therefore this MVP must not silently assume that Bosses:
+Current HP correction reconciles Boss status:
 
 ```text
-use ordinary Monster immediate Defeated
-use Player DYING
-remain active for a scripted Phase
-or use another special final-state rule
+defeated + Current HP > 0
+→ active
+
+active + Current HP = 0
+→ defeated
+
+removed
+→ remains removed
 ```
 
-All non-HP0 Boss runtime work may be implemented now. The Player → Boss final damage / defeat path remains gated by this one explicit decision.
+Such corrections remain Instance-local.
 
 ---
 
@@ -279,7 +307,7 @@ advanced Phase trigger catalogue
 fully automatic Phase transition
 Boss AI
 Resistance / Immunity engine
-special Boss-only mechanics
+special Boss-only lethal-damage exceptions
 advanced cooldown engine
 Encounter Difficulty
 Loot / reward automation
@@ -290,7 +318,7 @@ full tactical Map integration
 
 # 13. Definition of Implemented for This Slice
 
-The non-blocked Boss Runtime MVP is implemented when the following production-style paths exist:
+The Boss Runtime MVP is implemented when the following production-style paths exist:
 
 ```text
 D1 Boss Profile schema
@@ -304,9 +332,13 @@ Encounter boss_instance assignment
 Character + Monster + Boss shared Initiative
 GM Boss Turn inspection
 GM Boss → Character attack
+Player → Boss opposed D100 attack
+Boss Armor-aware damage
+Boss HP0 → immediate defeated
 Boss runtime HP / MP inspection
 manual Phase control
+Player → Boss audit trail
 regression / static contracts
 ```
 
-The only deliberate gap is the exact Boss HP0 lifecycle required before Player-origin damage can finish a Boss fight.
+After this slice the next milestone is the first end-to-end Scenario / Boss-capable play-test.
