@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/boss-runtime.js
+src/boss-defeat.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-boss-runtime.js
+boss-defeat.js
+→ boss-runtime.js
 → boss.js
 → monster-defeat.js
 → monster-defence.js
@@ -40,7 +41,9 @@ boss-runtime.js
 → worker.js
 ```
 
-`boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns the validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn, then delegates other Boss Phase / Skill / Combat runtime routes to `boss.js`.
+`boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn, then delegates other Boss Phase / Skill / Combat runtime routes to `boss.js`.
+
+`boss-defeat.js` is the outer Boss combat/life-state boundary. It owns Player → Boss attack resolution, Boss Armor-aware damage, Boss HP0 → immediate `defeated`, GM Current HP status reconciliation and the Player → Boss audit path.
 
 Each layer handles scoped routes and delegates all other requests down the chain.
 
@@ -89,6 +92,9 @@ Current authoritative areas include:
 - Boss Phase definitions and manual runtime Phase state
 - Boss Instances and Profile → Instance snapshots
 - Boss → Character D100 attacks and action audit
+- Player → Boss D100 attacks and action audit
+- Boss Armor-aware damage reduction
+- Boss active / defeated / removed lifecycle
 
 Reference / migration SQL lives under `schema/`.
 
@@ -144,12 +150,13 @@ Current GM workspace supports:
 - spawned Instance Defence / Armor snapshot inspection
 - Instance Defence Modifier correction
 - Instance Armor Defence Adjustment correction
-- defeated ↔ active status reconciliation through GM HP correction
+- Monster defeated ↔ active status reconciliation through GM HP correction
 - dedicated Boss Design Profile authoring
 - calculated Boss baseline vs GM Final override audit
 - Common + Unique Boss Skill loadouts
 - Boss Phase definitions
 - Boss Instance spawn / runtime corrections
+- Boss defeated ↔ active status reconciliation through GM HP correction
 - manual Boss Phase control
 - Encounter → Combat start
 - Combat creation / control
@@ -176,7 +183,7 @@ The visible access UX intentionally uses a short 4-digit Key. The server stores 
 
 ## Combat state MVP
 
-Core runtime:
+Core runtime includes:
 
 ```text
 combats
@@ -185,6 +192,7 @@ combat_action_log
 monster_action_log
 player_monster_action_log
 boss_action_log
+player_boss_action_log
 ```
 
 Character flow:
@@ -256,6 +264,21 @@ GM selects snapshotted Boss Skill + living Character target
 → Damage Center + signed Spread
 → shared Damage pipeline
 → Character HP / DYING / DEAD integration
+```
+
+Player → Boss flow:
+
+```text
+Player selects approved Attack Profile + active Boss target
+→ server reserves Player Action
+→ Player Stored Accuracy vs Boss Effective D100 Defence
+→ successful hit
+→ Player Raw Damage
+→ Boss Final Armor Defence
+→ Damage Result
+→ HP Damage if positive
+→ Boss HP clamp at 0
+→ HP 0 = immediate defeated
 ```
 
 Monster / Boss AI is not implemented. The GM explicitly selects Skills and targets.
@@ -419,19 +442,26 @@ Profile edits do not silently mutate existing Instances.
 
 Phase MVP supports optional HP-percentage thresholds as an applicability signal plus explicit GM manual Phase control. It does not automatically force irreversible transitions.
 
-### Remaining Boss HP0 blocker
+### Boss HP0 / Defeat
 
-The exact Boss HP0 lifecycle is not yet Canonical. The non-HP0 Boss runtime deliberately enforces:
+Boss HP0 now uses the confirmed default lifecycle:
 
 ```text
-Boss Instance Current HP >= 1
+Current HP > 0
+→ status = active
+
+Current HP <= 0
+→ HP = 0
+→ status = defeated immediately
 ```
 
-until the project confirms whether Boss HP0 means ordinary `defeated`, a special final Phase / scripted state, Player-like DYING, or another Boss-specific lifecycle.
+Bosses do not inherit Player DYING. Lethal damage does not automatically enter a final Phase unless a future explicit Boss mechanic defines such an exception.
 
-Player → Boss final damage is therefore not enabled yet. This is the only intentional gap in the minimum Boss combat loop.
+A defeated Boss loses ordinary Action / Move, cannot use normal Boss Skill attacks, and cannot be selected as a normal active hostile target. Its Combatant record may remain for initiative / audit history. Combat and Encounter completion remain GM-controlled.
 
-See `docs/BOSS_DESIGN_PROFILE_ALPHA.md` and `docs/BOSS_RUNTIME_MVP.md`.
+GM corrective HP changes reconcile `active` / `defeated`; `removed` remains separate and is not auto-revived by ordinary HP correction.
+
+See `docs/BOSS_DESIGN_PROFILE_ALPHA.md`, `docs/BOSS_RUNTIME_MVP.md`, and `docs/BOSS_DEFEAT_MVP.md`.
 
 ## Scenario / Scene / Encounter MVP
 
@@ -463,7 +493,7 @@ monster_instance
 boss_instance
 ```
 
-All three participant types now have runtime persistence. Player-origin attacks against Boss remain gated only by the Boss HP0 rule.
+All three participant types now have runtime persistence and executable combat participation for the minimum MVP path.
 
 For MVP, one Encounter may link to zero or one Combat. A full tactical Map engine remains Deferred; current Map support is metadata only.
 
@@ -480,7 +510,9 @@ node tests/combat-rules.test.mjs
 node tests/monster-rules.test.mjs
 node tests/monster-life.test.mjs
 node tests/boss-rules.test.mjs
+node tests/boss-life.test.mjs
 node tests/static-ui-contract.test.mjs
+node tests/boss-defeat-contract.test.mjs
 ```
 
 These checks validate source syntax and selected regression contracts. They do **not** deploy production.
@@ -508,10 +540,9 @@ Character D100 / Damage / HP0 resolver              implemented MVP path
 Scenario / Scene / Encounter Foundation             implemented MVP foundation
 Monster Template / Skill / Instance runtime         implemented
 Monster Dedicated Defence + Armor                   implemented
-Monster HP0 + Player → Monster combat loop          implemented
-Boss Profile / Boss Instance non-HP0 runtime        implemented in current slice
-→ confirm Boss HP0 lifecycle
-→ complete Player → Boss final damage path
+Monster HP0 + Player ↔ Monster combat loop          implemented
+Boss Profile / Boss Instance runtime                 implemented MVP path
+Boss HP0 + Player ↔ Boss combat loop                 implemented MVP path
 → first end-to-end Scenario / Boss-capable play-test
 ```
 
