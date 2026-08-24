@@ -222,25 +222,26 @@ After this milestone, numeric curves and advanced mechanics should be adjusted u
 
 # 10. Current Immediate Blocker
 
-The Character-creation foundation and GM D1 Character control foundation are now implemented.
-
-Secure first-GM bootstrap support is also implemented:
+The following MVP foundations are now implemented or represented by the current implementation path:
 
 ```text
-authenticated current player
-+ INITIAL_GM_PROVISION_TOKEN Worker Secret
-+ no existing gm/admin
-→ one-time promotion to gm
+Character creation / progression foundation
+GM D1 Character controls
+secure initial GM provisioning
+D1 Combat identity / Combatant membership
+DEX Initiative snapshot
+stable random equal-DEX order at Combat Start
+Round / Current Turn state
+1 Action + 1 Move allowance state
+GM Start / Force Turn / End Turn / End Combat controls
 ```
 
-The bootstrap endpoint cannot target another User, cannot create `admin`, and closes once any `gm/admin` exists.
-
-Production still requires the deployment operator to configure the Secret and run the one-time setup flow; no secret value belongs in source control.
+The Combat-state slice deliberately does not yet resolve attacks or damage. Its job is to provide one authoritative Turn model for the later resolvers.
 
 The next major implementation blocker is now:
 
 ```text
-Round / Combat State Engine
+Player server-authoritative Action / Move / End Own Turn
 ```
 
-This stage must establish D1-authoritative Combat identity, combatant membership, DEX initiative ordering, stable random ordering for equal DEX at Combat Start, Round / Turn ownership, one Action + one Move availability, GM Start / Override / End authority, and server-authoritative turn advancement before attack/damage logic is layered on top.
+That stage must enforce Character ownership and Current Turn ownership against D1 Combat state, consume Action / Move allowances server-side, and avoid any browser-local duplicate Turn model.
