@@ -222,23 +222,25 @@ After this milestone, numeric curves and advanced mechanics should be adjusted u
 
 # 10. Current Immediate Blocker
 
-The Character-creation foundation is no longer the immediate blocker.
+The Character-creation foundation and GM D1 Character control foundation are now implemented.
 
-Current work is **GM D1 Character controls**:
+Secure first-GM bootstrap support is also implemented:
 
 ```text
-shared User/session authentication
-→ gm/admin role gate
-→ D1 User / Character roster
-→ D1 Character detail
-→ GM EXP authority
-→ derived Level
-→ formula HP / MP Max recalculation
-→ GM Current HP / MP correction
+authenticated current player
++ INITIAL_GM_PROVISION_TOKEN Worker Secret
++ no existing gm/admin
+→ one-time promotion to gm
 ```
 
-The legacy browser-local GM Character editor is not authoritative for the MVP.
+The bootstrap endpoint cannot target another User, cannot create `admin`, and closes once any `gm/admin` exists.
 
-A secure initial GM/admin provisioning path remains a deployment/administration blocker. The project must not solve this by allowing arbitrary Player self-promotion.
+Production still requires the deployment operator to configure the Secret and run the one-time setup flow; no secret value belongs in source control.
 
-After the GM D1 Character control path is usable, the next major implementation stage is the Round / Combat state engine.
+The next major implementation blocker is now:
+
+```text
+Round / Combat State Engine
+```
+
+This stage must establish D1-authoritative Combat identity, combatant membership, DEX initiative ordering, stable random ordering for equal DEX at Combat Start, Round / Turn ownership, one Action + one Move availability, GM Start / Override / End authority, and server-authoritative turn advancement before attack/damage logic is layered on top.
