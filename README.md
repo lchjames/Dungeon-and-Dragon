@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/life-correction.js
+src/scenario.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-life-correction.js
+scenario.js
+→ life-correction.js
 → player-attack.js
 → player-combat.js
 → combat-state.js
@@ -62,6 +63,10 @@ Current authoritative areas include:
 - Player own Action / Move allowance state and End Own Turn
 - Character-vs-Character D100 attack / Dodge resolution
 - Damage and HP0 / Dying baseline
+- Scenario / Scene / Encounter narrative structure
+- Encounter Character participant assignment
+- Encounter → optional Combat link
+- simple Scene Map metadata / asset reference
 
 Reference / migration SQL lives under `schema/`.
 
@@ -107,6 +112,11 @@ The current GM workspace reads D1 directly and supports:
 - Current HP / MP correction within `0..Max`
 - HP correction reconciliation with ALIVE / DYING state
 - temporary Player Attack Profile authoring
+- Scenario / Scene / Encounter authoring
+- Scenario / Scene / Encounter status updates
+- simple Scene Map reference metadata
+- active Character assignment to Encounters
+- starting Combat directly from an Encounter
 - Combat creation and control
 - fixed DEX Initiative
 - stable one-time random ordering for equal DEX
@@ -198,23 +208,59 @@ boss_instance
 
 Only `character` is active in the current resolver path.
 
-## Scenario / Scene / Encounter direction
+## Scenario / Scene / Encounter MVP
 
-The MVP is not intended to stop at a standalone Combat simulator.
+The Campaign Hub now has a persistent narrative/context layer rather than treating Combat as a standalone activity.
 
-Before Monster Runtime is connected into the first complete story flow, the project will add the minimum relationship:
+The current product remains a single-campaign MVP:
 
 ```text
-Campaign
+settings.campaign_name
 → Scenario
 → Scene
 → Encounter
-→ Combat
+→ optional Combat
 ```
 
-See `docs/SCENARIO_SCENE_ENCOUNTER_MVP.md`.
+D1 tables:
 
-A full tactical Map engine remains Deferred. The first narrative/context slice may reference a simple Map asset without implementing token dragging, LOS, terrain, fog of war, or permanent movement-per-turn grid counts.
+```text
+scenarios
+scenes
+encounters
+encounter_participants
+encounter_combats
+```
+
+Current GM Story workflow:
+
+```text
+Create Scenario
+→ Create Scene
+→ optionally add simple Map name / asset reference / GM notes
+→ Create Encounter
+→ assign active Player Characters
+→ Start Combat from Encounter
+→ existing Combat resolver creates Initiative / Turn state
+→ Encounter links to that Combat
+→ GM later records Encounter resolution explicitly
+```
+
+Encounter participant storage already reserves:
+
+```text
+character
+monster_instance
+boss_instance
+```
+
+Only `character` assignment is enabled until Monster / Boss runtime entities exist.
+
+For MVP, one Encounter may link to zero or one Combat. Full multi-wave Encounter handling remains later work.
+
+A full tactical Map engine remains Deferred. Current Map support is metadata only; there is no token dragging, LOS, terrain, fog of war or permanent movement-per-turn grid count in this slice.
+
+See `docs/SCENARIO_SCENE_ENCOUNTER_MVP.md`.
 
 ## Automated checks
 
@@ -253,8 +299,8 @@ Current high-level path:
 
 ```text
 Character D100 / Damage / HP0 resolver               implemented MVP path
-→ Scenario / Scene / Encounter Foundation             next
-→ Monster Template / Skill / Instance runtime
+Scenario / Scene / Encounter Foundation              implemented MVP foundation
+→ Monster Template / Skill / Instance runtime        next
 → Boss Profile / Boss Instance minimum runtime
 → first end-to-end Scenario test
 ```
