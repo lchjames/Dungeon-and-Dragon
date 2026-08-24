@@ -25,3 +25,12 @@ const allocation = validateCreationSkillAllocations({ perception: 30, dodge: 10 
 assert.deepEqual({ spent: allocation.spent, remaining: allocation.remaining }, { spent: 40, remaining: 160 });
 assert.throws(() => validateCreationSkillAllocations({ dodge: 31 }));
 assert.throws(() => validateCreationSkillAllocations({ unknown: 1 }));
+
+const completeAllocation = Object.fromEntries(BASIC_SKILLS.map(skill => [skill.key, 0]));
+completeAllocation.perception = 30;
+completeAllocation.dodge = 10;
+const completeResult = validateCreationSkillAllocations(completeAllocation, { requireAllSkills: true });
+assert.deepEqual({ spent: completeResult.spent, remaining: completeResult.remaining }, { spent: 40, remaining: 160 });
+const missingAllocation = { ...completeAllocation };
+delete missingAllocation.dodge;
+assert.throws(() => validateCreationSkillAllocations(missingAllocation, { requireAllSkills: true }));
