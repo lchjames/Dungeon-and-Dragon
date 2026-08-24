@@ -163,3 +163,25 @@ export function monsterEffectiveAccuracy(storedAccuracy, modifier = 0) {
     effectiveAccuracy: Math.min(100, modifiedAccuracy)
   };
 }
+
+export function monsterEffectiveD100Defence(storedDefence, modifier = 0) {
+  const stored = finiteNumber(storedDefence, 'Stored Defence');
+  const totalModifier = finiteNumber(modifier, 'Defence Modifier');
+  const modifiedDefence = stored + totalModifier;
+  return {
+    storedDefence: stored,
+    modifier: totalModifier,
+    modifiedDefence,
+    effectiveDefence: Math.min(100, modifiedDefence)
+  };
+}
+
+export function monsterFinalArmorDefence(baseDefence, adjustment = 0) {
+  const base = finiteNumber(baseDefence, 'Armor Base Defence');
+  const delta = finiteNumber(adjustment, 'Armor Defence Adjustment');
+  return {
+    baseDefence: base,
+    adjustment: delta,
+    finalDefence: base + delta
+  };
+}
