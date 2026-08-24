@@ -108,12 +108,12 @@ export function calculatePlayerResources(attributes, level = 1, hpMaxModifier = 
   };
 }
 
-export function reconcileResourceCurrentOnMaxChange(currentValue, oldMaxValue, newMaxValue) {
-  const current = Math.max(0, Number(currentValue) || 0);
-  const oldMax = Math.max(0, Number(oldMaxValue) || 0);
-  const newMax = Math.max(0, Number(newMaxValue) || 0);
-  if (newMax > oldMax) return Math.min(newMax, current + (newMax - oldMax));
-  return Math.min(current, newMax);
+export function reconcileResourceCurrentOnMaxChange(current, oldMax, newMax) {
+  const safeCurrent = Math.max(0, Number(current) || 0);
+  const safeOldMax = Math.max(0, Number(oldMax) || 0);
+  const safeNewMax = Math.max(0, Number(newMax) || 0);
+  if (safeNewMax > safeOldMax) return Math.min(safeNewMax, safeCurrent + (safeNewMax - safeOldMax));
+  return Math.min(safeCurrent, safeNewMax);
 }
 
 export function expRequiredForNextLevel(level) {
@@ -146,6 +146,55 @@ export function levelFromExp(exp) {
     else high = mid - 1;
   }
   return low;
+}
+
+function randomIndex(maxExclusive, randomUint32 = secureUint32) {
+  if (!Number.isInteger(maxExclusive) || maxExclusive < 1) throw new RangeError('maxExclusive must be a positive integer.');
+  const range = 0x100000000;
+  const limit = range - (range % maxExclusive);
+  let value;
+  do value = randomUint32(); while (value >= limit);
+  return value % maxExclusive;
+}
+
+export function buildCombatInitiative(combatants, randomUint32 = secureUint32) {
+  if (!Array.isArray(combatants) || combatants.length < 1) {
+    throw new RangeError('At least one combatant is required.');
+  }
+
+  const normalized = combatants.map((combatant, index) => {
+    const id = String(combatant?.id || '').trim();
+    const dex = Number(combatant?.dex);
+    if (!id) throw new RangeError(`Combatant ${index + 1} requires an id.`);
+    if (!Number.isFinite(dex)) throw new RangeError(`Combatant ${id} requires a numeric DEX.`);
+    return { ...combatant, id, dex };
+  });
+
+  if (new Set(normalized.map(combatant => combatant.id)).size !== normalized.length) {
+    throw new RangeError('Combatant ids must be unique.');
+  }
+
+  const byDex = new Map();
+  for (const combatant of normalized) {
+    if (!byDex.has(combatant.dex)) byDex.set(combatant.dex, []);
+    byDex.get(combatant.dex).push(combatant);
+  }
+
+  const ordered = [];
+  const dexValues = [...byDex.keys()].sort((left, right) => right - left);
+  for (const dex of dexValues) {
+    const group = [...byDex.get(dex)];
+    for (let index = group.length - 1; index > 0; index -= 1) {
+      const swapIndex = randomIndex(index + 1, randomUint32);
+      [group[index], group[swapIndex]] = [group[swapIndex], group[index]];
+    }
+    ordered.push(...group);
+  }
+
+  return ordered.map((combatant, initiativeOrder) => ({
+    ...combatant,
+    initiativeOrder
+  }));
 }
 
 export function validateCreationSkillAllocations(
