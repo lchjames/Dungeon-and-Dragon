@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/boss.js
+src/boss-runtime.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-boss.js
+boss-runtime.js
+→ boss.js
 → monster-defeat.js
 → monster-defence.js
 → monster.js
@@ -38,6 +39,8 @@ boss.js
 → player-create.js
 → worker.js
 ```
+
+`boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns the validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn, then delegates the remaining Boss Phase / Skill / Combat runtime routes to `boss.js`.
 
 Each layer handles scoped routes and delegates all other requests down the chain.
 
