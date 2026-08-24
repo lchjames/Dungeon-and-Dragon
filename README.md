@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/combat-state.js
+src/player-combat.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-combat-state.js
+player-combat.js
+→ combat-state.js
 → gm-provision.js
 → gm-d1.js
 → player-skill-allocation.js
@@ -54,6 +55,7 @@ Current authoritative areas include:
 - inventory and notes
 - GM Character controls
 - Combat identity, combatants, Initiative, Round / Turn state
+- Player own Action / Move allowance state and End Own Turn
 
 Reference / migration SQL lives under `schema/`.
 
@@ -155,10 +157,15 @@ GM selects active Characters with valid DEX
 → stored stable Initiative
 → Round 1
 → each Combatant has 1 Action + 1 Move
-→ End / Force Turn
+→ Player can inspect active Combat when participating
+→ Player can consume own Action / Move on own Current Turn
+→ Player can End Own Turn
+→ GM can End / Force Turn
 → Round advances after final Turn
 → GM End Combat
 ```
+
+Normal Player/GM End Turn transitions use conditional D1 stale-state protection so delayed duplicate requests do not silently skip Turn state or re-reset a new Round.
 
 The Combatant schema already reserves entity types for later:
 
@@ -170,14 +177,32 @@ boss_instance
 
 Only `character` is active in the current slice.
 
+## Scenario / Scene / Encounter direction
+
+The MVP is not intended to stop at a standalone Combat simulator.
+
+Before Monster Runtime is connected into the first complete story flow, the project will add the minimum relationship:
+
+```text
+Campaign
+→ Scenario
+→ Scene
+→ Encounter
+→ Combat
+```
+
+See `docs/SCENARIO_SCENE_ENCOUNTER_MVP.md`.
+
+A full tactical Map engine remains Deferred. The first narrative/context slice may reference a simple Map asset without implementing token dragging, LOS, terrain, fog of war, or permanent movement-per-turn grid counts.
+
 ## Automated checks
 
-GitHub Actions runs `.github/workflows/mvp-checks.yml` on pushes to `main` and pull requests.
+GitHub Actions runs `.github/workflows/mvp-checks.yml` on branch pushes and pull requests.
 
 Current checks include:
 
 ```bash
-node --check src/*.js / public asset modules via shell loop
+node --check for src/*.js and public/assets/*.js
 node tests/rules.test.mjs
 node tests/static-ui-contract.test.mjs
 ```
@@ -200,16 +225,17 @@ Static assets live in `./public` and the active Worker entry is defined by `wran
 
 ## MVP direction
 
-The project is in MVP Implementation Mode. The next implementation stages are intentionally focused on reaching one complete playable encounter rather than finishing every TRPG subsystem first.
+The project is in MVP Implementation Mode. The remaining path is focused on reaching one complete playable Scenario / Encounter rather than finishing every TRPG subsystem first.
 
-Current high-level remaining path after the Combat state foundation:
+Current high-level path:
 
 ```text
-Player server-authoritative Action / Move / End Own Turn
-→ D100 attack / damage / HP 0 integration
+Player Combat Control                              current slice
+→ D100 Combat Resolver + Damage + HP 0
+→ Scenario / Scene / Encounter Foundation
 → Monster Template / Skill / Instance runtime
 → Boss Profile / Boss Instance minimum runtime
-→ first end-to-end play-test encounter
+→ first end-to-end Scenario test
 ```
 
-Advanced AI, exact balancing curves, full map rules, economy, loot and quest systems remain later work unless they become a real blocker for the playable vertical slice.
+Advanced AI, exact balancing curves, full tactical Map rules, economy, loot and Quest automation remain later work unless they become a real blocker for the playable vertical slice.
