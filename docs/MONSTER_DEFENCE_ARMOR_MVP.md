@@ -210,6 +210,20 @@ Damage Result = -3
 → Monster HP unchanged
 ```
 
+When HP Damage is positive, ordinary Monster HP follows `MONSTER_DEFEAT_MVP.md`:
+
+```text
+Current HP = max(0, Current HP - HP Damage)
+
+Current HP > 0
+→ status = active
+
+Current HP = 0
+→ status = defeated immediately
+```
+
+Ordinary Simplified Monsters do not enter the Player DYING countdown.
+
 ---
 
 # 7. Profile vs Instance Ownership
@@ -252,9 +266,10 @@ Monster Defence Modifier
 Monster Armor Defence
 Monster HP damage
 Damage Result
+Monster status
 ```
 
-The server reloads all authoritative Monster defence / Armor values from D1 and resolves the action.
+The server reloads all authoritative Monster defence / Armor / HP values from D1 and resolves the action.
 
 ---
 
@@ -295,22 +310,30 @@ Armor Defence added to the D100 check
 Monster Level auto-scaling Stored Defence
 Monster Level auto-scaling Armor Defence
 random Armor values during spawn
+ordinary Monster Player-style DYING rounds
+negative Monster HP
 ```
 
 Any of those would require a separate confirmed rule.
 
 ---
 
-# 11. Remaining HP0 Decision
+# 11. Locked HP0 Integration
 
-This document resolves the Player → Monster hit and Armor defence sources.
+The former HP0 blocker is resolved by `MONSTER_DEFEAT_MVP.md`.
 
-It does **not** by itself define whether an ordinary Simplified Monster at `HP = 0`:
+The complete executable Player → ordinary Monster path is therefore:
 
 ```text
-becomes immediately defeated
-enters a separate dying state
-uses another special lifecycle
+Player Attack Profile
+→ Monster Dedicated Stored Defence opposed D100
+→ successful hit
+→ Player Raw Damage
+→ Monster Final Armor Defence
+→ Damage Result
+→ HP Damage if Damage Result > 0
+→ HP clamp at 0
+→ HP 0 = immediate defeated
 ```
 
-That remains the next narrow Monster lifecycle blocker and must not be hidden behind a Player-style DYING assumption.
+`defeated` removes the ordinary Monster from normal hostile targeting and ordinary actions, while Combat / Encounter completion remains GM-controlled.
