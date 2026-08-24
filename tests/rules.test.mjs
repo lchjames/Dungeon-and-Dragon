@@ -34,3 +34,17 @@ assert.deepEqual({ spent: completeResult.spent, remaining: completeResult.remain
 const missingAllocation = { ...completeAllocation };
 delete missingAllocation.dodge;
 assert.throws(() => validateCreationSkillAllocations(missingAllocation, { requireAllSkills: true }));
+
+assert.throws(() => validateCreationSkillAllocations(completeAllocation, {
+  requireAllSkills: true,
+  requireFullSpend: true
+}));
+
+const fullSpendAllocation = Object.fromEntries(BASIC_SKILLS.map(skill => [skill.key, 0]));
+for (let index = 0; index < 6; index += 1) fullSpendAllocation[BASIC_SKILLS[index].key] = 30;
+fullSpendAllocation[BASIC_SKILLS[6].key] = 20;
+const fullSpendResult = validateCreationSkillAllocations(fullSpendAllocation, {
+  requireAllSkills: true,
+  requireFullSpend: true
+});
+assert.deepEqual({ spent: fullSpendResult.spent, remaining: fullSpendResult.remaining }, { spent: 200, remaining: 0 });
