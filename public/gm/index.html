@@ -7,6 +7,7 @@
   <title>GM · D&D Campaign Hub</title>
   <link rel="stylesheet" href="/assets/styles.css">
   <script type="module" src="/assets/gm-d1.js"></script>
+  <script type="module" src="/assets/gm-combat.js"></script>
 </head>
 <body class="admin-body">
   <aside class="sidebar">
@@ -15,6 +16,7 @@
       <button type="button" class="side-link active" data-view="dashboard">Dashboard</button>
       <button type="button" class="side-link" data-view="players">Players</button>
       <button type="button" class="side-link" data-view="characters">Characters</button>
+      <button type="button" class="side-link" id="combat-side-link">Combat</button>
     </nav>
     <div class="sidebar-footer">
       <a class="button button-ghost button-full" href="/player/">Open Player View</a>
@@ -114,6 +116,25 @@
             </div>
 
             <section class="panel"><div class="panel-heading"><h3>23 Basic Skills</h3><span class="muted">Read only in this slice</span></div><div id="gm-skill-list" class="stack-list"></div></section>
+          </section>
+        </section>
+
+        <section class="admin-view hidden" id="view-combat">
+          <div class="section-heading">
+            <div><p class="eyebrow">COMBAT STATE</p><h2>Round / Turn Engine</h2><p class="muted">MVP state engine only: fixed DEX Initiative, one Action + one Move per Turn, GM force controls. Attack and damage resolution come in the next slice.</p></div>
+          </div>
+          <div id="combat-status" class="auth-status" hidden role="status" aria-live="polite"></div>
+          <section id="combat-start-panel" class="panel">
+            <div class="panel-heading"><div><h3>Start Combat</h3><span class="muted">Select active Characters with valid DEX.</span></div><button id="start-combat" class="button" type="button">Start Combat</button></div>
+            <div id="combat-candidate-list" class="stack-list"></div>
+          </section>
+          <section id="combat-active-panel" class="panel hidden">
+            <div class="panel-heading">
+              <div><h3>Active Combat</h3><span id="combat-round-summary" class="muted">Round 1</span></div>
+              <div class="row-inline"><button id="end-current-turn" class="button" type="button">End Current Turn</button><button id="end-combat" class="button button-danger-soft" type="button">End Combat</button></div>
+            </div>
+            <div id="combat-current-summary" class="tool-result muted">No current turn.</div>
+            <div id="combat-initiative-list" class="stack-list"></div>
           </section>
         </section>
       </div>
