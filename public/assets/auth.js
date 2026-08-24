@@ -13,7 +13,12 @@ function setStatus(message = '', kind = '') {
 
 function safeNext() {
   const value = new URLSearchParams(location.search).get('next') || '/player/';
-  return value.startsWith('/player/') && !value.startsWith('//') ? value : '/player/';
+  const isInternal = !value.startsWith('//') && (
+    value.startsWith('/player/') ||
+    value === '/gm' ||
+    value.startsWith('/gm/')
+  );
+  return isInternal ? value : '/player/';
 }
 
 function normaliseUser(value) {
@@ -76,8 +81,17 @@ form?.addEventListener('submit', async event => {
       await postJson('/api/auth/login', { username, password });
     }
 
-    setStatus(mode === 'register' ? '玩家已建立，正在開啟角色頁面…' : 'Key 正確，正在開啟角色…', 'success');
-    location.replace(safeNext());
+    const destination = safeNext();
+    const goingToGM = destination === '/gm' || destination.startsWith('/gm/');
+    setStatus(
+      mode === 'register'
+        ? 'User 已建立，正在開啟角色頁面…'
+        : goingToGM
+          ? 'Key 正確，正在驗證 GM 權限…'
+          : 'Key 正確，正在開啟角色…',
+      'success'
+    );
+    location.replace(destination);
   } catch (error) {
     setStatus(error.message || '暫時無法完成要求。', 'error');
   } finally {
