@@ -44,10 +44,38 @@ function renderNoCombat() {
 }
 
 function lifeLabel(combatant) {
+  if (combatant?.entityType === 'monster_instance') {
+    const status = String(combatant?.monsterStatus || 'active').toLowerCase();
+    if (status === 'defeated') return 'DEFEATED';
+    if (status === 'removed') return 'REMOVED';
+    return 'ACTIVE';
+  }
   const state = String(combatant?.lifeState || 'alive').toLowerCase();
   if (state === 'dying') return `DYING${combatant.dyingRoundsRemaining !== null ? ` · ${combatant.dyingRoundsRemaining} turns` : ''}`;
   if (state === 'dead') return 'DEAD';
   return 'ALIVE';
+}
+
+function isNormalAttackTarget(item, current) {
+  if (!item || item.id === current?.id) return false;
+  if (item.entityType === 'character') {
+    return String(item.lifeState || 'alive').toLowerCase() !== 'dead';
+  }
+  if (item.entityType === 'monster_instance') {
+    return String(item.monsterStatus || 'active').toLowerCase() === 'active'
+      && Number(item.hp?.current ?? 0) > 0;
+  }
+  return false;
+}
+
+function monsterTargetMeta(target) {
+  const defence = target?.defence?.effectiveD100Defence;
+  const armor = target?.defence?.armor?.finalDefence;
+  const bits = [];
+  if (target?.hp) bits.push(`HP ${target.hp.current}/${target.hp.max}`);
+  if (Number.isFinite(Number(defence))) bits.push(`Def ${defence}`);
+  if (Number.isFinite(Number(armor))) bits.push(`Armor ${armor}`);
+  return bits.length ? ` · ${bits.join(' · ')}` : '';
 }
 
 function renderAttackControls(combat) {
@@ -61,9 +89,7 @@ function renderAttackControls(combat) {
   const ownTurn = Boolean(combat?.isOwnTurn && current);
   const alive = String(current?.lifeState || 'alive').toLowerCase() === 'alive';
   const profiles = combatState?.attackProfiles || [];
-  const targets = (combat?.combatants || []).filter(item =>
-    item.id !== current?.id && item.entityType === 'character' && String(item.lifeState || 'alive').toLowerCase() !== 'dead'
-  );
+  const targets = (combat?.combatants || []).filter(item => isNormalAttackTarget(item, current));
 
   panel.classList.toggle('hidden', !ownTurn);
   const previousProfile = profileSelect.value;
@@ -71,9 +97,12 @@ function renderAttackControls(combat) {
   profileSelect.innerHTML = profiles.length
     ? profiles.map(profile => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name)} · Acc ${escapeHtml(profile.storedAccuracy)} · ${escapeHtml(profile.damageDiceCount)}D${escapeHtml(profile.damageDiceSides)}${profile.fixedDamageModifier ? ` ${profile.fixedDamageModifier > 0 ? '+' : ''}${escapeHtml(profile.fixedDamageModifier)}` : ''}</option>`).join('')
     : '<option value="">No approved Attack Profile</option>';
-  targetSelect.innerHTML = '<option value="">Select target</option>' + targets.map(target =>
-    `<option value="${escapeHtml(target.id)}">${escapeHtml(target.displayName)} · ${escapeHtml(lifeLabel(target))}${target.hp ? ` · HP ${escapeHtml(target.hp.current)}/${escapeHtml(target.hp.max)}` : ''}</option>`
-  ).join('');
+  targetSelect.innerHTML = '<option value="">Select target</option>' + targets.map(target => {
+    if (target.entityType === 'monster_instance') {
+      return `<option value="${escapeHtml(target.id)}">${escapeHtml(target.displayName)} · MONSTER · ${escapeHtml(lifeLabel(target))}${escapeHtml(monsterTargetMeta(target))}</option>`;
+    }
+    return `<option value="${escapeHtml(target.id)}">${escapeHtml(target.displayName)} · ${escapeHtml(lifeLabel(target))}${target.hp ? ` · HP ${escapeHtml(target.hp.current)}/${escapeHtml(target.hp.max)}` : ''}</option>`;
+  }).join('');
 
   if (profiles.some(profile => profile.id === previousProfile)) profileSelect.value = previousProfile;
   if (targets.some(target => target.id === previousTarget)) targetSelect.value = previousTarget;
@@ -140,11 +169,18 @@ function renderAttackResult(attack) {
   const greatAttack = attackCheck.greatSuccess ? ' · Great Success' : attackCheck.greatFailure ? ' · Great Failure' : '';
   const greatDefence = defenceCheck.greatSuccess ? ' · Great Success' : defenceCheck.greatFailure ? ' · Great Failure' : '';
   const hitText = attack.hit ? 'HIT' : 'MISS / DEFENDED';
-  const damageText = attack.hit
-    ? ` · Raw Damage ${attack.damage?.rawDamage ?? '—'} · Defence ${attack.damage?.effectiveDefence ?? 0} · Damage Result ${attack.damage?.damageResult ?? '—'} · HP Damage ${attack.damage?.hpDamage ?? 0}`
+  const monsterTarget = attack.target?.entityType === 'monster_instance' || attack.defenceSource === 'monster_stored_defence';
+  const defenceName = monsterTarget ? 'Monster Defence' : 'Dodge';
+  const armorText = monsterTarget && attack.hit
+    ? ` · Armor ${attack.armor?.finalDefence ?? attack.damage?.effectiveDefence ?? 0}`
     : '';
-  const lifeText = attack.target?.lifeStateAfter ? ` · Target ${String(attack.target.lifeStateAfter).toUpperCase()}${attack.target.dyingRoundsRemaining !== null ? ` (${attack.target.dyingRoundsRemaining})` : ''}` : '';
-  target.textContent = `${hitText} · Attack D100 ${attackCheck.roll} → Result ${attackCheck.result}${greatAttack} · Dodge D100 ${defenceCheck.roll} → Result ${defenceCheck.result}${greatDefence}${damageText}${lifeText}`;
+  const damageText = attack.hit
+    ? ` · Raw Damage ${attack.damage?.rawDamage ?? '—'}${armorText} · Damage Result ${attack.damage?.damageResult ?? '—'} · HP Damage ${attack.damage?.hpDamage ?? 0}`
+    : '';
+  const targetState = monsterTarget
+    ? (attack.target?.statusAfter ? ` · Target ${String(attack.target.statusAfter).toUpperCase()} · HP ${attack.target.hpBefore ?? '—'}→${attack.target.hpAfter ?? '—'}` : '')
+    : (attack.target?.lifeStateAfter ? ` · Target ${String(attack.target.lifeStateAfter).toUpperCase()}${attack.target.dyingRoundsRemaining !== null ? ` (${attack.target.dyingRoundsRemaining})` : ''}` : '');
+  target.textContent = `${hitText} · Attack D100 ${attackCheck.roll} → Result ${attackCheck.result}${greatAttack} · ${defenceName} D100 ${defenceCheck.roll} → Result ${defenceCheck.result}${greatDefence}${damageText}${targetState}`;
 }
 
 function renderState(payload) {
