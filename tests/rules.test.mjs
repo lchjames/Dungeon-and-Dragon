@@ -4,6 +4,7 @@ import {
   calculatePlayerResources,
   expThresholdForLevel,
   levelFromExp,
+  reconcileResourceCurrentOnMaxChange,
   validateCreationSkillAllocations
 } from '../src/rules.js';
 
@@ -20,6 +21,9 @@ assert.equal(levelFromExp(999999999), 100);
 
 const resources = calculatePlayerResources({ CON: 12, SIZ: 14, INT: 13 }, 1);
 assert.deepEqual({ hp: resources.finalMaxHP, mp: resources.finalMaxMP }, { hp: 13, mp: 39 });
+assert.equal(reconcileResourceCurrentOnMaxChange(7, 10, 15), 12);
+assert.equal(reconcileResourceCurrentOnMaxChange(7, 10, 6), 6);
+assert.equal(reconcileResourceCurrentOnMaxChange(2, 10, 6), 2);
 
 const allocation = validateCreationSkillAllocations({ perception: 30, dodge: 10 });
 assert.deepEqual({ spent: allocation.spent, remaining: allocation.remaining }, { spent: 40, remaining: 160 });
