@@ -6,6 +6,7 @@ const gmJs = await readFile(new URL('../public/assets/gm-d1.js', import.meta.url
 const gmAttackJs = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
 const gmStoryJs = await readFile(new URL('../public/assets/gm-story.js', import.meta.url), 'utf8');
 const gmMonstersJs = await readFile(new URL('../public/assets/gm-monsters.js', import.meta.url), 'utf8');
+const gmMonsterDefenceJs = await readFile(new URL('../public/assets/gm-monster-defence.js', import.meta.url), 'utf8');
 const playerHtml = await readFile(new URL('../public/player/index.html', import.meta.url), 'utf8');
 const playerCombatJs = await readFile(new URL('../public/assets/player-combat.js', import.meta.url), 'utf8');
 const playerAttackWorker = await readFile(new URL('../src/player-attack.js', import.meta.url), 'utf8');
@@ -13,6 +14,7 @@ const combatLife = await readFile(new URL('../src/combat-life.js', import.meta.u
 const lifeCorrection = await readFile(new URL('../src/life-correction.js', import.meta.url), 'utf8');
 const scenarioWorker = await readFile(new URL('../src/scenario.js', import.meta.url), 'utf8');
 const monsterWorker = await readFile(new URL('../src/monster.js', import.meta.url), 'utf8');
+const monsterDefenceWorker = await readFile(new URL('../src/monster-defence.js', import.meta.url), 'utf8');
 const monsterRules = await readFile(new URL('../src/monster-rules.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
@@ -45,6 +47,7 @@ assert.match(gmHtml, /src=["']\/assets\/gm-attack-profiles\.js["']/, 'GM workspa
 assert.match(gmAttackJs, /attack-profiles/, 'GM Attack Profile client must use the server-authoritative Profile API.');
 assert.match(gmAttackJs, /import\s+['"]\.\/gm-story\.js['"]/, 'GM module chain must load the Story workspace.');
 assert.match(gmAttackJs, /import\s+['"]\.\/gm-monsters\.js['"]/, 'GM module chain must load the Monster workspace.');
+assert.match(gmAttackJs, /import\s+['"]\.\/gm-monster-defence\.js['"]/, 'GM module chain must load Monster Defence / Armor controls.');
 
 assert.match(gmStoryJs, /story-side-link/, 'Story client must expose a GM Story navigation entry.');
 assert.match(gmStoryJs, /\/api\/gm\/story/, 'Story client must read the server-authoritative Story API.');
@@ -57,6 +60,11 @@ assert.match(gmMonstersJs, /monster-templates/, 'Monster client must author Temp
 assert.match(gmMonstersJs, /monster-skills/, 'Monster client must author Common Monster Skills.');
 assert.match(gmMonstersJs, /monster-instances/, 'Monster client must spawn / inspect Monster Instances.');
 assert.match(gmMonstersJs, /monster-attack/, 'Monster client must expose GM-controlled Monster attack resolution.');
+
+assert.match(gmMonsterDefenceJs, /Stored Defence/, 'Monster Defence UI must expose Dedicated Stored Defence separately from Armor.');
+assert.match(gmMonsterDefenceJs, /Armor Defence/, 'Monster Defence UI must expose Armor Defence data.');
+assert.match(gmMonsterDefenceJs, /defence-armor/, 'Monster Defence UI must use the dedicated server-authoritative Defence / Armor routes.');
+assert.match(gmMonsterDefenceJs, /Armor Defence is not added to the D100 check/, 'GM UI must keep D100 Defence and Armor reduction conceptually separate.');
 
 for (const id of [
   'player-combat-panel',
@@ -85,9 +93,9 @@ assert.match(playerCombatJs, /end-turn/, 'Player Combat client must expose End O
 assert.match(playerAttackWorker, /controller_user_id/, 'Attack authority must resolve through combatant controller ownership.');
 assert.match(playerAttackWorker, /action_available = 0/, 'Attack resolver must reserve and consume the authoritative Action.');
 assert.match(playerAttackWorker, /ATTACK_PROFILE_UNAVAILABLE/, 'Attack resolver must reject unapproved or inactive Profiles.');
-assert.match(playerAttackWorker, /TARGET_DODGE_REQUIRED/, 'Attack resolver must require the Canonical target Dodge Skill.');
-assert.match(playerAttackWorker, /effectiveDefence:\s*0/, 'MVP attack path must keep post-hit Effective Defence at zero until Defence sources are integrated.');
-assert.match(playerAttackWorker, /target\.entityType !== 'character'/, 'Player attack must not silently invent a Monster defence source.');
+assert.match(playerAttackWorker, /TARGET_DODGE_REQUIRED/, 'Character target attack resolver must require the Canonical target Dodge Skill.');
+assert.match(playerAttackWorker, /effectiveDefence:\s*0/, 'Character target MVP attack path must keep post-hit Effective Defence at zero until Character Armor sources are integrated.');
+assert.match(playerAttackWorker, /target\.entityType !== 'character'/, 'Base Player attack resolver must continue refusing Monster targets until the dedicated Monster target gateway owns that path.');
 assert.match(playerAttackWorker, /character_locked = 1/, 'Death resolution must lock the Character.');
 assert.match(combatLife, /last_dying_tick_combat_id/, 'Dying Turn countdown must keep an idempotency marker.');
 assert.match(combatLife, /UPDATE combatants[\s\S]*UPDATE combats/, 'Dying-aware Turn transition must mutate Combatant state before advancing the Combat pointer.');
@@ -115,9 +123,20 @@ assert.match(monsterWorker, /monster-attack/, 'Monster gateway must expose GM-co
 assert.match(monsterWorker, /action_available = 0/, 'Monster attack must reserve the authoritative Action before rolling.');
 assert.match(monsterWorker, /TARGET_DODGE_REQUIRED/, 'Monster attack must resolve against Character Canonical Dodge.');
 assert.match(monsterWorker, /monster_action_log/, 'Monster attack must preserve runtime audit data.');
+
+assert.match(monsterDefenceWorker, /import baseWorker from '\.\/monster\.js'/, 'Monster Defence gateway must layer over the already-tested Monster runtime.');
+assert.match(monsterDefenceWorker, /stored_defence/, 'Monster Defence gateway must persist Dedicated Stored Defence.');
+assert.match(monsterDefenceWorker, /armor_base_defence/, 'Monster Defence gateway must preserve Armor base snapshot data.');
+assert.match(monsterDefenceWorker, /armor_defence_adjustment/, 'Monster Defence gateway must preserve Instance Armor adjustment data.');
+assert.match(monsterDefenceWorker, /final_armor_defence/, 'Monster Defence gateway must persist Final Armor Defence.');
+assert.match(monsterDefenceWorker, /snapshotSpawnedDefence/, 'Spawn must snapshot Template Defence / Armor into the Instance.');
+assert.match(monsterDefenceWorker, /effectiveD100Defence/, 'Combat payload must expose calculated Effective D100 Defence separately from Armor.');
+
 assert.match(monsterRules, /\(\(value - 1\) \/ 21\.7\) \*\* 2/, 'Monster rules must use the locked global Attribute growth curve.');
 assert.match(monsterRules, /7 \* \(\(\(value - 1\) \/ 99\) \*\* 1\.5\)/, 'Monster rules must use the locked damage growth curve.');
 assert.match(monsterRules, /level1:[\s\S]*min: -2,[\s\S]*max: 2/, 'Monster Spread tuning must keep the documented low-Level MVP anchor centralized.');
 assert.match(monsterRules, /level100:[\s\S]*min: -5,[\s\S]*max: 15/, 'Monster Spread tuning must keep the documented high-Level MVP anchor centralized.');
+assert.match(monsterRules, /monsterEffectiveD100Defence/, 'Monster rules must centralize the Dedicated Stored Defence cap calculation.');
+assert.match(monsterRules, /monsterFinalArmorDefence/, 'Monster rules must centralize the Armor base + adjustment calculation.');
 
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/monster\.js"/, 'Wrangler must route through the Monster runtime gateway.');
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/monster-defence\.js"/, 'Wrangler must route through the Monster Defence / Armor gateway.');
