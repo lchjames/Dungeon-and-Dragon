@@ -7,6 +7,8 @@ import {
   monsterDamageAttributeBasis,
   monsterDamageGrowth,
   monsterEffectiveAccuracy,
+  monsterEffectiveD100Defence,
+  monsterFinalArmorDefence,
   monsterGlobalGrowth,
   rollSignedSpread,
   snapshotMonsterSkill,
@@ -36,6 +38,19 @@ assert.deepEqual(monsterEffectiveAccuracy(130, -20), {
   effectiveAccuracy: 100
 });
 assert.equal(monsterEffectiveAccuracy(130, -40).effectiveAccuracy, 90);
+
+assert.deepEqual(monsterEffectiveD100Defence(125, -20), {
+  storedDefence: 125,
+  modifier: -20,
+  modifiedDefence: 105,
+  effectiveDefence: 100
+});
+assert.equal(monsterEffectiveD100Defence(125, -40).effectiveDefence, 85);
+assert.deepEqual(monsterFinalArmorDefence(12, -3), {
+  baseDefence: 12,
+  adjustment: -3,
+  finalDefence: 9
+});
 
 const deterministic = [
   0, // elite roll -> 1, elite
