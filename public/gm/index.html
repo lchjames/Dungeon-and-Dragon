@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/assets/styles.css">
   <script type="module" src="/assets/gm-d1.js"></script>
   <script type="module" src="/assets/gm-combat.js"></script>
+  <script type="module" src="/assets/gm-attack-profiles.js"></script>
 </head>
 <body class="admin-body">
   <aside class="sidebar">
@@ -58,7 +59,7 @@
                 <div><dt>User</dt><dd id="dashboard-gm-name">GM</dd></div>
                 <div><dt>Role</dt><dd id="dashboard-gm-role">gm</dd></div>
                 <div><dt>Storage</dt><dd>Cloudflare D1</dd></div>
-                <div><dt>Current MVP writes</dt><dd>EXP + Current HP/MP correction</dd></div>
+                <div><dt>Current MVP writes</dt><dd>EXP + Current HP/MP + Attack Profiles</dd></div>
               </dl>
             </section>
           </div>
@@ -70,7 +71,7 @@
         </section>
 
         <section class="admin-view hidden" id="view-characters">
-          <div class="section-heading"><div><p class="eyebrow">D1 ROSTER</p><h2>Characters</h2><p class="muted">Attributes and Creation Skills are read-only in this slice. GM may adjust EXP and correct Current HP/MP through server-authoritative APIs.</p></div></div>
+          <div class="section-heading"><div><p class="eyebrow">D1 ROSTER</p><h2>Characters</h2><p class="muted">Attributes and Creation Skills are read-only. GM may adjust EXP, correct Current HP/MP, and author temporary MVP Attack Profiles.</p></div></div>
           <div class="toolbar">
             <input id="character-search" class="input" type="search" placeholder="Search name, owner or role…">
             <select id="character-owner-filter" class="input"><option value="">All owners</option></select>
@@ -116,16 +117,31 @@
             </div>
 
             <section class="panel"><div class="panel-heading"><h3>23 Basic Skills</h3><span class="muted">Read only in this slice</span></div><div id="gm-skill-list" class="stack-list"></div></section>
+
+            <section id="gm-attack-profile-panel" class="panel">
+              <div class="panel-heading"><div><h3>Player Attack Profiles</h3><span class="muted">Temporary MVP bridge until Weapon / Equipment / Specialisation source profiles exist.</span></div></div>
+              <div id="gm-attack-profile-status" class="auth-status" hidden role="status" aria-live="polite"></div>
+              <div class="form-grid compact-grid">
+                <label class="field"><span>Name</span><input id="gm-attack-name" class="input" maxlength="80" placeholder="e.g. Longsword"></label>
+                <label class="field"><span>Stored Accuracy (0–98)</span><input id="gm-attack-accuracy" class="input" type="number" min="0" max="98" step="1" value="50"></label>
+                <label class="field"><span>Damage Dice Count</span><input id="gm-attack-dice-count" class="input" type="number" min="1" max="20" step="1" value="1"></label>
+                <label class="field"><span>Damage Dice Sides</span><input id="gm-attack-dice-sides" class="input" type="number" min="2" max="100" step="1" value="6"></label>
+                <label class="field"><span>Fixed Damage Modifier</span><input id="gm-attack-fixed" class="input" type="number" step="1" value="0"></label>
+                <label class="field"><span><input id="gm-attack-db" type="checkbox" checked> Apply Character Damage Bonus</span><small>Defence skill is Dodge; post-hit Effective Defence is 0 in this MVP bridge.</small></label>
+              </div>
+              <div class="form-actions"><button id="gm-create-attack-profile" class="button" type="button">Create Attack Profile</button></div>
+              <div id="gm-attack-profile-list" class="stack-list"><p class="muted">Open a Character to load Attack Profiles.</p></div>
+            </section>
           </section>
         </section>
 
         <section class="admin-view hidden" id="view-combat">
           <div class="section-heading">
-            <div><p class="eyebrow">COMBAT STATE</p><h2>Round / Turn Engine</h2><p class="muted">MVP state engine only: fixed DEX Initiative, one Action + one Move per Turn, GM force controls. Attack and damage resolution are added in later MVP slices.</p></div>
+            <div><p class="eyebrow">COMBAT STATE</p><h2>Round / Turn Engine</h2><p class="muted">D1-authoritative Initiative / Turn state. Player attacks now resolve through GM-approved Attack Profiles; Monster / Boss runtime comes later.</p></div>
           </div>
           <div id="combat-status" class="auth-status" hidden role="status" aria-live="polite"></div>
           <section id="combat-start-panel" class="panel">
-            <div class="panel-heading"><div><h3>Start Combat</h3><span class="muted">Select active Characters with valid DEX.</span></div><button id="start-combat" class="button" type="button">Start Combat</button></div>
+            <div class="panel-heading"><div><h3>Start Combat</h3><span class="muted">Select active, living Characters with valid DEX.</span></div><button id="start-combat" class="button" type="button">Start Combat</button></div>
             <div id="combat-candidate-list" class="stack-list"></div>
           </section>
           <section id="combat-active-panel" class="panel hidden">
