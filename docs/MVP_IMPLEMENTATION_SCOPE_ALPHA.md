@@ -1,7 +1,7 @@
 # MVP Implementation Scope — Alpha
 
 > Status: Canonical Alpha Implementation Scope  
-> Date: 2026-08-23  
+> Date: 2026-08-24  
 > Purpose: Define the minimum playable vertical slice and stop over-designing non-blocking details before implementation and play-testing.
 
 ---
@@ -124,31 +124,33 @@ Do not begin with advanced Boss AI, full Phase mechanics, Loot, Economy or Quest
 
 # 6. Immediate Foundation Slice
 
-The current production data model and Character Create endpoint are older than the Canonical rules.
-
-The first implementation slice is therefore:
+The initial Character foundation has now moved onto the Canonical model:
 
 ```text
 Shared Rules
 → D1 Migration
 → Character Creation Initialization
+→ Creation Skill Allocation
+→ Character Finalization
 ```
 
-Required outcomes include:
+Implemented outcomes include:
 
 ```text
-EXP becomes authoritative
-Level becomes server-derived and capped at 100
+EXP authoritative
+Level server-derived and capped at 100
 normal Player creation starts EXP 1 / Level 1
-core Attributes are stored as structured authoritative data
-Canonical HP / MP are derived and initialized
-23 Canonical basic Skills are initialized
-Player cannot create a Character by directly choosing arbitrary Level
-legacy Level-only data receives migration handling
-legacy resource data is not silently trusted when Canonical Attributes are missing
+server-rolled Character Attributes
+Canonical HP / MP initialization
+23 Canonical basic Skills initialized
+fixed 200 Creation Skill Points
+Creation Skill save with per-Skill cap 30
+all 200 points required before Finalize
+legacy Level-only migration handling
+legacy missing resource Attributes flagged rather than invented
 ```
 
-The exact Character creation Attribute reroll cap may remain unresolved if the MVP can support Roll → Reroll → Confirm without hard-coding a permanent limit.
+The exact Character creation Attribute reroll cap may remain unresolved while the MVP supports Roll → Reroll → Confirm without hard-coding a permanent limit.
 
 ---
 
@@ -220,8 +222,23 @@ After this milestone, numeric curves and advanced mechanics should be adjusted u
 
 # 10. Current Immediate Blocker
 
-The current blocker is not another Boss-detail decision.
+The Character-creation foundation is no longer the immediate blocker.
 
-The existing Character persistence / creation implementation still reflects an older generic model, including direct Level input and missing authoritative EXP / core Attribute / derived resource / basic Skill initialization.
+Current work is **GM D1 Character controls**:
 
-Therefore the next implementation work should begin at the Character data foundation rather than adding more high-level combat UI on top of the legacy schema.
+```text
+shared User/session authentication
+→ gm/admin role gate
+→ D1 User / Character roster
+→ D1 Character detail
+→ GM EXP authority
+→ derived Level
+→ formula HP / MP Max recalculation
+→ GM Current HP / MP correction
+```
+
+The legacy browser-local GM Character editor is not authoritative for the MVP.
+
+A secure initial GM/admin provisioning path remains a deployment/administration blocker. The project must not solve this by allowing arbitrary Player self-promotion.
+
+After the GM D1 Character control path is usable, the next major implementation stage is the Round / Combat state engine.
