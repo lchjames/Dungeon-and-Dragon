@@ -17,13 +17,14 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/player-attack.js
+src/life-correction.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-player-attack.js
+life-correction.js
+→ player-attack.js
 → player-combat.js
 → combat-state.js
 → gm-provision.js
@@ -104,6 +105,7 @@ The current GM workspace reads D1 directly and supports:
 - server-derived Level recalculation
 - formula HP / MP Max recalculation when required Attributes exist
 - Current HP / MP correction within `0..Max`
+- HP correction reconciliation with ALIVE / DYING state
 - temporary Player Attack Profile authoring
 - Combat creation and control
 - fixed DEX Initiative
