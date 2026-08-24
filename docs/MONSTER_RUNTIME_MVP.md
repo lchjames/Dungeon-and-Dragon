@@ -2,7 +2,7 @@
 
 > Status: Canonical MVP Implementation Contract  
 > Date: 2026-08-25  
-> Scope: Minimum ordinary Simplified Monster runtime required to connect Monster Templates / Skills / Instances into Scenario, Encounter and Combat. Use together with `MONSTER_DEFENCE_ARMOR_MVP.md` for the now-confirmed Player → Monster defence and Armor source rules.
+> Scope: Minimum ordinary Simplified Monster runtime required to connect Monster Templates / Skills / Instances into Scenario, Encounter and Combat. Use together with `MONSTER_DEFENCE_ARMOR_MVP.md` and `MONSTER_DEFEAT_MVP.md` for the complete Player → Monster loop.
 
 ---
 
@@ -14,6 +14,7 @@ This MVP implements the already-confirmed ordinary Monster pipeline from:
 - `MONSTER_LEVEL_SCALING_ALPHA.md`
 - `MONSTER_ATTACK_PROFILE_ALPHA.md`
 - `MONSTER_DEFENCE_ARMOR_MVP.md`
+- `MONSTER_DEFEAT_MVP.md`
 - `GM_MONSTER_MANAGEMENT_ALPHA.md`
 - `D100判定核心_ALPHA.md`
 - `COMBAT_DAMAGE_MODEL_ALPHA.md`
@@ -50,7 +51,8 @@ Spawn Monster Instance
 Monster Instance
 → Encounter participant
 → Combat participant
-→ Current HP / MP and runtime state
+→ Current HP / MP
+→ active / defeated / removed runtime status
 ```
 
 Editing a Template or Common Skill later must not silently mutate an existing spawned Monster Instance.
@@ -143,6 +145,7 @@ For ordinary Monster Instance spawn:
 17. initialize Final Armor Defence from the snapshot
 18. allow explicit GM Instance-Skill Spread override
 19. initialize Current HP / MP at Final Max values
+20. initialize status = active
 ```
 
 Canonical Attribute formula:
@@ -239,7 +242,7 @@ The tuning function must remain centralized and replaceable.
 
 # 8. Encounter / Combat Integration
 
-`encounter_participants` already reserves:
+`encounter_participants` supports:
 
 ```text
 character
@@ -247,7 +250,7 @@ monster_instance
 boss_instance
 ```
 
-This MVP activates `monster_instance`.
+Ordinary Monster MVP activates `monster_instance`.
 
 Encounter Start Combat may include:
 
@@ -271,7 +274,7 @@ Monster Combatants are GM-controlled (`controller_user_id = NULL`).
 
 # 9. Monster Turn / Attack MVP
 
-When Current Combatant is a Monster Instance, GM may select:
+When Current Combatant is an active Monster Instance, GM may select:
 
 ```text
 one active snapshotted Monster Skill
@@ -298,11 +301,11 @@ reserve / consume Monster Action
 
 No Monster AI Skill selection is implemented. GM chooses the Skill.
 
+A `defeated` or `removed` Monster cannot perform ordinary Monster actions.
+
 ---
 
 # 10. Player → Monster Defence + Armor
-
-The previous defence-source blocker is resolved by `MONSTER_DEFENCE_ARMOR_MVP.md`.
 
 Canonical opposed-D100 defence:
 
@@ -316,7 +319,7 @@ Effective D100 Defence
 
 `Stored Defence` may exceed 100 and does not automatically scale with Monster Level.
 
-Player attack flow, once the Monster HP0 lifecycle is confirmed:
+Player attack flow:
 
 ```text
 Player Attack Profile Stored Accuracy
@@ -349,21 +352,45 @@ Armor is not added to the D100 defence check.
 
 ---
 
-# 11. Monster HP 0 Boundary
+# 11. Ordinary Monster HP0 / Defeat
 
-The remaining blocker is now only the ordinary Simplified Monster HP0 lifecycle.
-
-The project has **not** confirmed that ordinary Monsters inherit the Player DYING countdown.
-
-Until that rule is intentionally locked, the Player → Monster resolver must not silently decide whether `HP = 0` means:
+`MONSTER_DEFEAT_MVP.md` locks the ordinary Simplified Monster lifecycle:
 
 ```text
-immediate defeated state
-a Monster-specific dying state
-another lifecycle
+Current HP > 0
+→ status = active
+
+Current HP <= 0
+→ clamp HP = 0
+→ status = defeated immediately
 ```
 
-Monster Current HP remains D1-authoritative and instance-level. The confirmed Stored Defence + Armor pipeline is ready; HP0 lifecycle semantics are the final blocker before enabling the complete Player-origin damage path.
+Ordinary Monsters do not inherit Player DYING rounds.
+
+Once defeated:
+
+```text
+no ordinary Action
+no ordinary Move
+no Monster Skill attack
+not a valid normal living hostile target
+not eligible as an active participant for a new Combat
+```
+
+The Combatant row may remain in the current Combat for initiative / audit history. Combat and Encounter completion remain GM-controlled.
+
+GM corrective resource changes reconcile status:
+
+```text
+defeated + Current HP > 0
+→ active
+
+active + Current HP = 0
+→ defeated
+
+removed
+→ remains removed regardless of ordinary HP correction
+```
 
 ---
 
@@ -387,9 +414,9 @@ full Tactical Map interaction
 
 ---
 
-# 13. Definition of Implemented for This Slice
+# 13. Definition of Implemented for Ordinary Monster MVP
 
-The ordinary Monster Runtime foundation is implemented when the following production-style paths exist:
+The ordinary Monster Runtime is considered fully implemented for the first playable combat loop when these production-style paths exist:
 
 ```text
 D1 schema
@@ -410,7 +437,13 @@ Template Armor data
 Defence / Armor Instance snapshot
 GM Defence Modifier correction
 GM Armor Defence Adjustment correction
+Player → Monster D100 attack
+Monster Armor-aware damage reduction
+Monster HP clamp
+active → defeated at HP0
+GM HP correction status reconciliation
+Player / Monster action audit
 static / rules regression tests
 ```
 
-The only remaining ordinary Monster combat blocker is the explicit HP0 lifecycle decision required before the Player → Monster damage path can be safely enabled.
+With these rules locked, there is no remaining ordinary Simplified Monster combat-rule blocker before Boss runtime work.
