@@ -86,7 +86,6 @@ async function ensureDefenceArmorSchema(env) {
   if (!env.DB) throw new Error('D1 binding DB is unavailable.');
   if (!schemaPromise) {
     schemaPromise = (async () => {
-      await baseWorker.fetch(new Request('https://internal.invalid/api/gm/monsters', { method: 'HEAD' }), env).catch(() => null);
       await ensureColumn(env, 'monster_templates', 'stored_defence', 'REAL NOT NULL DEFAULT 0');
       await ensureColumn(env, 'monster_templates', 'armor_name', "TEXT NOT NULL DEFAULT ''");
       await ensureColumn(env, 'monster_templates', 'armor_defence', 'REAL NOT NULL DEFAULT 0');
@@ -236,9 +235,9 @@ async function snapshotSpawnedDefence(env, instanceId) {
 }
 
 async function spawnWithDefenceSnapshot(request, env) {
-  await ensureDefenceArmorSchema(env);
   const response = await baseWorker.fetch(request, env);
   if (!response.ok) return response;
+  await ensureDefenceArmorSchema(env);
   const payload = await response.json();
   if (payload?.id) await snapshotSpawnedDefence(env, payload.id);
   if (payload?.id) {
