@@ -8,6 +8,7 @@ const playerHtml = await readFile(new URL('../public/player/index.html', import.
 const playerCombatJs = await readFile(new URL('../public/assets/player-combat.js', import.meta.url), 'utf8');
 const playerAttackWorker = await readFile(new URL('../src/player-attack.js', import.meta.url), 'utf8');
 const combatLife = await readFile(new URL('../src/combat-life.js', import.meta.url), 'utf8');
+const lifeCorrection = await readFile(new URL('../src/life-correction.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 for (const id of [
@@ -70,4 +71,6 @@ assert.match(playerAttackWorker, /effectiveDefence:\s*0/, 'MVP attack path must 
 assert.match(playerAttackWorker, /character_locked = 1/, 'Death resolution must lock the Character.');
 assert.match(combatLife, /last_dying_tick_combat_id/, 'Dying Turn countdown must keep an idempotency marker.');
 assert.match(combatLife, /UPDATE combatants[\s\S]*UPDATE combats/, 'Dying-aware Turn transition must mutate Combatant state before advancing the Combat pointer.');
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/player-attack\.js"/, 'Wrangler must route through the Player Attack gateway.');
+assert.match(lifeCorrection, /life_state = 'alive'/, 'GM HP correction above zero must be able to clear DYING state.');
+assert.match(lifeCorrection, /life_state = 'dying'/, 'GM HP correction to zero must enter DYING when CON is valid.');
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/life-correction\.js"/, 'Wrangler must route through the Life correction gateway.');
