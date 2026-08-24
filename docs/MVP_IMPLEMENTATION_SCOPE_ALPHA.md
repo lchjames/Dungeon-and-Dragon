@@ -8,11 +8,9 @@
 
 # 1. Active Development Mode
 
-The project is now in **MVP Implementation Mode**.
+The project is in **MVP Implementation Mode**.
 
-The immediate objective is not to finish every TRPG subsystem or lock every tuning coefficient. The objective is to produce a playable build in which GM and Players can complete an actual scenario / encounter using D1-authoritative data and the already-confirmed Canonical rules.
-
-Canonical working rule:
+The immediate objective is not to finish every TRPG subsystem or lock every tuning coefficient. The objective is to produce a playable build in which GM and Players can complete an actual Scenario / Encounter using D1-authoritative data and confirmed Canonical rules.
 
 ```text
 If a decision is required to implement the playable vertical slice
@@ -26,9 +24,7 @@ Do not continue decomposing systems into increasingly fine design questions mere
 
 ---
 
-# 2. What Must Be Stable Before Implementation
-
-The following categories must be sufficiently stable because later reversal would cause expensive schema, resolver or migration changes:
+# 2. Architecture That Must Remain Stable
 
 ```text
 Authoritative data ownership
@@ -45,13 +41,9 @@ round / turn ownership
 Scenario / Scene / Encounter relationships
 ```
 
-These are architecture-level decisions.
-
 ---
 
-# 3. What May Remain Incomplete
-
-The following do not block the first playable build and should normally remain configurable, Deferred, or Alpha Tuning until real content / play-test data exists:
+# 3. Details That May Remain Incomplete
 
 ```text
 exact Monster Spread numeric curve
@@ -71,44 +63,37 @@ special-case Boss mechanics
 late-game progression tuning
 ```
 
-A missing advanced feature must not force premature duplication of the core engine.
+A missing advanced feature must not force duplication of the core engine.
 
 ---
 
 # 4. First Playable Vertical Slice
 
-The MVP should support the following complete path:
-
 ```text
 User authentication
 → Player Character exists in D1
-→ Character has Canonical Attributes / EXP / Level / HP / MP / Skills
-→ GM can inspect/manage the Character
-→ Scenario exists
-→ Scene exists
-→ Encounter exists
-→ GM can create/select Monster content
-→ Monster Instance participates in the Encounter / Combat
-→ optional Boss Design Profile can spawn a Boss Instance
-→ GM starts Combat
-→ DEX Initiative order is created
-→ combatants receive Action + Move turns
-→ Player / GM resolves D100 actions
-→ successful attack resolves damage
-→ HP / MP update through server authority
-→ HP 0 / Down-Dying baseline works
-→ End Turn / Round advances correctly
-→ GM can end Combat
-→ Encounter can resolve and Scene can continue
+→ Canonical Attributes / EXP / Level / HP / MP / Skills
+→ GM Character controls
+→ Scenario
+→ Scene
+→ Encounter
+→ Monster Template / Skill content
+→ spawned Monster Instance
+→ Character + Monster Encounter participants
+→ shared DEX Initiative / Combat
+→ Player / GM D100 actions
+→ damage / HP updates
+→ defeat handling
+→ Combat completion
+→ Encounter resolution
+→ Scene continuation
 ```
 
-The first playable target is therefore an **end-to-end scenario / encounter**, not feature completeness.
+A simple Boss Instance is the next validation layer after the ordinary Monster loop works.
 
 ---
 
 # 5. MVP Implementation Order
-
-Current implementation priority:
 
 ```text
 1. Shared server-side Rules module                         IMPLEMENTED
@@ -119,89 +104,135 @@ Current implementation priority:
 6. Player Combat Control                                  IMPLEMENTED
 7. D100 Combat Resolver + Damage + HP 0                   IMPLEMENTED MVP CHARACTER PATH
 8. Scenario / Scene / Encounter Foundation                IMPLEMENTED MVP FOUNDATION
-9. Monster Template / Skill / Instance runtime            NEXT
-10. Boss Design Profile / Boss Instance minimum runtime
-11. First End-to-End Scenario Test
+9. Monster Template / Skill / Instance runtime            IMPLEMENTED NON-BLOCKED PATH
+10. Simplified Monster defence + Player → Monster path     CURRENT BLOCKER
+11. Boss Design Profile / Boss Instance minimum runtime
+12. First End-to-End Scenario Test
 ```
 
-The Character-only attack test path uses the temporary GM-authored bridge defined by `PLAYER_ATTACK_PROFILE_MVP.md`. It is not a replacement for the future Weapon / Equipment / Specialisation source system.
+The Character-only attack test path continues to use the temporary GM-authored bridge in `PLAYER_ATTACK_PROFILE_MVP.md` until Weapon / Equipment / Specialisation source profiles exist.
 
-`SCENARIO_SCENE_ENCOUNTER_MVP.md` defines the implemented narrative/context layer. The current product remains a single-campaign MVP using `settings.campaign_name`, with D1-persistent Scenario → Scene → Encounter entities, Character participant assignment, simple Scene Map references and an Encounter → optional Combat link.
-
-The full Tactical Map Engine remains Deferred; Scene Map support is metadata only and does not implement token movement, LOS, terrain or fog-of-war.
-
-Do not begin with advanced Boss AI, full Phase mechanics, Loot, Economy, Quest automation or Tactical Map simulation before the end-to-end scenario path works.
+The Monster runtime uses `MONSTER_RUNTIME_MVP.md` together with the existing Monster Canonical documents. Full Tactical Map simulation remains Deferred.
 
 ---
 
 # 6. Implemented Foundation
 
-The Character, Combat and narrative/context foundations have moved onto the Canonical model.
-
-Implemented outcomes include:
+Implemented outcomes now include:
 
 ```text
 EXP authoritative
 Level server-derived and capped at 100
-normal Player creation starts EXP 1 / Level 1
+Player creation EXP 1 / Level 1
 server-rolled Character Attributes
-Canonical HP / MP initialization
-23 Canonical basic Skills initialized
+Canonical Player HP / MP initialization
+23 Canonical basic Skills
 fixed 200 Creation Skill Points
-Creation Skill save with per-Skill cap 30
-all 200 points required before Finalize
-legacy Level-only migration handling
-legacy missing resource Attributes flagged rather than invented
-GM D1 Character inspection / EXP / Current HP-MP correction
-one-time secure initial GM provisioning
+all 200 Creation points required before Finalize
+legacy migration handling
+GM D1 Character controls
+secure initial GM provisioning
+
 D1 Combat / Combatant persistence
 DEX Initiative snapshot
 stable random equal-DEX ordering
 Round / Current Turn ownership
-1 Action + 1 Move allowance state
-GM Start / Force Turn / End Turn / End Combat
-Player active Combat visibility
-Player own Action / Move allowance mutation
-Player End Own Turn
-stale-state / double-advance protection
+1 Action + 1 Move allowance
+GM Start / Force / End Turn / End Combat
+Player own Turn controls
+stale-state protection
+
 GM-authored Character Attack Profiles
-server-authoritative D100 attack vs Dodge
+server D100 Attack vs Character Dodge
 shared opposed Result comparison
-server-side Damage dice + Character Damage Bonus
-Damage Result / HP Damage separation
-Action reservation before attack resolution
-HP 0 → DYING
-Dying rounds = ceil(CON / 5)
-Dying Turn-end countdown with idempotency marker
-further effective damage while DYING → DEAD
-DEAD Character lock enforcement on ordinary Player / GM write paths
+shared Damage Result pipeline
+Character HP 0 → DYING
+Dying countdown / further-damage death
+DEAD Character lock
+
 single-campaign Scenario persistence
 Scenario → Scene → Encounter D1 relationships
-Scenario / Scene / Encounter GM status controls
-Scene simple Map metadata / asset reference
+Story status controls
+simple Scene Map metadata
 Encounter Character participant assignment
-participant schema reserved for monster_instance / boss_instance
-Encounter → zero-or-one Combat link
-Encounter Start Combat reuses the existing Combat Start resolver
+Encounter → optional Combat link
+
+Monster Template persistence
+six mandatory Monster Attribute ranges
+six independent Monster Attribute Growth Weights
+Common Monster Skill Library
+Template → Common Skill loadout
+ordinary Monster spawn into an Encounter
+10% Elite generation + one +1..+5 all-Attribute bonus
+Natural / Effective Monster Attribute layers
+locked Monster Level growth formula
+calculated Monster HP / MP
+snapshotted Monster Instance Skill values
+locked Monster Skill damage Level curve
+Damage Attribute Links / arithmetic-mean basis
+Calculated Damage Center
+central replaceable Suggested Spread tuning
+GM per-Instance Skill Final Spread override
+Monster Instance resource correction
+monster_instance Encounter participation
+Character + Monster shared Initiative
+GM-controlled Monster Turn
+Monster Action reservation
+Monster Stored / Modified / Effective Accuracy audit
+Monster D100 attack vs Character Dodge
+Monster signed Spread damage
+Character HP / DYING / DEAD integration from Monster damage
+Monster action audit log
 ```
 
-Current post-hit `Effective Defence` in the temporary Character Attack Profile bridge is `0`. Armour / resistance / shields remain a future source integration into the same Damage resolver rather than a reason to duplicate the resolver.
+Monster source edits do not silently rewrite already spawned Instance snapshots.
 
-The exact Character creation Attribute reroll cap may remain unresolved while the MVP supports Roll → Reroll → Confirm without hard-coding a permanent limit.
+Current Character post-hit `Effective Defence` and Monster → Character post-hit `Effective Defence` are `0` in the MVP until armour / resistance / shield sources are integrated into the shared Damage pipeline.
 
 ---
 
-# 7. Implementation Design Rule
+# 7. Monster Runtime Boundary
 
-Temporary Alpha tuning values must be kept easy to replace.
+Confirmed Monster rules are centralized rather than copied into UI code.
+
+```text
+GlobalGrowth(Level)
+= ((Level - 1) / 21.7)^2
+
+Effective Attribute
+= round(Natural × [1 + GlobalGrowth × Attribute Growth Weight])
+
+Calculated Max HP
+= ceil((Effective CON + Effective SIZ) / 2)
+
+Calculated Max MP
+= Effective INT × 3
+
+MonsterDamageGrowth(Level)
+= 7 × ((Level - 1) / 99)^1.5
+
+Calculated Base Damage
+= round(Template Base Damage × [1 + MonsterDamageGrowth × Damage Growth Weight])
+
+Calculated Damage Center
+= Calculated Base Damage + Damage Attribute Basis
+```
+
+Stored Monster Skill Accuracy does not Level-scale and may exceed 100. Runtime Effective Accuracy is capped at 100 after modifiers.
+
+Exact Spread balance remains Alpha Tuning. The executable MVP keeps one centralized replaceable suggestion function; GM Final Spread overrides remain available per spawned Instance Skill.
+
+---
+
+# 8. Implementation Design Rule
 
 Prefer:
 
 ```text
 shared resolver functions
-data-driven tables
-explicit calculated / override / final layers
-nullable / backwards-compatible optional fields
+data-driven tuning
+calculated / override / final layers
+Profile → Instance snapshot boundaries
 migration scripts
 server-side validation
 conditional D1 state transitions
@@ -210,24 +241,22 @@ conditional D1 state transitions
 Avoid:
 
 ```text
-copying the same formula into Player, Monster and Boss UI separately
-hard-coding tuning coefficients into multiple files
+copying formulas into Player / Monster / Boss UI separately
 using browser localStorage as authoritative campaign data
 mixing design-time Profile data with runtime Instance state
-allowing direct Player edits to authoritative resources
-creating a second browser-only Turn model
-letting Player requests submit their own Accuracy or Damage numbers
-duplicating Combat Round / Turn state inside Encounter records
-building multi-campaign or tactical Map systems before they are required
+allowing Player requests to submit authoritative combat numbers
+duplicating Combat state inside Encounter records
+inventing unresolved Monster defence values
+inventing Player-style ordinary Monster Dying rules without confirmation
 ```
 
 ---
 
-# 8. Definition of "Implemented"
+# 9. Definition of Implemented
 
 A rule is not implemented merely because it appears in Markdown.
 
-For MVP purposes, implementation means the relevant rule exists in the actual production path where needed:
+For MVP purposes, implementation requires the relevant production-style path where needed:
 
 ```text
 D1 schema / migration
@@ -235,63 +264,68 @@ server-side resolver
 API validation
 Player / GM control path
 runtime state
+regression contracts
 ```
 
-UI polish may lag behind functional support if the path is still usable for testing.
-
-GitHub `main` is the source tree, but a commit on `main` does not by itself prove that the Cloudflare production Worker has been deployed. Deployment remains an explicit operational step unless CI/CD is later configured to deploy automatically.
+GitHub `main` is the source tree, but a commit on `main` does not prove Cloudflare production deployment.
 
 ---
 
-# 9. First Play-Test Milestone
+# 10. First Play-Test Milestone
 
-The MVP milestone is reached when the project can perform at least one complete representative Scenario / Encounter using the production-style architecture:
+The MVP milestone requires at least:
 
 ```text
-at least one Player Character
+one Player Character
 one Scenario
 one Scene
 one Encounter
-at least one ordinary Monster
-optionally one simple Boss Instance
-initiative
-turn progression
-D100 hit resolution
-damage
-HP / MP updates
-basic defeat / HP 0 handling
-combat completion
+one ordinary Monster Template
+one ordinary Monster Instance
+Character + Monster Initiative
+Player and GM turns
+D100 hit resolution in both required directions
+Damage
+HP updates
+Monster defeat
+Character HP0 handling
+Combat completion
 Encounter resolution
 Scene continuation
 ```
 
-After this milestone, numeric curves and advanced mechanics should be adjusted using actual observed play rather than paper-only speculation wherever practical.
+A simple Boss may then be added as the next validation layer.
 
 ---
 
-# 10. Current Immediate Blocker
+# 11. Current Immediate Blocker
 
-The narrative/context foundation now exists in D1 and the GM workspace:
+The non-blocked ordinary Monster runtime is implemented around:
 
 ```text
-current Campaign setting
-→ Scenario
-→ Scene
+Template
+→ Common Skill loadout
+→ Spawn Instance
 → Encounter
-→ Character participants
-→ optional linked Combat
+→ Character + Monster Combat
+→ GM Monster Turn
+→ Monster Skill vs Character Dodge
+→ Damage
 ```
 
-The Encounter Start Combat path delegates to the existing Combat resolver so Initiative and Round / Turn state remain single-source.
-
-The next major implementation blocker is now:
+The next genuine rule blocker is narrower:
 
 ```text
-Monster Template
-+ Monster Skill
-+ Monster Instance runtime
-+ GM controls
-+ Encounter / Combat integration
+What authoritative value does a Simplified Monster use to defend against a Player attack?
 ```
 
-Monster runtime must reuse the already-confirmed Monster Natural / Effective Attribute model, HP / MP formulas, fixed-damage skill architecture and shared D100 / Damage boundaries. Exact deferred tuning values such as the final Spread curve must not block the minimum ordinary Monster runtime.
+Confirmed Monster offensive `Stored Accuracy` does not answer this question. No current Canonical rule says whether defence comes from Effective DEX, a dedicated Stored Defence value, or a defensive Monster Skill/Profile.
+
+Until that one decision is confirmed:
+
+```text
+Monster → Character = executable
+Player → Monster = deliberately not enabled
+```
+
+Do not silently invent the defence source merely to close the loop.
