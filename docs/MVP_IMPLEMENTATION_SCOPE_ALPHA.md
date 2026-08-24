@@ -1,7 +1,7 @@
 # MVP Implementation Scope — Alpha
 
 > Status: Canonical Alpha Implementation Scope  
-> Date: 2026-08-24  
+> Date: 2026-08-25  
 > Purpose: Define the minimum playable vertical slice and stop over-designing non-blocking details before implementation and play-testing.
 
 ---
@@ -105,14 +105,15 @@ A simple Boss Instance is the next validation layer after the ordinary Monster l
 7. D100 Combat Resolver + Damage + HP 0                   IMPLEMENTED MVP CHARACTER PATH
 8. Scenario / Scene / Encounter Foundation                IMPLEMENTED MVP FOUNDATION
 9. Monster Template / Skill / Instance runtime            IMPLEMENTED NON-BLOCKED PATH
-10. Simplified Monster defence + Player → Monster path     CURRENT BLOCKER
-11. Boss Design Profile / Boss Instance minimum runtime
-12. First End-to-End Scenario Test
+10. Monster Dedicated Defence + Armor data foundation      IMPLEMENTED MVP FOUNDATION
+11. Monster HP0 lifecycle + Player → Monster path          CURRENT BLOCKER
+12. Boss Design Profile / Boss Instance minimum runtime
+13. First End-to-End Scenario Test
 ```
 
 The Character-only attack test path continues to use the temporary GM-authored bridge in `PLAYER_ATTACK_PROFILE_MVP.md` until Weapon / Equipment / Specialisation source profiles exist.
 
-The Monster runtime uses `MONSTER_RUNTIME_MVP.md` together with the existing Monster Canonical documents. Full Tactical Map simulation remains Deferred.
+The Monster runtime uses `MONSTER_RUNTIME_MVP.md`, `MONSTER_DEFENCE_ARMOR_MVP.md`, and the existing Monster Canonical documents. Full Tactical Map simulation remains Deferred.
 
 ---
 
@@ -183,11 +184,22 @@ Monster D100 attack vs Character Dodge
 Monster signed Spread damage
 Character HP / DYING / DEAD integration from Monster damage
 Monster action audit log
+
+Dedicated Monster Stored Defence
+Monster Stored Defence may exceed 100 and does not Level-scale
+Monster Defence Modifier separate from Stored Defence
+Effective D100 Defence capped at 100 after modifiers
+Monster Template Armor Name / Defence / Notes
+Template Defence / Armor snapshot into spawned Instance
+Instance Armor Base Defence / Adjustment / Final Defence audit chain
+GM Instance Defence Modifier correction
+GM Instance Armor Defence Adjustment correction
+D100 Defence explicitly separated from post-hit Armor reduction
 ```
 
 Monster source edits do not silently rewrite already spawned Instance snapshots.
 
-Current Character post-hit `Effective Defence` and Monster → Character post-hit `Effective Defence` are `0` in the MVP until armour / resistance / shield sources are integrated into the shared Damage pipeline.
+Current Character post-hit `Effective Defence` and Monster → Character post-hit `Effective Defence` are `0` in their existing MVP paths until Character armour / resistance / shield sources are integrated. For the Player → Monster path, the confirmed post-hit fixed defence source is the Monster Instance's Final Armor Defence; that resolver remains blocked only by the ordinary Monster HP0 lifecycle decision.
 
 ---
 
@@ -220,6 +232,18 @@ Calculated Damage Center
 
 Stored Monster Skill Accuracy does not Level-scale and may exceed 100. Runtime Effective Accuracy is capped at 100 after modifiers.
 
+Monster defence uses a separate Dedicated Stored Defence source:
+
+```text
+Modified Defence
+= Stored Defence + Defence Modifier
+
+Effective D100 Defence
+= min(100, Modified Defence)
+```
+
+Armor remains a post-hit fixed defence source and is not added to the D100 opposed check.
+
 Exact Spread balance remains Alpha Tuning. The executable MVP keeps one centralized replaceable suggestion function; GM Final Spread overrides remain available per spawned Instance Skill.
 
 ---
@@ -246,7 +270,9 @@ using browser localStorage as authoritative campaign data
 mixing design-time Profile data with runtime Instance state
 allowing Player requests to submit authoritative combat numbers
 duplicating Combat state inside Encounter records
-inventing unresolved Monster defence values
+deriving Monster D100 Defence from Effective DEX
+adding Armor Defence directly to the D100 defence check
+bypassing Monster Armor data after a successful Player hit
 inventing Player-style ordinary Monster Dying rules without confirmation
 ```
 
@@ -286,6 +312,7 @@ Character + Monster Initiative
 Player and GM turns
 D100 hit resolution in both required directions
 Damage
+Armor-aware Monster damage reduction
 HP updates
 Monster defeat
 Character HP0 handling
@@ -300,32 +327,21 @@ A simple Boss may then be added as the next validation layer.
 
 # 11. Current Immediate Blocker
 
-The non-blocked ordinary Monster runtime is implemented around:
+The ordinary Monster runtime now has confirmed authoritative sources for both parts of defending against a Player attack:
 
 ```text
-Template
-→ Common Skill loadout
-→ Spawn Instance
-→ Encounter
-→ Character + Monster Combat
-→ GM Monster Turn
-→ Monster Skill vs Character Dodge
-→ Damage
+D100 opposed defence
+= Dedicated Stored Defence
+
+Post-hit fixed damage reduction
+= Monster Armor data / Final Armor Defence
 ```
 
-The next genuine rule blocker is narrower:
+The remaining genuine rule blocker is now only the ordinary Simplified Monster HP0 lifecycle:
 
 ```text
-What authoritative value does a Simplified Monster use to defend against a Player attack?
+When Current HP reaches 0,
+what exact runtime state should an ordinary Simplified Monster enter?
 ```
 
-Confirmed Monster offensive `Stored Accuracy` does not answer this question. No current Canonical rule says whether defence comes from Effective DEX, a dedicated Stored Defence value, or a defensive Monster Skill/Profile.
-
-Until that one decision is confirmed:
-
-```text
-Monster → Character = executable
-Player → Monster = deliberately not enabled
-```
-
-Do not silently invent the defence source merely to close the loop.
+Do not silently inherit the Player DYING countdown. Once this lifecycle is confirmed, the Player → Monster resolver can use the already-locked Stored Defence + Armor pipeline and complete the ordinary Monster combat loop.
