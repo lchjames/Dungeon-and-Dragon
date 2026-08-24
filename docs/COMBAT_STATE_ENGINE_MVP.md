@@ -8,7 +8,7 @@
 
 # 1. Purpose
 
-The first Combat runtime slice establishes authoritative battle state without prematurely implementing attack, damage, Monster AI, Status resolution, or Map movement distance.
+The Combat runtime establishes authoritative battle state without prematurely implementing attack, damage, Monster AI, Status resolution, or full Map movement.
 
 Canonical MVP lifecycle:
 
@@ -20,7 +20,7 @@ GM selects eligible combatants
 → Round 1
 → Current Turn
 → 1 Action + 1 Move allowance
-→ End / Force Turn
+→ Player / GM operates the shared Turn state
 → Round advances
 → GM End Combat
 ```
@@ -78,13 +78,13 @@ monster_instance
 boss_instance
 ```
 
-The current MVP slice permits only:
+The current Character-only Combat path permits:
 
 ```text
 entity_type = character
 ```
 
-Monster and Boss entity support must be added when their D1 Instance systems exist; no fake Monster runtime is created in this slice.
+Monster and Boss entity support must be added when their D1 Instance systems exist; no fake Monster runtime is created before then.
 
 ---
 
@@ -170,38 +170,88 @@ all Combatants:
   Turn Completed = false
 ```
 
-Attack and Ability execution will later consume these allowances through server-authoritative Action endpoints.
+Attack and Ability execution will later consume these allowances automatically through server-authoritative resolver endpoints.
 
 ## 6.1 Stale-State / Double-Advance Protection
 
 Turn advancement is a server-authoritative state transition and must not trust that a browser still holds the latest Round / Turn pointer.
 
-The End Turn update therefore compares the previously-read authoritative state before advancing:
+All normal End Turn transitions compare:
 
 ```text
 Expected Round
 + Expected Current Turn Index
 + Combat status = active
-→ conditional D1 update
 ```
 
-If another request has already changed that state:
+The corrected mutation order is:
+
+```text
+old Round / Turn still matches
+→ update Combatant completion / allowance state
+→ advance Combat pointer
+```
+
+For the final Turn of a Round:
+
+```text
+old final Turn still matches
+→ reset Combatant allowances for the next Round
+→ increment Round and set Current Turn Index = 0
+```
+
+This ordering is important. Advancing the Combat pointer first can allow a delayed stale request to observe the new pointer and incorrectly reapply dependent Combatant mutations.
+
+If another request has already changed the expected state:
 
 ```text
 conditional update changes 0 rows
 → reject with COMBAT_STATE_CHANGED
-→ caller must reload current Combat state
+→ caller reloads current Combat state
 ```
 
-This prevents two near-simultaneous End Turn requests from silently skipping a Combatant or advancing the Round twice.
-
-The same principle must be reused by future Player-owned turn/action mutation endpoints where stale concurrent writes could consume or advance authoritative Combat state incorrectly.
+This rule applies to both Player and GM normal End Turn operations.
 
 ---
 
-# 7. GM Override
+# 7. Player Control
 
-The MVP supports GM `Force Turn` as an explicit correction/control operation.
+Player Combat Control is implemented by `PLAYER_COMBAT_CONTROL_MVP.md`.
+
+An authenticated Player can see an active Combat only when they control at least one participating Combatant.
+
+Player mutation authority is:
+
+```text
+authenticated User
+→ combatant.controller_user_id
+→ Current Combatant
+```
+
+Only when the Current Combatant is a Character controlled by that User may the Player:
+
+```text
+consume own Action
+consume own Move
+End Own Turn
+```
+
+The Player cannot switch global Combat state, Force Turn, mutate another Combatant, or claim control by submitting a Character ID.
+
+---
+
+# 8. GM Override
+
+GM retains:
+
+```text
+Start Combat
+Force Turn
+End Current Turn
+End Combat
+```
+
+`Force Turn` is an explicit correction/control operation:
 
 ```text
 GM chooses a Combatant
@@ -221,13 +271,11 @@ This avoids silently granting duplicate actions.
 
 A future explicit allowance-reset correction may be added separately if required.
 
-Force Turn must still fail rather than report success if the Combat ceased to be active before the authoritative write completed.
-
 ---
 
-# 8. Ending Combat
+# 9. Ending Combat
 
-Only GM / admin may end global Combat state in this slice.
+Only GM / admin may end global Combat state.
 
 End Combat:
 
@@ -242,25 +290,34 @@ A new Combat receives a new Combat identity and new DEX / Initiative snapshots.
 
 ---
 
-# 9. Player Boundary
+# 10. Current Endpoints
 
-This slice does not yet expose Player turn actions.
-
-Player authority remains deferred to the next implementation slice:
+GM:
 
 ```text
-Player can inspect current Combat / own Turn
-Player can consume own Action / Move through server APIs
-Player can End Own Turn only when they control Current Combatant
+GET  /api/gm/combat
+POST /api/gm/combat/start
+POST /api/gm/combat/:combatId/end-turn
+POST /api/gm/combat/:combatId/force-turn
+POST /api/gm/combat/:combatId/end
 ```
 
-GM global control remains separate.
+Player:
+
+```text
+GET  /api/player/combat
+POST /api/player/combat/:combatId/consume-action
+POST /api/player/combat/:combatId/consume-move
+POST /api/player/combat/:combatId/end-turn
+```
+
+The manual consume endpoints are MVP Turn-state test controls. Future actual actions such as attack, ability, item use or movement must consume the corresponding allowance through their own resolver rather than requiring the Player to press a separate manual button first.
 
 ---
 
-# 10. Explicitly Deferred
+# 11. Explicitly Deferred
 
-The following are not part of this Combat-state slice:
+The following are not yet part of the Combat-state / Player-control layers:
 
 ```text
 attack / defence D100 resolution
@@ -283,28 +340,14 @@ The tables and Turn ownership are the runtime foundation those systems will use.
 
 ---
 
-# 11. Current Implementation Endpoints
-
-GM MVP:
-
-```text
-GET  /api/gm/combat
-POST /api/gm/combat/start
-POST /api/gm/combat/:combatId/end-turn
-POST /api/gm/combat/:combatId/force-turn
-POST /api/gm/combat/:combatId/end
-```
-
-The GM UI exposes the same narrow capabilities.
-
----
-
 # 12. Next Blocker
 
-Once this state engine is implemented and the recheck hotfixes are applied, the next MVP blocker is:
+The next MVP blocker is:
 
 ```text
-Player server-authoritative Action / Move / End Own Turn
+D100 Combat Resolver
++ Damage
++ HP 0 / Down-Dying baseline
 ```
 
-That layer must consume this Combat state rather than introducing a separate browser-only Turn model, and must use the same stale-state protection for authoritative mutation endpoints.
+After that core resolver exists, implement the Scenario / Scene / Encounter Foundation before Monster Runtime is connected into the first complete Scenario flow.
