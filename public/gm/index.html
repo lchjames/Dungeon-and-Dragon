@@ -16,7 +16,7 @@
       <button type="button" class="side-link active" data-view="dashboard">Dashboard</button>
       <button type="button" class="side-link" data-view="players">Players</button>
       <button type="button" class="side-link" data-view="characters">Characters</button>
-      <button type="button" class="side-link" id="combat-side-link">Combat</button>
+      <button type="button" class="side-link" id="combat-side-link" data-view="combat">Combat</button>
     </nav>
     <div class="sidebar-footer">
       <a class="button button-ghost button-full" href="/player/">Open Player View</a>
@@ -121,7 +121,7 @@
 
         <section class="admin-view hidden" id="view-combat">
           <div class="section-heading">
-            <div><p class="eyebrow">COMBAT STATE</p><h2>Round / Turn Engine</h2><p class="muted">MVP state engine only: fixed DEX Initiative, one Action + one Move per Turn, GM force controls. Attack and damage resolution come in the next slice.</p></div>
+            <div><p class="eyebrow">COMBAT STATE</p><h2>Round / Turn Engine</h2><p class="muted">MVP state engine only: fixed DEX Initiative, one Action + one Move per Turn, GM force controls. Attack and damage resolution are added in later MVP slices.</p></div>
           </div>
           <div id="combat-status" class="auth-status" hidden role="status" aria-live="polite"></div>
           <section id="combat-start-panel" class="panel">
