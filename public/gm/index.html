@@ -3,87 +3,121 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="D&D Campaign Hub GM workspace">
+  <meta name="description" content="D&D Campaign Hub GM D1 workspace">
   <title>GM · D&D Campaign Hub</title>
   <link rel="stylesheet" href="/assets/styles.css">
-  <script type="module" src="/assets/gm.js"></script>
+  <script type="module" src="/assets/gm-d1.js"></script>
 </head>
 <body class="admin-body">
   <aside class="sidebar">
-    <a class="sidebar-brand" href="/"><span class="brand-dot gm-dot">GM</span><span><strong>D&D Hub</strong><small>Game Master</small></span></a>
+    <a class="sidebar-brand" href="/"><span class="brand-dot gm-dot">GM</span><span><strong>D&D Hub</strong><small>D1 Game Master</small></span></a>
     <nav class="side-nav" aria-label="GM workspace">
       <button type="button" class="side-link active" data-view="dashboard">Dashboard</button>
       <button type="button" class="side-link" data-view="players">Players</button>
       <button type="button" class="side-link" data-view="characters">Characters</button>
-      <button type="button" class="side-link" data-view="assets">Assets</button>
-      <button type="button" class="side-link" data-view="tools">Tools</button>
-      <button type="button" class="side-link" data-view="data">Data & Settings</button>
     </nav>
-    <div class="sidebar-footer"><a class="button button-ghost button-full" href="/player/">Open Player View</a><a class="button button-ghost button-full" href="/">Exit</a></div>
+    <div class="sidebar-footer">
+      <a class="button button-ghost button-full" href="/player/">Open Player View</a>
+      <button id="gm-logout" class="button button-ghost button-full" type="button">Lock / Logout</button>
+      <a class="button button-ghost button-full" href="/">Exit</a>
+    </div>
   </aside>
 
   <div class="admin-shell">
-    <header class="admin-topbar"><div><p class="eyebrow">GAME MASTER</p><h1 id="view-title">Dashboard</h1></div><button id="theme-toggle" class="icon-button" type="button" aria-label="Toggle theme">☀️</button></header>
+    <header class="admin-topbar">
+      <div><p class="eyebrow">GAME MASTER · D1 AUTHORITATIVE</p><h1 id="view-title">Dashboard</h1></div>
+      <div class="row-inline"><span class="tag"><strong id="gm-user-name">GM</strong> · <span id="gm-user-role">gm</span></span><button id="theme-toggle" class="icon-button" type="button" aria-label="Toggle theme">☀️</button></div>
+    </header>
+
     <main class="admin-main">
-      <section class="admin-view" id="view-dashboard">
-        <div class="metric-grid">
-          <article class="metric-card"><span>Players</span><strong id="metric-players">0</strong><small>Active identities</small></article>
-          <article class="metric-card"><span>Characters</span><strong id="metric-characters">0</strong><small>All characters</small></article>
-          <article class="metric-card"><span>Active</span><strong id="metric-active">0</strong><small>Active characters</small></article>
-          <article class="metric-card"><span>Assets</span><strong id="metric-assets">0</strong><small>Campaign media</small></article>
-        </div>
-        <div class="split-grid">
-          <section class="panel"><div class="panel-heading"><div><p class="eyebrow">RECENT</p><h2>Characters</h2></div><button class="button button-small" type="button" data-jump="characters">Manage</button></div><div id="recent-characters" class="stack-list"></div></section>
-          <section class="panel"><div class="panel-heading"><div><p class="eyebrow">CAMPAIGN</p><h2>Overview</h2></div></div><dl class="definition-list"><div><dt>Name</dt><dd id="dashboard-campaign-name">D&D Campaign</dd></div><div><dt>Storage</dt><dd>Browser localStorage</dd></div><div><dt>Model</dt><dd>Player → Character</dd></div><div><dt>Updated</dt><dd id="dashboard-updated">—</dd></div></dl></section>
-        </div>
+      <section id="gm-loading" class="panel">
+        <div class="empty-state"><div class="empty-icon">◌</div><h3>正在載入 D1 GM Workspace…</h3><p>Checking GM role and Character data.</p></div>
       </section>
 
-      <section class="admin-view hidden" id="view-players">
-        <div class="section-heading"><div><p class="eyebrow">IDENTITIES</p><h2>Players</h2><p class="muted">Player identity is independent from characters. One player can own multiple characters.</p></div><button id="add-player" class="button" type="button">+ New player</button></div>
-        <div id="player-admin-list" class="admin-list"></div>
-      </section>
+      <div id="gm-content" class="hidden">
+        <section class="admin-view" id="view-dashboard">
+          <div class="workspace-hero">
+            <div><p class="eyebrow">CAMPAIGN</p><h2 id="campaign-name">D&D Campaign</h2><p class="lede compact">此 GM Workspace 只使用 D1 authoritative Character data；舊 browser localStorage Character editor 已退出 MVP authoritative path。</p></div>
+          </div>
+          <div class="metric-grid">
+            <article class="metric-card"><span>Players</span><strong id="metric-players">0</strong><small>Active player Users</small></article>
+            <article class="metric-card"><span>Characters</span><strong id="metric-characters">0</strong><small>All D1 Characters</small></article>
+            <article class="metric-card"><span>Active</span><strong id="metric-active">0</strong><small>Playable Characters</small></article>
+            <article class="metric-card"><span>Drafts</span><strong id="metric-drafts">0</strong><small>Creation not finished</small></article>
+          </div>
+          <div class="split-grid">
+            <section class="panel">
+              <div class="panel-heading"><div><p class="eyebrow">RECENT</p><h2>Characters</h2></div><button class="button button-small" type="button" data-jump="characters">Manage</button></div>
+              <div id="recent-characters" class="stack-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><h3>GM Authority</h3></div>
+              <dl class="definition-list">
+                <div><dt>User</dt><dd id="dashboard-gm-name">GM</dd></div>
+                <div><dt>Role</dt><dd id="dashboard-gm-role">gm</dd></div>
+                <div><dt>Storage</dt><dd>Cloudflare D1</dd></div>
+                <div><dt>Current MVP writes</dt><dd>EXP + Current HP/MP correction</dd></div>
+              </dl>
+            </section>
+          </div>
+        </section>
 
-      <section class="admin-view hidden" id="view-characters">
-        <div class="section-heading"><div><p class="eyebrow">ROSTER</p><h2>Characters</h2><p class="muted">Create with only the essentials, then add attributes, resources, abilities and inventory as needed.</p></div><button id="add-character" class="button" type="button">+ New character</button></div>
-        <div class="toolbar"><input id="character-search" class="input" type="search" placeholder="Search name, player or role…"><select id="character-owner-filter" class="input"><option value="">All players</option></select><select id="character-status-filter" class="input"><option value="">All status</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="retired">Retired</option></select></div>
-        <div id="character-admin-list" class="admin-list"></div>
-      </section>
+        <section class="admin-view hidden" id="view-players">
+          <div class="section-heading"><div><p class="eyebrow">D1 USERS</p><h2>Players / Users</h2><p class="muted">Read-only MVP identity view. Character ownership comes directly from D1 `owner_user_id`.</p></div></div>
+          <div id="player-admin-list" class="admin-list"></div>
+        </section>
 
-      <section class="admin-view hidden" id="view-assets">
-        <div class="section-heading"><div><p class="eyebrow">MEDIA</p><h2>Assets</h2><p class="muted">Keep lightweight portraits or image URLs for characters. Uploaded images are limited to 1.5 MB because the current build uses browser storage.</p></div></div>
-        <section class="panel"><div class="form-grid"><label class="field"><span>Asset name</span><input id="asset-name" class="input" placeholder="e.g. Silver Wolf portrait"></label><label class="field"><span>Image URL</span><input id="asset-url" class="input" type="url" placeholder="https://…"></label><label class="field"><span>Or upload image</span><input id="asset-file" class="input" type="file" accept="image/*"></label></div><div class="form-actions"><button id="save-asset" class="button" type="button">Add asset</button></div></section>
-        <div id="asset-grid" class="asset-grid"></div>
-      </section>
+        <section class="admin-view hidden" id="view-characters">
+          <div class="section-heading"><div><p class="eyebrow">D1 ROSTER</p><h2>Characters</h2><p class="muted">Attributes and Creation Skills are read-only in this slice. GM may adjust EXP and correct Current HP/MP through server-authoritative APIs.</p></div></div>
+          <div class="toolbar">
+            <input id="character-search" class="input" type="search" placeholder="Search name, owner or role…">
+            <select id="character-owner-filter" class="input"><option value="">All owners</option></select>
+            <select id="character-status-filter" class="input"><option value="">All status</option><option value="draft">Draft</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="retired">Retired</option></select>
+          </div>
+          <div id="character-admin-list" class="admin-list"></div>
 
-      <section class="admin-view hidden" id="view-tools">
-        <div class="section-heading"><div><p class="eyebrow">GM TOOLBOX</p><h2>Tools</h2><p class="muted">Legacy NLP and maze experiments are retained here as optional GM utilities instead of being mixed into character management.</p></div></div>
-        <div class="split-grid">
-          <section class="panel"><div class="panel-heading"><h3>Element Classifier</h3></div><textarea id="element-input" class="textarea" rows="5" placeholder="e.g. I cast a fireball into the frozen mist"></textarea><div class="form-actions"><button id="classify-element" class="button" type="button">Classify</button></div><div id="element-result" class="tool-result muted">No result yet.</div></section>
-          <section class="panel"><div class="panel-heading"><h3>Maze Generator</h3></div><div class="form-grid compact-grid"><label class="field"><span>Width</span><input id="maze-width" class="input" type="number" min="5" max="41" value="15"></label><label class="field"><span>Height</span><input id="maze-height" class="input" type="number" min="5" max="41" value="15"></label></div><div class="form-actions"><button id="generate-maze" class="button" type="button">Generate</button><button id="download-maze" class="button button-ghost" type="button">Download TXT</button></div></section>
-        </div><pre id="maze-output" class="maze-output" aria-label="Generated maze"></pre>
-      </section>
+          <section id="gm-character-detail" class="character-sheet hidden">
+            <div class="character-banner">
+              <div class="character-avatar">D20</div>
+              <div class="character-banner-copy">
+                <div class="row-inline"><span id="gm-character-status" class="status-pill">active</span><span id="gm-character-level" class="muted">Level 1</span><span id="gm-character-exp" class="muted">EXP 1</span></div>
+                <h2 id="gm-character-name">Character</h2>
+                <p class="muted"><span id="gm-character-owner">Owner</span> · <span id="gm-character-role">Unassigned</span></p>
+              </div>
+              <div class="character-banner-actions"><button id="close-gm-character" class="button button-ghost" type="button">Close</button></div>
+            </div>
 
-      <section class="admin-view hidden" id="view-data">
-        <div class="section-heading"><div><p class="eyebrow">SYSTEM</p><h2>Data & Settings</h2><p class="muted">All destructive and migration operations live here, away from normal Player use.</p></div></div>
-        <div class="split-grid">
-          <section class="panel"><div class="panel-heading"><h3>Campaign</h3></div><label class="field"><span>Campaign name</span><input id="campaign-name-input" class="input" placeholder="D&D Campaign"></label><div class="form-actions"><button id="save-settings" class="button" type="button">Save settings</button></div></section>
-          <section class="panel"><div class="panel-heading"><h3>Backup & Restore</h3></div><p class="muted">Export the full v5 database before major changes or moving devices.</p><div class="form-actions wrap"><button id="export-data" class="button" type="button">Export JSON</button><label class="button button-ghost file-button">Import JSON<input id="import-data" type="file" accept="application/json" hidden></label></div></section>
-        </div>
-        <section class="panel danger-panel"><div class="panel-heading"><h3>Danger Zone</h3></div><p>Reset removes the v5 browser database on this device. Historical Git commits are unaffected.</p><button id="reset-data" class="button button-danger" type="button">Reset local data</button></section>
-      </section>
+            <div id="gm-character-flags" class="auth-status auth-status-error" hidden></div>
+
+            <div class="split-grid">
+              <section class="panel">
+                <div class="panel-heading"><h3>Progression</h3><span id="gm-character-progression" class="muted">—</span></div>
+                <div class="form-grid compact-grid">
+                  <label class="field"><span>EXP value</span><input id="gm-exp-value" class="input" type="number" step="1" placeholder="e.g. 500 or -100"></label>
+                </div>
+                <div class="form-actions wrap">
+                  <button class="button" type="button" data-exp-mode="add">Add / Subtract EXP</button>
+                  <button class="button button-ghost" type="button" data-exp-mode="set">Set Total EXP</button>
+                </div>
+                <p class="muted">Level 由 EXP 自動推導。若 CON / SIZ / INT 齊全，HP / MP Max 會按 Canonical Level formula 重算。</p>
+              </section>
+
+              <section class="panel">
+                <div class="panel-heading"><h3>Summary</h3><span class="muted">Updated <span id="gm-character-updated">—</span></span></div>
+                <p id="gm-character-summary" class="prose muted">No summary.</p>
+              </section>
+            </div>
+
+            <div class="split-grid">
+              <section class="panel"><div class="panel-heading"><h3>Attributes</h3><span class="muted">Read only</span></div><div id="gm-attribute-grid" class="stat-grid"></div></section>
+              <section class="panel"><div class="panel-heading"><h3>Resources</h3><span class="muted">GM Current correction</span></div><div id="gm-resource-list" class="stack-list"></div></section>
+            </div>
+
+            <section class="panel"><div class="panel-heading"><h3>23 Basic Skills</h3><span class="muted">Read only in this slice</span></div><div id="gm-skill-list" class="stack-list"></div></section>
+          </section>
+        </section>
+      </div>
     </main>
   </div>
-
-  <dialog id="player-dialog" class="dialog"><form id="player-form"><div class="dialog-heading"><div><p class="eyebrow">PLAYER</p><h2 id="player-dialog-title">New player</h2></div><button class="icon-button" type="button" data-close-dialog="player-dialog">×</button></div><input type="hidden" name="id"><div class="form-grid"><label class="field"><span>Display name</span><input class="input" name="displayName" required></label><label class="field"><span>Status</span><select class="input" name="status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div><label class="field"><span>Notes</span><textarea class="textarea" name="notes" rows="4"></textarea></label><div class="form-actions dialog-actions"><button class="button button-ghost" type="button" data-close-dialog="player-dialog">Cancel</button><button class="button" type="submit">Save player</button></div></form></dialog>
-
-  <dialog id="character-dialog" class="dialog dialog-wide"><form id="character-form"><div class="dialog-heading"><div><p class="eyebrow">CHARACTER</p><h2 id="character-dialog-title">New character</h2></div><button class="icon-button" type="button" data-close-dialog="character-dialog">×</button></div>
-    <input type="hidden" name="id"><div class="form-grid"><label class="field"><span>Character name</span><input class="input" name="name" required></label><label class="field"><span>Player</span><select class="input" name="ownerPlayerId"><option value="">Unassigned</option></select></label><label class="field"><span>Role</span><input class="input" name="role" placeholder="e.g. Frontline controller"></label><label class="field"><span>Level</span><input class="input" name="level" type="number" min="0" value="1"></label><label class="field"><span>Status</span><select class="input" name="status"><option value="active">Active</option><option value="inactive">Inactive</option><option value="retired">Retired</option></select></label><label class="field"><span>Portrait</span><select class="input" name="portraitAssetId"><option value="">None</option></select></label></div>
-    <label class="field"><span>Summary</span><textarea class="textarea" name="summary" rows="3" placeholder="Short character concept…"></textarea></label>
-    <div class="editor-section"><div class="panel-heading"><div><h3>Attributes</h3><span class="muted">Flexible key/value statistics</span></div><button id="add-attribute-row" class="button button-small button-ghost" type="button">+ Attribute</button></div><div id="attribute-editor" class="editor-list"></div></div>
-    <div class="editor-section"><div class="panel-heading"><div><h3>Resources</h3><span class="muted">Current / maximum values such as HP, MP or SAN</span></div><button id="add-resource-row" class="button button-small button-ghost" type="button">+ Resource</button></div><div id="resource-editor" class="editor-list"></div></div>
-    <div class="editor-section"><div class="panel-heading"><div><h3>Inventory</h3></div><button id="add-item-row" class="button button-small button-ghost" type="button">+ Item</button></div><div id="inventory-editor" class="editor-list"></div></div>
-    <div class="editor-section"><div class="panel-heading"><div><h3>Abilities</h3></div><button id="add-ability-row" class="button button-small button-ghost" type="button">+ Ability</button></div><div id="ability-editor" class="editor-list"></div></div>
-    <label class="field"><span>GM / Player notes</span><textarea class="textarea" name="notes" rows="5"></textarea></label><div class="form-actions dialog-actions"><button class="button button-ghost" type="button" data-close-dialog="character-dialog">Cancel</button><button class="button" type="submit">Save character</button></div>
-  </form></dialog>
 </body>
 </html>
