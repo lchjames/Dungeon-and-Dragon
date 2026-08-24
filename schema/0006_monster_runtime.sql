@@ -149,9 +149,44 @@ CREATE TABLE IF NOT EXISTS monster_instance_skills (
   FOREIGN KEY (source_skill_profile_id) REFERENCES monster_skill_profiles(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS monster_action_log (
+  id TEXT PRIMARY KEY,
+  combat_id TEXT NOT NULL,
+  round_number INTEGER NOT NULL,
+  turn_index INTEGER NOT NULL,
+  actor_combatant_id TEXT NOT NULL,
+  monster_instance_id TEXT NOT NULL,
+  monster_instance_skill_id TEXT NOT NULL,
+  target_combatant_id TEXT NOT NULL,
+  stored_accuracy REAL NOT NULL,
+  hit_modifier REAL NOT NULL DEFAULT 0,
+  modified_accuracy REAL NOT NULL,
+  effective_accuracy REAL NOT NULL,
+  attack_roll INTEGER NOT NULL,
+  attack_result REAL NOT NULL,
+  defence_roll INTEGER NOT NULL,
+  defence_result REAL NOT NULL,
+  great_success INTEGER NOT NULL DEFAULT 0,
+  great_failure INTEGER NOT NULL DEFAULT 0,
+  damage_attribute_basis REAL NOT NULL DEFAULT 0,
+  calculated_base_damage REAL NOT NULL DEFAULT 0,
+  calculated_damage_center REAL NOT NULL DEFAULT 0,
+  spread_roll INTEGER,
+  raw_damage REAL,
+  effective_defence REAL,
+  damage_result REAL,
+  hp_damage REAL NOT NULL DEFAULT 0,
+  outcome TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
+  FOREIGN KEY (monster_instance_id) REFERENCES monster_instances(id) ON DELETE CASCADE,
+  FOREIGN KEY (monster_instance_skill_id) REFERENCES monster_instance_skills(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_monster_templates_active ON monster_templates(is_active, name);
 CREATE INDEX IF NOT EXISTS idx_monster_skill_profiles_scope ON monster_skill_profiles(source_scope, is_active, name);
 CREATE INDEX IF NOT EXISTS idx_monster_template_skills_template ON monster_template_skills(template_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_monster_instances_encounter ON monster_instances(encounter_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_monster_instances_template ON monster_instances(template_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_monster_instance_skills_instance ON monster_instance_skills(monster_instance_id, is_active, created_at);
+CREATE INDEX IF NOT EXISTS idx_monster_action_log_combat ON monster_action_log(combat_id, round_number, turn_index, created_at);
