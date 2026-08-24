@@ -140,7 +140,10 @@ export function levelFromExp(exp) {
   return low;
 }
 
-export function validateCreationSkillAllocations(input = {}, { requireFullSpend = false } = {}) {
+export function validateCreationSkillAllocations(
+  input = {},
+  { requireFullSpend = false, requireAllSkills = false } = {}
+) {
   const allowed = new Set(BASIC_SKILLS.map(skill => skill.key));
   const allocations = {};
   let spent = 0;
@@ -152,6 +155,10 @@ export function validateCreationSkillAllocations(input = {}, { requireFullSpend 
     }
     allocations[key] = value;
     spent += value;
+  }
+  if (requireAllSkills) {
+    const missing = BASIC_SKILLS.filter(skill => !(skill.key in allocations)).map(skill => skill.key);
+    if (missing.length) throw new RangeError(`Missing base skill allocations: ${missing.join(', ')}`);
   }
   if (spent > CREATION_SKILL_POINTS) throw new RangeError(`Creation Skill allocations cannot exceed ${CREATION_SKILL_POINTS}.`);
   if (requireFullSpend && spent !== CREATION_SKILL_POINTS) throw new RangeError(`Creation Skill allocations must total ${CREATION_SKILL_POINTS}.`);
