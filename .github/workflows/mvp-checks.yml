@@ -1,0 +1,32 @@
+name: MVP checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Syntax check JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/*.js public/assets/*.js; do
+            node --check "$file"
+          done
+
+      - name: Rules regression tests
+        run: node tests/rules.test.mjs
+
+      - name: Static UI contract tests
+        run: node tests/static-ui-contract.test.mjs
