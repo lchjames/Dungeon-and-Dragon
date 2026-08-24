@@ -1,51 +1,51 @@
 # Scenario / Scene / Encounter Foundation — MVP
 
-> Status: Canonical MVP Architecture Boundary  
+> Status: Canonical MVP Implementation Contract  
 > Date: 2026-08-24  
-> Scope: Define the minimum narrative/context layer required before Monster Runtime is integrated into the first end-to-end scenario.
+> Scope: Minimum narrative/context layer required before Monster Runtime is integrated into the first end-to-end scenario.
 
 ---
 
-# 1. Why This Layer Exists
+# 1. Core Relationship
 
 The Campaign Hub must not become only a Character + Combat simulator.
 
-The minimum playable architecture must preserve the relationship:
+The MVP relationship is:
 
 ```text
 Campaign
 → Scenario
 → Scene
 → Encounter
-→ Combat
+→ optional Combat
 ```
 
-Combat remains the runtime battle state. Scenario / Scene / Encounter provide the narrative and encounter context around that battle.
+Combat remains the authoritative Round / Turn runtime. Scenario / Scene / Encounter provide story and encounter context around that runtime rather than duplicating it.
 
 ---
 
-# 2. MVP Ordering
+# 2. Campaign Boundary
 
-This foundation is required **before Monster Runtime is connected into the first complete scenario flow**, but it does not block the current Player Combat Control or core D100 / Damage implementation slices.
+The current product remains a **single-campaign MVP**.
 
-Updated MVP order:
+Canonical implementation:
 
 ```text
-Player Combat Control
-→ D100 / Damage / HP 0
-→ Scenario / Scene / Encounter Foundation
-→ Monster Runtime
-→ Boss Runtime
-→ First End-to-End Scenario Test
+Campaign name
+= settings.campaign_name
 ```
+
+The MVP does **not** create multi-campaign CRUD or a `campaigns` table merely to represent the one existing campaign.
+
+If multi-campaign support is required later, Scenario ownership can be migrated to a dedicated Campaign entity without changing the Scenario → Scene → Encounter relationship.
 
 ---
 
-# 3. Scenario MVP
+# 3. Scenario
 
-A Scenario is a reusable / persistent adventure-level container.
+A Scenario is a persistent adventure-level container inside the current Campaign.
 
-Minimum design-time fields:
+Stored fields:
 
 ```text
 Scenario ID
@@ -53,19 +53,28 @@ Name
 Summary
 GM Notes
 Status
-Scene Order
+Sort Order
 created / updated timestamps
+created-by GM User
 ```
 
-Advanced branching story graphs, automatic narrative generation, rewards, quest chains and campaign publishing are not required for the first MVP.
+MVP status vocabulary:
+
+```text
+active
+completed
+archived
+```
+
+The MVP does not implement branching story graphs, automatic narrative generation, rewards, quest chains or publishing.
 
 ---
 
-# 4. Scene MVP
+# 4. Scene
 
-A Scene belongs to one Scenario.
+A Scene belongs to exactly one Scenario.
 
-Minimum fields:
+Stored fields:
 
 ```text
 Scene ID
@@ -73,81 +82,35 @@ Scenario ID
 Name
 Description
 GM Notes
-Order
+Sort Order
 Status
-Optional Map reference
+Map Name
+Map Asset Reference
+Map GM Notes
+created / updated timestamps
 ```
 
-Suggested Alpha status vocabulary may remain implementation-level until the Scene slice is coded, but the model must support at least active/current vs completed/locked-style progression without forcing every Scenario to be linear forever.
-
----
-
-# 5. Encounter MVP
-
-An Encounter belongs to a Scene and is the bridge between narrative context and runtime entities.
-
-Minimum fields:
+MVP status vocabulary:
 
 ```text
-Encounter ID
-Scene ID
-Name
-Status
-Trigger / start notes
-GM Notes
-Resolution notes
+locked
+active
+completed
 ```
 
-Encounter participation may include:
+Scene status is GM-controlled in this slice. The system does not yet force a strictly linear progression graph.
+
+## 4.1 Map boundary
+
+Map support in this MVP is metadata only:
 
 ```text
-Player Characters
-Monster Instances
-Boss Instances
-```
-
-Combat should be startable from an Encounter once the corresponding runtime entity systems exist.
-
----
-
-# 6. Combat Relationship
-
-The intended relationship is:
-
-```text
-Encounter
-→ optional Combat
-```
-
-Not every Encounter must produce Combat.
-
-Examples:
-
-```text
-social encounter
-exploration encounter
-trap / puzzle encounter
-combat encounter
-```
-
-The existing Combat State Engine remains authoritative for Round / Turn state. Scenario / Scene / Encounter must reference Combat rather than duplicating Combat runtime state.
-
----
-
-# 7. Map Boundary
-
-The MVP may attach a Map reference to a Scene, but **does not require a full tactical map engine**.
-
-Initial Map support may remain as simple metadata / image reference such as:
-
-```text
-Map ID
-Name
-image / asset reference
+Map Name
+Asset Reference
 GM Notes
 ```
 
-The following remain Deferred until after the first end-to-end scenario test unless they become a real implementation blocker:
+The following remain Deferred:
 
 ```text
 token dragging
@@ -164,7 +127,7 @@ collision
 forced movement
 ```
 
-Existing Canonical rule remains:
+Existing Canonical adjacency remains unchanged:
 
 ```text
 eight surrounding cells are adjacent
@@ -172,24 +135,134 @@ including diagonals
 adjacent distance = 1
 ```
 
-Do not invent a permanent movement-per-turn grid count before the Map system is intentionally designed.
+Do not invent a permanent movement-per-turn grid count in this slice.
 
 ---
 
-# 8. First Scenario Test Target
+# 5. Encounter
 
-The first representative vertical slice should eventually support:
+An Encounter belongs to exactly one Scene and bridges narrative context to runtime participants.
+
+Stored fields:
+
+```text
+Encounter ID
+Scene ID
+Name
+Status
+Sort Order
+Trigger / Start Notes
+GM Notes
+Resolution Notes
+created / updated timestamps
+```
+
+MVP status vocabulary:
+
+```text
+planned
+active
+resolved
+skipped
+```
+
+Not every Encounter must create Combat. Social, exploration, puzzle and trap encounters can resolve without Combat.
+
+---
+
+# 6. Encounter Participants
+
+The persistent participant relationship is generic from the beginning:
+
+```text
+character
+monster_instance
+boss_instance
+```
+
+However this Foundation slice only allows GM assignment of:
+
+```text
+active Player Characters
+```
+
+`monster_instance` and `boss_instance` are reserved for the following runtime slices and must not be faked before those entities exist.
+
+Player Characters are associated with the Encounter before starting its Combat. The server validates Character existence and active status rather than trusting browser-supplied display information.
+
+---
+
+# 7. Encounter → Combat
+
+MVP relationship:
+
+```text
+Encounter
+→ zero or one linked Combat
+```
+
+An Encounter may resolve without Combat. If the GM starts Combat from an Encounter:
+
+```text
+Encounter Character participants
+→ existing Combat Start resolver
+→ DEX Initiative / Turn state
+→ Combat linked back to Encounter
+→ Encounter status = active
+```
+
+The existing Combat engine remains authoritative. Scenario code must not create a second Round / Turn model.
+
+For this MVP, one Encounter may link to at most one Combat. Multi-wave encounters requiring several separate Combats are a future extension after the first end-to-end scenario test.
+
+Ending Combat does not automatically mark the Encounter `resolved`; the GM records resolution explicitly so non-combat objectives and narrative consequences can be completed first.
+
+---
+
+# 8. GM Authority
+
+Scenario / Scene / Encounter authoring and participant assignment are GM / admin writes.
+
+Normal Players do not author or arbitrarily mutate narrative structure in this slice.
+
+All persistent state is stored in D1. Browser localStorage is not authoritative Scenario storage.
+
+The MVP intentionally provides status updates rather than destructive hard-delete flows, avoiding premature deletion / archive semantics for linked story data.
+
+---
+
+# 9. First Scenario Test Target
+
+The first representative vertical slice should support:
 
 ```text
 Create Scenario
 → Create Scene
 → Create Encounter
 → associate Player Characters
-→ spawn Monster Instance(s)
-→ Start Combat
+→ Start Encounter Combat
+→ later spawn Monster Instance(s)
 → complete Combat
 → mark Encounter resolved
-→ continue Scene
+→ mark / continue Scene
 ```
 
 A simple Boss may then be added as the next validation layer.
+
+---
+
+# 10. Deferred Systems
+
+The following remain outside this Foundation slice unless they become a genuine blocker:
+
+```text
+full tactical Map engine
+Quest engine
+story branching graph executor
+automatic Scene transitions
+loot / rewards
+economy
+Encounter difficulty calculator
+multi-Combat Encounter waves
+Player-authored Scenario structure
+```
