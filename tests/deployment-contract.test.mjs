@@ -39,7 +39,17 @@ assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 
 assert.match(adminGateway, /from 'node:crypto'/);
 assert.match(adminGateway, /pbkdf2\(/);
-assert.match(adminGateway, /username === 'gm' \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
+assert.match(adminGateway, /ALPHA_GM_USERNAME\s*=\s*'gm'/);
+assert.match(adminGateway, /username === ALPHA_GM_USERNAME \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
+assert.match(adminGateway, /ensureAlphaGmOperatorSeed/);
+assert.match(adminGateway, /ALPHA_GM_PASSWORD_ITERATIONS\s*=\s*210000/);
+assert.match(adminGateway, /ON CONFLICT\(username\) DO UPDATE SET/);
+const seedConflictStart = adminGateway.indexOf('ON CONFLICT(username) DO UPDATE SET');
+const seedConflictEnd = adminGateway.indexOf('`).bind(', seedConflictStart);
+assert.ok(seedConflictStart >= 0 && seedConflictEnd > seedConflictStart, 'Temporary operator seed conflict clause must be inspectable.');
+const seedConflictClause = adminGateway.slice(seedConflictStart, seedConflictEnd);
+assert.doesNotMatch(seedConflictClause, /failed_attempts\s*=/, 'Temporary operator seed must preserve failed-attempt state.');
+assert.doesNotMatch(seedConflictClause, /locked_until\s*=/, 'Temporary operator seed must preserve lockout expiry.');
 assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
 assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
 assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
