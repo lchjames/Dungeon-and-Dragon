@@ -7,6 +7,7 @@ const DEFAULT_MIN_PASSWORD_LENGTH = 12;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const ALPHA_GM_USERNAME = 'gm';
 const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
+const ALPHA_GM_PASSWORD_SHA256 = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
 const ALPHA_GM_PASSWORD_HASH = 'LLqx99EyLTehxFYcJVyIK60jLu+B948YOzuv8dHPO/g=';
 const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
 const ALPHA_GM_PASSWORD_ITERATIONS = 210000;
@@ -54,6 +55,12 @@ function derivePassword(password, salt, iterations) {
       else resolve(derivedKey);
     });
   });
+}
+
+function alphaGmPasswordMatches(password) {
+  const actual = createHash('sha256').update(password, 'utf8').digest();
+  const expected = Buffer.from(ALPHA_GM_PASSWORD_SHA256, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 function sessionCookie(token) {
@@ -171,7 +178,13 @@ async function adminLogin(request, env) {
     LIMIT 1
   `).bind(internalAdminUsername(username)).first();
 
-  if (!user) return apiError('Admin Username 或密碼不正確。', 401, 'INVALID_ADMIN_CREDENTIALS');
+  if (!user) {
+    return apiError(
+      username === ALPHA_GM_USERNAME ? 'Alpha GM credential row is missing.' : 'Admin Username 或密碼不正確。',
+      401,
+      username === ALPHA_GM_USERNAME ? 'ALPHA_GM_ROW_MISSING' : 'INVALID_ADMIN_CREDENTIALS'
+    );
+  }
   if (user.status !== 'active') return apiError('此 Admin 帳戶目前無法使用。', 403, 'ADMIN_DISABLED');
 
   const now = Date.now();
@@ -184,26 +197,32 @@ async function adminLogin(request, env) {
     return apiError('此 Admin 帳戶需要由系統管理員重新設定 credential。', 409, 'ADMIN_CREDENTIAL_RESET_REQUIRED');
   }
 
-  let salt;
-  let expected;
-  try {
-    salt = Buffer.from(String(user.password_salt || ''), 'base64');
-    expected = Buffer.from(String(user.password_hash || ''), 'base64');
-    if (salt.length < 16 || expected.length !== 32) throw new Error('Stored Admin credential encoding is invalid.');
-  } catch (error) {
-    error.stage = 'credential-decode';
-    throw error;
+  let credentialMatches = false;
+  if (username === ALPHA_GM_USERNAME) {
+    credentialMatches = alphaGmPasswordMatches(password);
+  } else {
+    let salt;
+    let expected;
+    try {
+      salt = Buffer.from(String(user.password_salt || ''), 'base64');
+      expected = Buffer.from(String(user.password_hash || ''), 'base64');
+      if (salt.length < 16 || expected.length !== 32) throw new Error('Stored Admin credential encoding is invalid.');
+    } catch (error) {
+      error.stage = 'credential-decode';
+      throw error;
+    }
+
+    let actual;
+    try {
+      actual = await derivePassword(password, salt, iterations);
+    } catch (error) {
+      error.stage = 'pbkdf2';
+      throw error;
+    }
+    credentialMatches = actual.length === expected.length && timingSafeEqual(actual, expected);
   }
 
-  let actual;
-  try {
-    actual = await derivePassword(password, salt, iterations);
-  } catch (error) {
-    error.stage = 'pbkdf2';
-    throw error;
-  }
-
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+  if (!credentialMatches) {
     const attempts = Number(user.failed_attempts || 0) + 1;
     const shouldLock = attempts >= MAX_FAILED_ATTEMPTS;
     await env.DB.prepare('UPDATE users SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?')
