@@ -4,9 +4,6 @@ const SESSION_COOKIE = '__Host-dnd_session';
 const ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60;
 const ALPHA_GM_USERNAME = 'gm';
 const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
-const ALPHA_GM_PASSWORD_HASH = 'LLqx99EyLTehxFYcJVyIK60jLu+B948YOzuv8dHPO/g=';
-const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
-const ALPHA_GM_PASSWORD_ITERATIONS = 210000;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_SECONDS = 15 * 60;
@@ -163,35 +160,6 @@ function alphaGmSessionCookie(token) {
   return `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
 }
 
-async function ensureAlphaGmAccount(env) {
-  const now = Date.now();
-  await env.DB.prepare(`
-    INSERT INTO users (
-      id, username, display_name, password_hash, password_salt, password_iterations,
-      role, status, failed_attempts, locked_until, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, 'admin', 'active', 0, NULL, ?, ?)
-    ON CONFLICT(username) DO UPDATE SET
-      display_name = excluded.display_name,
-      password_hash = excluded.password_hash,
-      password_salt = excluded.password_salt,
-      password_iterations = excluded.password_iterations,
-      role = 'admin',
-      status = 'active',
-      failed_attempts = 0,
-      locked_until = NULL,
-      updated_at = excluded.updated_at
-  `).bind(
-    'admin_alpha_gm',
-    ALPHA_GM_INTERNAL_USERNAME,
-    ALPHA_GM_USERNAME,
-    ALPHA_GM_PASSWORD_HASH,
-    ALPHA_GM_PASSWORD_SALT,
-    ALPHA_GM_PASSWORD_ITERATIONS,
-    now,
-    now
-  ).run();
-}
-
 async function alphaGmLogin(request, env) {
   if (request.method !== 'POST' || !env.DB) return null;
   let body;
@@ -272,10 +240,6 @@ export default {
 
     try {
       await ensureAdminAuthCompatibility(env);
-
-      if (isGmLoginPath(pathname) || pathname === '/api/admin/auth/login') {
-        await ensureAlphaGmAccount(env);
-      }
 
       if (pathname === '/api/admin/auth/login') {
         const alphaLogin = await alphaGmLogin(request, env);
