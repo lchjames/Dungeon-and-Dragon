@@ -163,3 +163,20 @@ jobs:
             echo "Expected unauthenticated workers.dev /api/admin/auth/me to return 401, got $admin_auth_status"
             exit 1
           fi
+
+      - name: Temporary guarded stale Alpha cleanup
+        env:
+          DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
+          DND_ALPHA_GM_USERNAME: gm
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+        run: node scripts/cleanup-stale-alpha-combat.mjs
+
+      - name: Temporary production Alpha diagnostic probe
+        continue-on-error: true
+        env:
+          DND_ALPHA_EXECUTE: '1'
+          DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
+          DND_ALPHA_GM_USERNAME: gm
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+          DND_ALPHA_MAX_ATTACK_ATTEMPTS: '8'
+        run: node scripts/production-alpha-e2e.mjs
