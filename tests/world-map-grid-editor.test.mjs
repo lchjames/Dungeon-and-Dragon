@@ -8,7 +8,7 @@ const loader = await readFile(new URL('../public/assets/gm-attack-profiles.js', 
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 assert.match(server, /import baseWorker from '\.\/world-map\.js';/);
-assert.match(server, /\/api\/gm\/world\/maps\/\(\[\^\/\]\+\)\\\/editor/);
+assert.ok(server.includes("pathname.match(/^\\/api\\/gm\\/world\\/maps\\/([^/]+)\\/editor$/)"));
 assert.match(server, /request\.method === 'GET'/);
 assert.match(server, /request\.method === 'PUT'/);
 assert.match(server, /validOrigin\(request\)/);
