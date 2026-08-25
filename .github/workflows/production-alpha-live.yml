@@ -24,8 +24,10 @@ jobs:
       group: dnd-production-alpha-live
       cancel-in-progress: false
     steps:
-      - name: Checkout
+      - name: Checkout current main
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -42,6 +44,16 @@ jobs:
             echo "Repository secret DND_ALPHA_GM_PASSWORD is not configured."
             exit 1
           fi
+          actual_hash="$(printf '%s' "$DND_ALPHA_GM_PASSWORD" | sha256sum | awk '{print $1}')"
+          expected_hash="5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+          if [[ "$actual_hash" != "$expected_hash" ]]; then
+            echo "Repository secret DND_ALPHA_GM_PASSWORD does not match the configured Alpha GM credential. Re-save the secret as the exact value configured for gm."
+            exit 1
+          fi
+
+      - name: Show tested revision
+        shell: bash
+        run: git log -1 --format='Live playtest revision: %H %s'
 
       - name: Run production Alpha E2E
         env:
