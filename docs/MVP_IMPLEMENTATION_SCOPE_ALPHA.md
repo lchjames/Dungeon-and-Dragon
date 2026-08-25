@@ -8,17 +8,22 @@
 
 # 1. Active Development Mode
 
-The project is in **MVP Implementation Mode**.
+The minimum source-level MVP vertical slice is now implemented and protected by the first automated Scenario end-to-end regression gate.
+
+The project therefore moves from **MVP Feature-Slice Construction** into **Alpha Integration / Usability Tuning**.
 
 ```text
-If a decision is required to implement the playable vertical slice
-→ resolve it now
+If a failure breaks the confirmed playable vertical slice
+→ fix it as an integration defect
 
-If a detail is not required to make the playable vertical slice work
-→ defer it to Alpha Tuning / Future Update
+If live Alpha use reveals a genuinely missing Canonical rule
+→ resolve that rule before implementing the dependent behaviour
+
+If a detail is tuning, polish, automation or an advanced subsystem
+→ keep it in Alpha Tuning / Future Update unless it becomes a concrete blocker
 ```
 
-Do not decompose already-implementable systems into extra design questions merely because more detail could theoretically be specified.
+Do not reopen already-confirmed systems merely because more detail could theoretically be specified.
 
 ---
 
@@ -43,7 +48,7 @@ Scenario / Scene / Encounter relationships
 
 # 3. Details That May Remain Incomplete
 
-The following do not block the first playable Alpha unless they become concrete integration blockers:
+The following do not block the playable Alpha unless they become concrete integration blockers:
 
 ```text
 exact Monster Spread tuning
@@ -67,7 +72,7 @@ late-game progression tuning
 
 # 4. Playable Vertical Slice
 
-The MVP path is now:
+The implemented MVP path is:
 
 ```text
 User authentication
@@ -88,7 +93,9 @@ User authentication
 → Scene continuation
 ```
 
-The remaining milestone is no longer another combat-rule design pass. It is the first real end-to-end Scenario play-test and integration correction cycle.
+This path is now covered by the permanent source-level integration gate in `tests/mvp-scenario-e2e.test.mjs`.
+
+The next development cycle is live Alpha integration / usability validation rather than another default combat-rule design pass.
 
 ---
 
@@ -108,12 +115,12 @@ The remaining milestone is no longer another combat-rule design pass. It is the 
 11. Monster HP0 + Player ↔ Monster loop                   IMPLEMENTED
 12. Boss Design Profile / Boss Instance runtime           IMPLEMENTED MVP PATH
 13. Boss HP0 + Player ↔ Boss loop                         IMPLEMENTED MVP PATH
-14. First End-to-End Scenario Test                        NEXT
+14. First End-to-End Scenario Integration Gate            IMPLEMENTED
 ```
 
 Character physical attacks continue to use the temporary GM-authored bridge in `PLAYER_ATTACK_PROFILE_MVP.md` until Weapon / Equipment / Specialisation source profiles exist.
 
-Relevant Monster/Boss Canonical documents include:
+Relevant Monster/Boss/Integration Canonical documents include:
 
 ```text
 MONSTER_RUNTIME_MVP.md
@@ -122,6 +129,7 @@ MONSTER_DEFEAT_MVP.md
 BOSS_DESIGN_PROFILE_ALPHA.md
 BOSS_RUNTIME_MVP.md
 BOSS_DEFEAT_MVP.md
+FIRST_END_TO_END_SCENARIO_PLAYTEST.md
 ```
 
 ---
@@ -324,7 +332,7 @@ vs Boss Effective D100 Defence
 → Boss HP
 ```
 
-Boss HP0 is now Canonical:
+Boss HP0 is Canonical:
 
 ```text
 Current HP > 0
@@ -361,7 +369,41 @@ removed
 
 ---
 
-# 10. Shared Implementation Design Rules
+# 10. Implemented End-to-End Integration Gate
+
+The first automated Scenario integration pass now verifies the combined vertical slice instead of testing each subsystem only in isolation.
+
+Permanent gate:
+
+```text
+tests/mvp-scenario-e2e.test.mjs
+```
+
+It protects:
+
+```text
+production Worker gateway chain
+Scenario / Scene / Encounter persistence contracts
+Encounter Combat start route
+Character + Monster + Boss shared Initiative
+Monster and Boss participant integration
+Player targeting of active Monster / Boss Instances
+shared opposed D100 + Damage Result pipeline
+Monster HP0 lifecycle
+Boss HP0 lifecycle
+Character DYING distinction
+explicit GM Combat End
+Combat End remaining separate from Encounter resolution
+Boss Encounter start preflight / partial-start cleanup
+```
+
+The integration audit found and fixed a Boss-enabled Encounter startup defect: an invalid Boss could previously be discovered only after the lower Character/Monster Combat had already been created and linked. Boss participants are now preflighted before lower-layer Combat creation, with best-effort cleanup if an unexpected later augmentation failure occurs.
+
+This source/CI integration gate does not prove that Cloudflare production is deployed or that a live browser/D1 session is free of UX or real-data issues.
+
+---
+
+# 11. Shared Implementation Design Rules
 
 Prefer:
 
@@ -375,6 +417,7 @@ server-side validation
 conditional / stale-safe D1 state transitions
 server-owned authoritative combat numbers
 explicit audit trails
+preflight + cleanup around multi-layer runtime mutations
 ```
 
 Avoid:
@@ -392,11 +435,12 @@ negative Monster / Boss HP
 applying Player DYING to ordinary Monster / Boss by default
 automatically ending Combat / Encounter when one hostile is defeated
 automatically converting lethal Boss damage into a new Phase without an explicit mechanic
+leaving an Encounter linked to a partially-created failed Combat
 ```
 
 ---
 
-# 11. Definition of Implemented
+# 12. Definition of Implemented
 
 A rule is not implemented merely because it appears in Markdown.
 
@@ -415,11 +459,11 @@ GitHub `main` is the source tree; a commit on `main` does not by itself prove Cl
 
 ---
 
-# 12. First End-to-End Scenario Test — Current Immediate Direction
+# 13. Current Immediate Direction — Live Alpha Integration / Usability
 
-There is no remaining required Character / ordinary Monster / minimum Boss combat-rule blocker before the first integrated play-test.
+There is no remaining required Character / ordinary Monster / minimum Boss combat-rule blocker in the source-level MVP vertical slice.
 
-The next milestone should exercise at minimum:
+The next validation cycle is a live Alpha session using real browser flows and D1 data. It should exercise at minimum:
 
 ```text
 one Player Character
@@ -446,4 +490,14 @@ Encounter resolution
 Scene continuation
 ```
 
-Failures found in this play-test should be treated as integration bugs or Alpha tuning items unless they reveal a genuine missing Canonical rule.
+Failures found in live Alpha should be classified first as:
+
+```text
+integration defect
+usability / UI issue
+deployment / D1 data issue
+Alpha balance / tuning issue
+or genuine missing Canonical rule
+```
+
+Only the last category should reopen rule design by default.
