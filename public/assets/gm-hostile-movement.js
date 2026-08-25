@@ -1,3 +1,4 @@
+import './gm-combat-map-context.js';
 import { $, escapeHtml, toast, emptyState } from './common.js';
 
 let movementState = null;
