@@ -8,16 +8,18 @@
 
 # 1. Source Release Checkpoint
 
-Current source checkpoint before automatic deployment was enabled:
+Automatic production deployment was first verified on:
 
 ```text
 Repository: lchjames/Dungeon-and-Dragon
 Branch: main
-Commit: c96a222ec2322df944aef5f3b321eddd4d81a475
+Commit: 9449d184b495d9d5867a426dbe5ab1a4980cef2e
+Production Worker: dnd
 Production URL: https://dungeon-and-dragon.lchjames.com
+First verified Cloudflare Version ID: 59c03d9f-d104-4e17-be87-9dcafb6e25fa
 ```
 
-After automatic deployment is merged, the deploy target is always the exact `main` commit that has just passed the `MVP checks` workflow. The historical SHA above remains only a checkpoint reference.
+The deploy target is always the exact `main` commit that has just passed the `MVP checks` workflow. The SHA and Version ID above are historical proof that the automatic path was successfully exercised; they are not permanent pointers to the latest release.
 
 GitHub `main` alone is not deployment proof. A release is published only after the `Deploy Cloudflare production` job succeeds for that `main` commit.
 
@@ -280,13 +282,17 @@ D1 data changes are a separate boundary from Worker rollback. Rolling back Worke
 
 # 11. Current Operational Status
 
-After the automatic deployment workflow lands on `main`, the operational model is:
+Automatic deployment is now verified operational:
 
 ```text
 GitHub MVP feature construction: complete for first vertical slice
 Scenario E2E source regression: passing
-GitHub Actions Cloudflare credentials: configured
-Automatic production deployment: configured and gated by MVP checks
-First automatic main deployment: must succeed before production parity is claimed
-Live browser + production D1 Alpha session: follows successful deployment
+GitHub Actions Cloudflare credentials: configured and validated
+Automatic production deployment: verified working
+Worker: dnd
+D1 binding: env.DB → dnd-db
+Custom domain deployment: verified by Wrangler
+Feature / PR pushes: deployment correctly skipped
+main push after successful MVP checks: production deployment enabled
+Live browser + production D1 Alpha session: next validation stage
 ```
