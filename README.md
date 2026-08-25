@@ -41,7 +41,7 @@ boss-defeat.js
 → worker.js
 ```
 
-`boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn, then delegates other Boss Phase / Skill / Combat runtime routes to `boss.js`.
+`boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn. It also preflights Boss participants before a Boss-enabled Encounter delegates to the lower Character/Monster Combat-start layers, and performs best-effort cleanup if a later Boss augmentation failure leaves a newly-created Encounter Combat link.
 
 `boss-defeat.js` is the outer Boss combat/life-state boundary. It owns Player → Boss attack resolution, Boss Armor-aware damage, Boss HP0 → immediate `defeated`, GM Current HP status reconciliation and the Player → Boss audit path.
 
@@ -250,9 +250,12 @@ Boss-enabled Encounter flow:
 Character
 + Monster Instance
 + Boss Instance
+→ Boss participant preflight
 → one shared DEX Initiative
 → same Round / Turn state
 ```
+
+Boss participants must all still be `active` with `Current HP > 0` before the lower-layer Encounter Combat start is allowed. If a later Boss augmentation fails after a new lower-layer Combat link was created, the hardened gateway attempts to end that partial Combat and unlink it so the Encounter can be corrected and retried.
 
 On a Boss Turn:
 
@@ -444,7 +447,7 @@ Phase MVP supports optional HP-percentage thresholds as an applicability signal 
 
 ### Boss HP0 / Defeat
 
-Boss HP0 now uses the confirmed default lifecycle:
+Boss HP0 uses the confirmed default lifecycle:
 
 ```text
 Current HP > 0
@@ -493,9 +496,11 @@ monster_instance
 boss_instance
 ```
 
-All three participant types now have runtime persistence and executable combat participation for the minimum MVP path.
+All three participant types have runtime persistence and executable combat participation for the minimum MVP path.
 
-For MVP, one Encounter may link to zero or one Combat. A full tactical Map engine remains Deferred; current Map support is metadata only.
+For MVP, one Encounter may link to zero or one Combat. Combat ending and Encounter resolution remain separate GM-controlled actions. A full tactical Map engine remains Deferred; current Map support is metadata only.
+
+See `docs/FIRST_END_TO_END_SCENARIO_PLAYTEST.md` for the first combined integration milestone and its invariants.
 
 ## Automated checks
 
@@ -513,9 +518,12 @@ node tests/boss-rules.test.mjs
 node tests/boss-life.test.mjs
 node tests/static-ui-contract.test.mjs
 node tests/boss-defeat-contract.test.mjs
+node tests/mvp-scenario-e2e.test.mjs
 ```
 
-These checks validate source syntax and selected regression contracts. They do **not** deploy production.
+`tests/mvp-scenario-e2e.test.mjs` is the permanent combined source-level regression gate for the Scenario → Encounter → Character/Monster/Boss → Combat → defeat lifecycle path. It also protects the Boss Encounter-start preflight / partial-start cleanup invariant.
+
+These checks validate source syntax, deterministic rules and selected integration contracts. They do **not** deploy production or replace a live browser/D1 Alpha session.
 
 ## Deployment
 
@@ -531,9 +539,9 @@ npx wrangler deploy
 
 Static assets live in `./public` and the active Worker entry is defined by `wrangler.jsonc`.
 
-## MVP direction
+## Current direction
 
-The project is in MVP Implementation Mode. Current path:
+The minimum source-level MVP vertical slice is implemented and protected by CI:
 
 ```text
 Character D100 / Damage / HP0 resolver              implemented MVP path
@@ -543,7 +551,9 @@ Monster Dedicated Defence + Armor                   implemented
 Monster HP0 + Player ↔ Monster combat loop          implemented
 Boss Profile / Boss Instance runtime                 implemented MVP path
 Boss HP0 + Player ↔ Boss combat loop                 implemented MVP path
-→ first end-to-end Scenario / Boss-capable play-test
+First Scenario end-to-end integration gate          implemented
 ```
 
-Advanced Monster/Boss AI, exact balance curves, full tactical Map rules, economy, loot and Quest automation remain later work unless they become a real blocker.
+The project now moves into **Alpha Integration / Usability Tuning**. The next useful validation is a live browser + D1 Scenario session that exercises the complete flow with real Character, Monster and Boss data.
+
+Advanced Monster/Boss AI, exact balance curves, full tactical Map rules, economy, loot and Quest automation remain later work unless they become a concrete Alpha blocker.
