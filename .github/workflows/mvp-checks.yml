@@ -36,10 +36,11 @@ jobs:
           node tests/boss-rules.test.mjs
           node tests/boss-life.test.mjs
 
-      - name: Static UI contract tests
+      - name: Static / deployment contract tests
         run: |
           node tests/static-ui-contract.test.mjs
           node tests/boss-defeat-contract.test.mjs
+          node tests/deployment-contract.test.mjs
 
       - name: Scenario end-to-end regression
         run: node tests/mvp-scenario-e2e.test.mjs
