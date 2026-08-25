@@ -23,9 +23,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in src/*.js public/assets/*.js; do
+          for file in src/*.js public/assets/*.js scripts/*.mjs; do
             node --check "$file"
           done
+
+      - name: Validate production Alpha runner safety gate
+        run: node scripts/production-alpha-e2e.mjs
 
       - name: Rules regression tests
         run: |
