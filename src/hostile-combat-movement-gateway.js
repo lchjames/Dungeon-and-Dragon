@@ -44,6 +44,19 @@ async function requireGM(request, env) {
   return user;
 }
 
+async function ensureCombatRuntime(request, env) {
+  const response = await baseWorker.fetch(new Request(new URL('/api/gm/combat', request.url), {
+    method: 'GET',
+    headers: { Accept: 'application/json', Cookie: request.headers.get('Cookie') || '' }
+  }), env);
+  if (response.ok) return;
+  const payload = await response.json().catch(() => null);
+  throw Object.assign(new Error(payload?.error?.message || 'Combat runtime unavailable.'), {
+    status: response.status,
+    code: payload?.error?.code || 'COMBAT_RUNTIME_UNAVAILABLE'
+  });
+}
+
 async function readBody(request) {
   if (!(request.headers.get('Content-Type') || '').toLowerCase().includes('application/json')) {
     throw Object.assign(new Error('請使用 JSON 格式提交。'), { status: 415, code: 'UNSUPPORTED_MEDIA_TYPE' });
@@ -248,6 +261,7 @@ async function ensureHostileSchema(env) {
 async function hostileContext(request, env) {
   if (request.method !== 'GET') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   await requireGM(request, env);
+  await ensureCombatRuntime(request, env);
   const current = await currentCombatant(env);
   if (!current) return json({ ok: true, hostile: null, reason: 'NO_ACTIVE_COMBAT' });
   if (!HOSTILE_TYPES.has(current.entity_type)) {
@@ -289,6 +303,7 @@ async function moveCurrentHostile(request, env) {
   if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
   const user = await requireGM(request, env);
+  await ensureCombatRuntime(request, env);
   const current = await currentCombatant(env);
   if (!current) return apiError('目前沒有 Active Combat。', 409, 'NO_ACTIVE_COMBAT');
   if (!HOSTILE_TYPES.has(current.entity_type)) return apiError('Current Turn 唔係 Monster / Boss。', 409, 'CURRENT_TURN_NOT_HOSTILE');
@@ -326,19 +341,44 @@ async function moveCurrentHostile(request, env) {
           WHERE id = ? AND status = 'active'
             AND round_number = ? AND current_turn_index = ?
         )
+        AND EXISTS (
+          SELECT 1
+          FROM runtime_entity_positions rep
+          JOIN runtime_map_instances rmi ON rmi.id = rep.map_instance_id
+          WHERE rep.id = ? AND rep.map_instance_id = ?
+            AND rep.entity_type = ? AND rep.entity_id = ?
+            AND rep.x = ? AND rep.y = ? AND rmi.status = 'active'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM runtime_entity_positions occupied
+          WHERE occupied.map_instance_id = ? AND occupied.x = ? AND occupied.y = ?
+            AND NOT (occupied.entity_type = ? AND occupied.entity_id = ?)
+        )
     `).bind(
       now, current.combatant_id, current.combat_id, current.entity_type, current.entity_id,
-      current.combat_id, expectedRound, expectedIndex
+      current.combat_id, expectedRound, expectedIndex,
+      position.position_id, position.map_instance_id, current.entity_type, current.entity_id, fromX, fromY,
+      position.map_instance_id, toX, toY, current.entity_type, current.entity_id
     ),
     env.DB.prepare(`
       UPDATE runtime_entity_positions
       SET x = ?, y = ?, placed_by_user_id = ?, updated_at = ?
       WHERE id = ? AND map_instance_id = ? AND entity_type = ? AND entity_id = ?
         AND x = ? AND y = ?
+        AND EXISTS (
+          SELECT 1 FROM combatants cb
+          JOIN combats c ON c.id = cb.combat_id
+          WHERE cb.id = ? AND cb.combat_id = ?
+            AND cb.entity_type = ? AND cb.entity_id = ?
+            AND cb.move_available = 0 AND cb.updated_at = ?
+            AND c.status = 'active' AND c.round_number = ? AND c.current_turn_index = ?
+        )
     `).bind(
       toX, toY, user.id, now,
       position.position_id, position.map_instance_id, current.entity_type, current.entity_id,
-      fromX, fromY
+      fromX, fromY,
+      current.combatant_id, current.combat_id, current.entity_type, current.entity_id,
+      now, expectedRound, expectedIndex
     ),
     env.DB.prepare(`
       INSERT INTO runtime_hostile_movement_log (
@@ -351,11 +391,16 @@ async function moveCurrentHostile(request, env) {
         SELECT 1 FROM runtime_entity_positions
         WHERE id = ? AND x = ? AND y = ? AND updated_at = ?
       )
+        AND EXISTS (
+          SELECT 1 FROM combatants
+          WHERE id = ? AND combat_id = ? AND move_available = 0 AND updated_at = ?
+        )
     `).bind(
       auditId, position.map_instance_id, current.entity_type, current.entity_id,
       current.combat_id, current.combatant_id, expectedRound,
       fromX, fromY, toX, toY, user.id, now,
-      position.position_id, toX, toY, now
+      position.position_id, toX, toY, now,
+      current.combatant_id, current.combat_id, now
     )
   ]);
 
