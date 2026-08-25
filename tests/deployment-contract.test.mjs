@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const workflow = await readFile(new URL('../.github/workflows/mvp-checks.yml', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const releaseDoc = await readFile(new URL('../docs/PRODUCTION_RELEASE_ALPHA.md', import.meta.url), 'utf8');
+const adminGateway = await readFile(new URL('../src/admin-gateway.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -30,11 +31,18 @@ assert.match(workflow, /request_worker "\/api\/admin\/auth\/me"/);
 assert.match(workflow, /--retry 8/);
 
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-auth\.js"/);
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-gateway\.js"/);
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);
 assert.match(wrangler, /"database_name"\s*:\s*"dnd-db"/);
 assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b782"/);
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
+
+assert.match(adminGateway, /from 'node:crypto'/);
+assert.match(adminGateway, /pbkdf2\(/);
+assert.match(adminGateway, /username === 'gm' \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
+assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
+assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
+assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
 
 assert.match(releaseDoc, /Do \*\*not\*\* blindly execute every file under `schema\/`/);
 assert.match(releaseDoc, /Pull requests and feature-branch pushes must never deploy production/);
