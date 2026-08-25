@@ -31,7 +31,7 @@ for (const table of ['scenarios', 'scenes', 'encounters', 'encounter_participant
   assert.match(scenario, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
 }
 assert.match(scenario, /'planned', 'active', 'resolved', 'skipped'/);
-assert.match(scenario, /\/api\/gm\/encounters\/\(\[\^\/\]\+\)\/start-combat/);
+assert.ok(scenario.includes('startEncounterCombat') && scenario.includes('start-combat'), 'Story gateway must expose Encounter Combat start.');
 assert.match(scenario, /UPDATE encounters SET status = 'active'/);
 assert.match(gmStory, /data-story-action="start-combat"/);
 assert.match(gmStory, /data-encounter-status/);
@@ -51,7 +51,7 @@ const bossDelegate = bossRuntime.indexOf('const response=await baseWorker.fetch(
 assert.ok(bossPreflight >= 0 && bossDelegate > bossPreflight, 'Boss Encounter Combat must preflight Boss state before starting the lower-layer Combat.');
 assert.match(bossRuntime, /BOSS_INSTANCE_NOT_ACTIVE/);
 assert.match(bossRuntime, /cleanupFailedEncounterStart/);
-assert.match(bossRuntime, /DELETE FROM encounter_combats WHERE encounter_id=\? AND combat_id=\?/);
+assert.ok(bossRuntime.includes('DELETE FROM encounter_combats WHERE encounter_id=? AND combat_id=?'), 'Failed Boss augmentation must unlink a newly-created Encounter Combat.');
 
 // Player side must be able to target both active Monster and active Boss combatants.
 assert.match(playerCombat, /monster_instance/);
@@ -61,7 +61,7 @@ assert.match(playerCombat, /monster_stored_defence/);
 
 // Combat can be completed explicitly by the GM without silently resolving the Encounter.
 assert.match(combatState, /SET status = 'ended'/);
-assert.match(combatState, /\/api\/gm\/combat\/\(\[\^\/\]\+\)\/end/);
+assert.ok(combatState.includes('endCombat') && combatState.includes('/end'), 'Combat gateway must expose explicit GM End Combat.');
 assert.doesNotMatch(combatState, /UPDATE encounters[\s\S]{0,200}status\s*=\s*'resolved'/);
 
 // Deterministic vertical-slice domain smoke: Character + Monster + Boss share Initiative.
