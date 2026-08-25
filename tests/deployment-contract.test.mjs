@@ -44,7 +44,12 @@ assert.match(adminGateway, /username === ALPHA_GM_USERNAME \? ALPHA_GM_MIN_PASSW
 assert.match(adminGateway, /ensureAlphaGmOperatorSeed/);
 assert.match(adminGateway, /ALPHA_GM_PASSWORD_ITERATIONS\s*=\s*210000/);
 assert.match(adminGateway, /ON CONFLICT\(username\) DO UPDATE SET/);
-assert.doesNotMatch(adminGateway, /ON CONFLICT\(username\).*failed_attempts\s*=\s*0/s, 'Temporary operator seed must not bypass Admin lockout state.');
+const seedConflictStart = adminGateway.indexOf('ON CONFLICT(username) DO UPDATE SET');
+const seedConflictEnd = adminGateway.indexOf('`).bind(', seedConflictStart);
+assert.ok(seedConflictStart >= 0 && seedConflictEnd > seedConflictStart, 'Temporary operator seed conflict clause must be inspectable.');
+const seedConflictClause = adminGateway.slice(seedConflictStart, seedConflictEnd);
+assert.doesNotMatch(seedConflictClause, /failed_attempts\s*=/, 'Temporary operator seed must preserve failed-attempt state.');
+assert.doesNotMatch(seedConflictClause, /locked_until\s*=/, 'Temporary operator seed must preserve lockout expiry.');
 assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
 assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
 assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
