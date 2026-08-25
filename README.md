@@ -518,26 +518,39 @@ node tests/boss-rules.test.mjs
 node tests/boss-life.test.mjs
 node tests/static-ui-contract.test.mjs
 node tests/boss-defeat-contract.test.mjs
+node tests/deployment-contract.test.mjs
 node tests/mvp-scenario-e2e.test.mjs
 ```
 
 `tests/mvp-scenario-e2e.test.mjs` is the permanent combined source-level regression gate for the Scenario → Encounter → Character/Monster/Boss → Combat → defeat lifecycle path. It also protects the Boss Encounter-start preflight / partial-start cleanup invariant.
 
-These checks validate source syntax, deterministic rules and selected integration contracts. They do **not** deploy production or replace a live browser/D1 Alpha session.
+`tests/deployment-contract.test.mjs` protects the main-only Cloudflare deployment gate, secret-name references and production Wrangler contract.
+
+Pull requests and feature-branch pushes run the validation suite but do not deploy production.
 
 ## Deployment
 
-Production deployment remains a separate Cloudflare deployment action unless external Git deployment automation is independently configured.
+Cloudflare production deployment is automated by `.github/workflows/mvp-checks.yml`.
 
-Repository commits or GitHub Actions checks alone are not proof that production has been deployed.
-
-Manual deployment command:
-
-```bash
-npx wrangler deploy
+```text
+push to main
+→ node-checks SUCCESS
+→ Deploy Cloudflare production
+→ npx --yes wrangler@4 deploy
 ```
 
-Static assets live in `./public` and the active Worker entry is defined by `wrangler.jsonc`.
+The deployment job reads these GitHub Actions repository secrets:
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+```
+
+It deploys Worker `dnd`, the `./public` static assets, D1 binding `DB → dnd-db`, and the custom domain `dungeon-and-dragon.lchjames.com` according to `wrangler.jsonc`.
+
+The automatic path was verified successfully on 2026-08-25. Manual Wrangler deployment is now fallback-only for CI/CD recovery or controlled rollback.
+
+Do **not** blindly replay every file in `schema/` against an existing production D1 database; later additive schema paths include guarded runtime initialization and some reference SQL is non-idempotent. See `docs/PRODUCTION_RELEASE_ALPHA.md` for the Canonical release and rollback procedure.
 
 ## Current direction
 
@@ -552,8 +565,9 @@ Monster HP0 + Player ↔ Monster combat loop          implemented
 Boss Profile / Boss Instance runtime                 implemented MVP path
 Boss HP0 + Player ↔ Boss combat loop                 implemented MVP path
 First Scenario end-to-end integration gate          implemented
+Automatic Cloudflare production deployment          verified
 ```
 
-The project now moves into **Alpha Integration / Usability Tuning**. The next useful validation is a live browser + D1 Scenario session that exercises the complete flow with real Character, Monster and Boss data.
+The project is now in **Alpha Integration / Usability Tuning**. The next validation is a live browser + production D1 Scenario session that exercises the complete flow with real Character, Monster and Boss data.
 
 Advanced Monster/Boss AI, exact balance curves, full tactical Map rules, economy, loot and Quest automation remain later work unless they become a concrete Alpha blocker.
