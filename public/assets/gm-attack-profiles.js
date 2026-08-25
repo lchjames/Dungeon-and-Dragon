@@ -1,5 +1,6 @@
 import './gm-story.js';
 import './gm-world-map.js';
+import './gm-map-editor.js';
 import './gm-monsters.js';
 import './gm-monster-defence.js';
 import './gm-bosses.js';

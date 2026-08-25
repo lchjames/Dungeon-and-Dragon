@@ -46,6 +46,7 @@ jobs:
           node tests/admin-auth-contract.test.mjs
           node tests/deployment-contract.test.mjs
           node tests/world-map-foundation.test.mjs
+          node tests/world-map-grid-editor.test.mjs
 
       - name: Scenario end-to-end regression
         run: node tests/mvp-scenario-e2e.test.mjs
