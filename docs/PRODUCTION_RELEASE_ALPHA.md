@@ -69,6 +69,7 @@ Therefore the current established production update path is:
 verified current main
 → MVP checks pass
 → GitHub Actions deploys Worker + assets
+→ automated unauthenticated production smoke validates public/auth boundaries
 → authenticated smoke requests exercise the guarded runtime paths
 → inspect any D1/runtime error before considering manual schema intervention
 ```
@@ -111,7 +112,7 @@ Only configure / use that secret when the production environment still has no `g
 
 # 5. Automatic Deployment Gate
 
-`.github/workflows/mvp-checks.yml` owns both validation and production publish.
+`.github/workflows/mvp-checks.yml` owns validation, production publish and the unauthenticated production smoke gate.
 
 The required flow is:
 
@@ -125,6 +126,7 @@ only when:
 - node-checks = success
 
 → Deploy Cloudflare production
+→ Smoke test production routes
 ```
 
 The production job:
@@ -134,6 +136,7 @@ checks out the exact main commit
 uses Node 22
 validates that both Cloudflare secrets are present
 runs npx --yes wrangler@4 deploy
+runs the production route smoke against the custom domain
 ```
 
 Pull requests and feature-branch pushes must never deploy production.
@@ -162,23 +165,40 @@ Do not treat local source tests as deployment success; use Wrangler / GitHub Act
 
 # 7. Immediate Post-Deploy Smoke Test
 
-Use the real production browser session.
-
-Minimum route smoke:
+Every successful production deploy now performs an automated unauthenticated production smoke against:
 
 ```text
-/
-/player/login/
-/player/
-/gm/
+https://dungeon-and-dragon.lchjames.com/
+https://dungeon-and-dragon.lchjames.com/player/login/
+https://dungeon-and-dragon.lchjames.com/player/
+https://dungeon-and-dragon.lchjames.com/gm/
+https://dungeon-and-dragon.lchjames.com/api/auth/me
 ```
 
-Expected behavior:
+Expected automated contract:
 
 ```text
-unauthenticated protected route
-→ redirects / requires login
+GET /
+→ 2xx
 
+GET /player/login/
+→ 2xx
+
+GET /player/
+→ 302 to /player/login/
+
+GET /gm/
+→ 302 to /player/login/ with GM next-path context
+
+GET /api/auth/me
+→ 401 when no session cookie is supplied
+```
+
+The smoke uses bounded retries so short Cloudflare propagation delay does not create a false deployment failure. A route returning an unexpected status, a broken auth redirect, unresolved production domain or 5xx response fails the production job.
+
+This automated smoke does **not** replace the authenticated browser test. After deployment, a real Player and GM session must still verify:
+
+```text
 Player User
 → Player workspace
 → cannot gain GM routes
@@ -188,7 +208,7 @@ GM User
 → Story / Monsters / Bosses / Combat views load
 ```
 
-A 500 / 503 on a new feature route must be treated as a release blocker until its D1/runtime cause is understood.
+A 500 / 503 on an authenticated feature route remains a release blocker until its D1/runtime cause is understood.
 
 ---
 
@@ -234,6 +254,7 @@ The release is suitable for continued Alpha use when:
 ```text
 MVP checks succeed on the deployed main commit
 Deploy Cloudflare production succeeds
+automated unauthenticated production smoke succeeds
 production routes load
 D1-backed reads/writes succeed
 GM and Player authorization boundaries hold
@@ -262,6 +283,12 @@ MVP checks failure
 credential / Wrangler deployment failure
 → main remains source-of-truth, but production stays on the previous successful Worker version
 → inspect GitHub Actions deploy log
+
+post-deploy production smoke failure
+→ Worker publish may already have completed
+→ treat production parity as unverified
+→ inspect route/status/auth failure immediately
+→ rollback or hotfix if the failure is production-blocking
 ```
 
 If deployment succeeds but introduces a production-blocking runtime error:
@@ -282,7 +309,7 @@ D1 data changes are a separate boundary from Worker rollback. Rolling back Worke
 
 # 11. Current Operational Status
 
-Automatic deployment is now verified operational:
+Automatic deployment is verified operational; the automated route smoke is the next production gate being added:
 
 ```text
 GitHub MVP feature construction: complete for first vertical slice
@@ -294,5 +321,6 @@ D1 binding: env.DB → dnd-db
 Custom domain deployment: verified by Wrangler
 Feature / PR pushes: deployment correctly skipped
 main push after successful MVP checks: production deployment enabled
-Live browser + production D1 Alpha session: next validation stage
+automated unauthenticated production smoke: required after each deploy
+Authenticated live browser + production D1 Alpha session: next validation stage
 ```
