@@ -11,6 +11,7 @@ const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_SECONDS = 15 * 60;
 const encoder = new TextEncoder();
+let authCompatibilityPromise = null;
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -40,6 +41,89 @@ function adminProvisioningDisabled() {
       message: 'GM/Admin 帳戶不可由網站建立或提升；只可由受信任嘅 deployment / database 管理層直接設定。'
     }
   }, 410);
+}
+
+async function columnNames(env, table) {
+  const result = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
+  return new Set((result.results || []).map(row => String(row.name || '')));
+}
+
+async function addMissingColumns(env, table, definitions) {
+  const columns = await columnNames(env, table);
+  for (const [name, definition] of definitions) {
+    if (!columns.has(name)) {
+      await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`).run();
+    }
+  }
+}
+
+async function ensureAdminAuthCompatibility(env) {
+  if (!env.DB) throw new Error('D1 binding DB is unavailable.');
+  if (!authCompatibilityPromise) {
+    authCompatibilityPromise = (async () => {
+      await env.DB.batch([
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+          display_name TEXT NOT NULL,
+          password_hash TEXT NOT NULL,
+          password_salt TEXT NOT NULL,
+          password_iterations INTEGER NOT NULL DEFAULT 0,
+          role TEXT NOT NULL DEFAULT 'player',
+          status TEXT NOT NULL DEFAULT 'active',
+          failed_attempts INTEGER NOT NULL DEFAULT 0,
+          locked_until INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )`),
+        env.DB.prepare(`CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          expires_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          last_seen_at INTEGER NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`)
+      ]);
+
+      const userColumns = await columnNames(env, 'users');
+      if (!userColumns.has('id') || !userColumns.has('username')) {
+        throw new Error('Legacy users table is missing its required identity columns.');
+      }
+      await addMissingColumns(env, 'users', [
+        ['display_name', "TEXT NOT NULL DEFAULT ''"],
+        ['password_hash', "TEXT NOT NULL DEFAULT ''"],
+        ['password_salt', "TEXT NOT NULL DEFAULT ''"],
+        ['password_iterations', 'INTEGER NOT NULL DEFAULT 0'],
+        ['role', "TEXT NOT NULL DEFAULT 'player'"],
+        ['status', "TEXT NOT NULL DEFAULT 'active'"],
+        ['failed_attempts', 'INTEGER NOT NULL DEFAULT 0'],
+        ['locked_until', 'INTEGER'],
+        ['created_at', 'INTEGER NOT NULL DEFAULT 0'],
+        ['updated_at', 'INTEGER NOT NULL DEFAULT 0']
+      ]);
+
+      const sessionColumns = await columnNames(env, 'sessions');
+      if (!sessionColumns.has('id')) {
+        throw new Error('Legacy sessions table is missing its required identity column.');
+      }
+      await addMissingColumns(env, 'sessions', [
+        ['user_id', "TEXT NOT NULL DEFAULT ''"],
+        ['expires_at', 'INTEGER NOT NULL DEFAULT 0'],
+        ['created_at', 'INTEGER NOT NULL DEFAULT 0'],
+        ['last_seen_at', 'INTEGER NOT NULL DEFAULT 0']
+      ]);
+
+      await env.DB.batch([
+        env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)'),
+        env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)')
+      ]);
+    })().catch(error => {
+      authCompatibilityPromise = null;
+      throw error;
+    });
+  }
+  await authCompatibilityPromise;
 }
 
 function bytesToBase64(bytes) {
@@ -80,33 +164,7 @@ function alphaGmSessionCookie(token) {
 }
 
 async function ensureAlphaGmAccount(env) {
-  if (!env.DB) return;
   const now = Date.now();
-  await env.DB.batch([
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-      display_name TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      password_salt TEXT NOT NULL,
-      password_iterations INTEGER NOT NULL DEFAULT 0,
-      role TEXT NOT NULL DEFAULT 'player',
-      status TEXT NOT NULL DEFAULT 'active',
-      failed_attempts INTEGER NOT NULL DEFAULT 0,
-      locked_until INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`),
-    env.DB.prepare(`CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL,
-      last_seen_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`)
-  ]);
-
   await env.DB.prepare(`
     INSERT INTO users (
       id, username, display_name, password_hash, password_salt, password_iterations,
@@ -212,21 +270,31 @@ export default {
       return Response.redirect(new URL('/gm/login/', request.url).toString(), 302);
     }
 
-    if (isGmLoginPath(pathname) || pathname === '/api/admin/auth/login') {
-      await ensureAlphaGmAccount(env);
-    }
+    try {
+      await ensureAdminAuthCompatibility(env);
 
-    if (pathname === '/api/admin/auth/login') {
-      const alphaLogin = await alphaGmLogin(request, env);
-      if (alphaLogin) return alphaLogin;
-    }
+      if (isGmLoginPath(pathname) || pathname === '/api/admin/auth/login') {
+        await ensureAlphaGmAccount(env);
+      }
 
-    // Serve the login page directly so a stale legacy Admin session cannot
-    // bounce between the historical setup redirect and the login page.
-    if (isGmLoginPath(pathname)) {
-      return env.ASSETS.fetch(request);
-    }
+      if (pathname === '/api/admin/auth/login') {
+        const alphaLogin = await alphaGmLogin(request, env);
+        if (alphaLogin) return alphaLogin;
+      }
 
-    return authCore.fetch(request, env);
+      // Serve the login page directly so a stale legacy Admin session cannot
+      // bounce between the historical setup redirect and the login page.
+      if (isGmLoginPath(pathname)) {
+        return env.ASSETS.fetch(request);
+      }
+
+      return authCore.fetch(request, env);
+    } catch (error) {
+      console.error('Admin compatibility gateway error', error);
+      if (String(error?.message || error).includes('D1 binding DB is unavailable')) {
+        return json({ ok: false, error: { code: 'DATABASE_UNAVAILABLE', message: '資料庫尚未完成配置。' } }, 503);
+      }
+      return json({ ok: false, error: { code: 'ADMIN_AUTH_SCHEMA_ERROR', message: 'Admin authentication schema 暫時無法使用。' } }, 500);
+    }
   }
 };
