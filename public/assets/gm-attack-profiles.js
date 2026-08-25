@@ -20,8 +20,8 @@ async function api(url, options = {}) {
   let payload = null;
   try { payload = await response.json(); } catch { payload = null; }
   if (response.status === 401) {
-    location.replace('/player/login/?next=%2Fgm%2F');
-    throw new Error('Session expired.');
+    location.replace('/gm/login/?next=%2Fgm%2F');
+    throw new Error('Admin session expired.');
   }
   if (!response.ok) throw new Error(payload?.error?.message || 'Request failed.');
   return payload;
