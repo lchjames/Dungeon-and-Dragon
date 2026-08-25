@@ -1,209 +1,183 @@
-# Initial GM Provisioning — MVP
+# GM / Admin Provisioning — MVP
 
 > Status: Canonical MVP Implementation Contract  
-> Date: 2026-08-24  
-> Scope: Securely create the first GM role without exposing general self-promotion.
+> Date: 2026-08-25  
+> Scope: Keep GM administration completely separate from Player identity and Player authentication.
 
 ---
 
-# 1. Purpose
+# 1. Canonical Identity Model
 
-Normal User registration creates:
+GM is the campaign administrator.
+
+The canonical role model is:
 
 ```text
-role = player
+player
+admin
 ```
 
-The project therefore requires a safe bootstrap path for the very first GM.
+`GM` is the product / workspace name for the administrator experience; it is not a Player subtype and does not require a separate persistent `gm` role for new data.
 
-The bootstrap path must not become a reusable role-escalation API.
+New code must not create or promote a Player into a GM/Admin identity.
+
+Legacy rows with `role = gm` may be accepted only as a temporary migration compatibility case while the Admin-auth correction is rolled out. New writes must use:
+
+```text
+role = admin
+```
 
 ---
 
-# 2. Required Secret
+# 2. Player / Admin Separation
 
-Production provisioning requires the Cloudflare Worker Secret:
+Player access and GM/Admin access are independent authentication paths.
+
+```text
+/player/login/
+→ Player authentication only
+→ Player workspace only
+
+/gm/login/
+→ Admin authentication only
+→ GM/Admin workspace only
+```
+
+An unauthenticated request to `/gm/` must never redirect to `/player/login/`.
+
+It must redirect to:
+
+```text
+/gm/login/
+```
+
+A Player session must never satisfy the Admin authentication requirement merely because the Player account was later assigned another role.
+
+The Player registration flow must never contain an Admin/GM creation or escalation path.
+
+---
+
+# 3. Initial Admin Provisioning
+
+The first administrator is provisioned directly as an Admin identity.
+
+The bootstrap flow must not require:
+
+```text
+register Player
+→ login as Player
+→ promote Player to GM/Admin
+```
+
+That model is explicitly superseded.
+
+Instead:
+
+```text
+/gm/setup/
+→ one-time provisioning secret
+→ create initial Admin identity directly
+→ Admin signs in through /gm/login/
+```
+
+Production provisioning continues to rely on a non-committed Worker secret such as:
 
 ```text
 INITIAL_GM_PROVISION_TOKEN
 ```
 
-The real token must never be committed to Git, Markdown, JavaScript source, or D1.
-
-Recommended deployment value:
-
-```text
-cryptographically random
->= 32 characters recommended
->= 24 characters enforced by Worker
-```
-
-The Secret is read only from the Worker environment.
-
----
-
-# 3. Bootstrap Preconditions
-
-Initial GM provisioning succeeds only when all of the following are true:
-
-```text
-request has same-origin protection
-current User has a valid authenticated session
-current User is active
-current User role = player
-submitted token matches INITIAL_GM_PROVISION_TOKEN
-D1 contains no User with role gm or admin
-```
-
-The endpoint does not accept a target User ID.
-
-Therefore:
-
-```text
-caller can promote only the currently authenticated User
-```
-
-The endpoint does not accept an arbitrary target role.
-
-Successful bootstrap always produces:
-
-```text
-role = gm
-```
-
-It does not create an `admin` role.
+The secret is bootstrap authorization only. It is not the permanent Admin login credential.
 
 ---
 
 # 4. One-Time Closure
 
-Provisioning uses an atomic conditional update:
+Initial Admin provisioning is allowed only while no active Admin identity exists.
 
-```text
-UPDATE current authenticated player
-→ role = gm
-ONLY IF no gm/admin exists
-```
-
-Once any D1 User has:
-
-```text
-role = gm
-OR
-role = admin
-```
-
-the initial bootstrap path must refuse further promotion attempts.
-
-This remains true even if the Worker Secret has not yet been removed.
-
-After successful production provisioning, the deployment operator should remove or rotate `INITIAL_GM_PROVISION_TOKEN` because it is no longer needed.
-
----
-
-# 5. UI Flow
-
-Provisioning page:
+Once an Admin exists:
 
 ```text
 /gm/setup/
+→ bootstrap creation disabled
 ```
 
-Flow:
+The provisioning endpoint must not become a general Player role-management API.
+
+There is no supported operation:
 
 ```text
-not logged in
-→ shared User login
-→ return to /gm/setup/
-
-logged-in gm/admin
-→ redirect /gm/
-
-logged-in player
-→ enter provisioning token
-→ POST /api/admin/provision-initial-gm
-→ successful role update
-→ redirect /gm/
+Player → Admin promotion
 ```
 
-The browser does not persist the provisioning token.
+through Player APIs or the bootstrap endpoint.
 
 ---
 
-# 6. API
+# 5. Admin Authentication Boundary
+
+All `/gm/` pages and `/api/gm/*` APIs require an authenticated Admin session.
+
+Canonical authorization:
 
 ```text
-POST /api/admin/provision-initial-gm
+admin
+→ allowed GM workspace
+
+player
+→ denied GM workspace
+
+unauthenticated
+→ /gm/login/
 ```
 
-Body:
-
-```json
-{
-  "token": "deployment-secret-value"
-}
-```
-
-This is a bootstrap endpoint only.
-
-It must not evolve into a general User role-management API.
-
-Future role administration requires a separately authorized admin-only workflow.
+Client-side checks are never sufficient; the Worker must enforce the Admin boundary server-side.
 
 ---
 
-# 7. Security Invariants
+# 6. Security Invariants
 
-The following are forbidden:
+Forbidden:
 
 ```text
-player choosing gm during registration
-player setting their own role through profile API
-client-side-only GM checks
-provisioning arbitrary target User IDs
-provisioning arbitrary roles
-storing the provisioning token in D1
-committing the provisioning token to source control
-allowing second-GM creation through the bootstrap endpoint
+GM requiring Player Access
+Admin using Player registration as bootstrap
+Player choosing admin during registration
+Player promoting self to admin
+Player session being treated as an Admin session
+4-digit Player Key implicitly becoming an Admin credential
+storing the bootstrap token in D1 or source control
+committing permanent Admin credentials to Git
 ```
-
-The GM workspace remains protected independently by server-side `gm/admin` role checks.
 
 ---
 
-# 8. Deployment Requirement
+# 7. Migration Requirement
 
-Code support alone does not provision a production GM.
+The currently deployed implementation still contains the superseded Player-promotion model and must be corrected before authenticated Live Alpha GM testing is considered valid.
 
-Before first use, configure the production Worker Secret from the project directory:
-
-```bash
-npx wrangler secret put INITIAL_GM_PROVISION_TOKEN
-```
-
-Enter a strong random token when Wrangler prompts for the value. Do not place the token in `wrangler.jsonc`.
-
-Then:
+Required implementation work:
 
 ```text
-1. deploy the Worker with the provisioning gateway
-2. register / log in the intended GM User
-3. open /gm/setup/
-4. submit the same configured Secret once
-5. verify /gm/ access
-6. remove or rotate INITIAL_GM_PROVISION_TOKEN
+add /gm/login/
+separate Admin authentication from Player authentication
+make /gm/ redirect unauthenticated users to /gm/login/
+change /gm/setup/ to create Admin directly
+remove Player → GM/Admin promotion logic
+write new administrator identities as role = admin
+restrict GM server guards to Admin identity
+retain only minimal legacy role=gm migration compatibility if needed
 ```
-
-No permanent bootstrap credential should be placed in the repository.
 
 ---
 
-# 9. MVP Progression
+# 8. Remaining Credential Decision
 
-With this bootstrap path implemented, the GM D1 Character Management foundation is no longer blocked by first-GM creation.
-
-The next implementation blocker is:
+One implementation decision remains before the Admin-auth correction can be completed:
 
 ```text
-Round / Combat State Engine
+permanent Admin login credential format
 ```
+
+The Player `User + 4-digit Key` credential model must not be reused automatically for Admin access.
+
+Until that credential decision is confirmed, this document governs the identity and authorization architecture, while the current production GM-login behavior is considered non-conformant and pending correction.
