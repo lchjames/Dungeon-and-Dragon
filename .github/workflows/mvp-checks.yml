@@ -50,6 +50,7 @@ jobs:
           node tests/runtime-map-position.test.mjs
           node tests/player-map-movement.test.mjs
           node tests/runtime-door-control.test.mjs
+          node tests/hostile-combat-movement.test.mjs
 
       - name: Scenario end-to-end regression
         run: node tests/mvp-scenario-e2e.test.mjs
