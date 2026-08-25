@@ -7,7 +7,6 @@ const DEFAULT_MIN_PASSWORD_LENGTH = 12;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const ALPHA_GM_USERNAME = 'gm';
 const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
-const ALPHA_GM_PASSWORD_BYTES = Uint8Array.of(112, 97, 115, 115, 119, 111, 114, 100);
 const ALPHA_GM_PASSWORD_HASH = 'LLqx99EyLTehxFYcJVyIK60jLu+B948YOzuv8dHPO/g=';
 const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
 const ALPHA_GM_PASSWORD_ITERATIONS = 210000;
@@ -35,6 +34,10 @@ function normaliseAdminUsername(value) {
   return String(value || '').trim().normalize('NFKC').toLowerCase();
 }
 
+function validAdminUsername(username) {
+  return username === ALPHA_GM_USERNAME || /^[a-z0-9._-]{3,32}$/.test(username);
+}
+
 function minimumPasswordLength(username) {
   return username === ALPHA_GM_USERNAME ? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH;
 }
@@ -55,16 +58,6 @@ function derivePassword(password, salt, iterations) {
       else resolve(derivedKey);
     });
   });
-}
-
-function alphaGmPasswordMatches(password) {
-  const actual = new TextEncoder().encode(password);
-  if (actual.length !== ALPHA_GM_PASSWORD_BYTES.length) return false;
-  let difference = 0;
-  for (let index = 0; index < actual.length; index += 1) {
-    difference |= actual[index] ^ ALPHA_GM_PASSWORD_BYTES[index];
-  }
-  return difference === 0;
 }
 
 function sessionCookie(token) {
@@ -166,7 +159,10 @@ async function adminLogin(request, env) {
   const password = String(body.password || '');
   const minLength = minimumPasswordLength(username);
 
-  if (!/^[a-z0-9._-]{3,32}$/.test(username) || password.length < minLength || password.length > 128) {
+  // Normal Admin usernames remain 3–32 characters. The fixed Alpha account
+  // `gm` is the only two-character exception because it was explicitly
+  // operator-assigned before this validation contract was introduced.
+  if (!validAdminUsername(username) || password.length < minLength || password.length > 128) {
     return apiError('Admin Username 或密碼不正確。', 401, 'INVALID_ADMIN_CREDENTIALS');
   }
 
@@ -201,30 +197,25 @@ async function adminLogin(request, env) {
     return apiError('此 Admin 帳戶需要由系統管理員重新設定 credential。', 409, 'ADMIN_CREDENTIAL_RESET_REQUIRED');
   }
 
-  let credentialMatches = false;
-  if (username === ALPHA_GM_USERNAME) {
-    credentialMatches = alphaGmPasswordMatches(password);
-  } else {
-    let salt;
-    let expected;
-    try {
-      salt = Buffer.from(String(user.password_salt || ''), 'base64');
-      expected = Buffer.from(String(user.password_hash || ''), 'base64');
-      if (salt.length < 16 || expected.length !== 32) throw new Error('Stored Admin credential encoding is invalid.');
-    } catch (error) {
-      error.stage = 'credential-decode';
-      throw error;
-    }
-
-    let actual;
-    try {
-      actual = await derivePassword(password, salt, iterations);
-    } catch (error) {
-      error.stage = 'pbkdf2';
-      throw error;
-    }
-    credentialMatches = actual.length === expected.length && timingSafeEqual(actual, expected);
+  let salt;
+  let expected;
+  try {
+    salt = Buffer.from(String(user.password_salt || ''), 'base64');
+    expected = Buffer.from(String(user.password_hash || ''), 'base64');
+    if (salt.length < 16 || expected.length !== 32) throw new Error('Stored Admin credential encoding is invalid.');
+  } catch (error) {
+    error.stage = 'credential-decode';
+    throw error;
   }
+
+  let actual;
+  try {
+    actual = await derivePassword(password, salt, iterations);
+  } catch (error) {
+    error.stage = 'pbkdf2';
+    throw error;
+  }
+  const credentialMatches = actual.length === expected.length && timingSafeEqual(actual, expected);
 
   if (!credentialMatches) {
     const attempts = Number(user.failed_attempts || 0) + 1;
@@ -232,9 +223,9 @@ async function adminLogin(request, env) {
     await env.DB.prepare('UPDATE users SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?')
       .bind(shouldLock ? 0 : attempts, shouldLock ? now + LOCK_SECONDS * 1000 : null, now, user.id).run();
     return apiError(
-      shouldLock ? '登入錯誤次數過多，Admin 帳戶已暫時鎖定。' : (username === ALPHA_GM_USERNAME ? 'Alpha GM fixed password mismatch.' : 'Admin Username 或密碼不正確。'),
+      shouldLock ? '登入錯誤次數過多，Admin 帳戶已暫時鎖定。' : 'Admin Username 或密碼不正確。',
       shouldLock ? 429 : 401,
-      shouldLock ? 'ADMIN_TEMPORARILY_LOCKED' : (username === ALPHA_GM_USERNAME ? 'ALPHA_GM_FIXED_PASSWORD_MISMATCH' : 'INVALID_ADMIN_CREDENTIALS')
+      shouldLock ? 'ADMIN_TEMPORARILY_LOCKED' : 'INVALID_ADMIN_CREDENTIALS'
     );
   }
 
