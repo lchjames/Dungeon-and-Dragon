@@ -56,13 +56,30 @@ async function safeJson(response) {
   catch { return null; }
 }
 
-async function tableColumns(env, table) {
+async function tableInfo(env, table) {
   try {
     const rows = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
-    return (rows.results || []).map(row => String(row.name));
+    return rows.results || [];
   } catch {
     return null;
   }
+}
+
+async function tableColumns(env, table) {
+  const rows = await tableInfo(env, table);
+  return rows ? rows.map(row => String(row.name)) : null;
+}
+
+function legacyRequiredColumns(rows) {
+  if (!Array.isArray(rows)) return [];
+  const expected = new Set(EXPECTED_AUDIT_COLUMNS);
+  return rows.filter(row => {
+    const name = String(row.name || '');
+    const required = Number(row.notnull || 0) === 1;
+    const hasDefault = row.dflt_value !== null && row.dflt_value !== undefined;
+    const primaryKey = Number(row.pk || 0) > 0;
+    return name && !expected.has(name) && required && !hasDefault && !primaryKey;
+  });
 }
 
 async function ensurePlayerMonsterAuditCompatibility(env) {
@@ -133,19 +150,28 @@ async function ensurePlayerMonsterAuditCompatibility(env) {
 async function diagnoseMonsterAttackFailure(env, combatId, targetCombatantId) {
   if (!env.DB) return { code: 'MONSTER_DEFEAT_DIAG_DATABASE_UNAVAILABLE', stage: 'database-binding' };
 
-  const [auditColumns, monsterColumns, combatantColumns] = await Promise.all([
-    tableColumns(env, 'player_monster_action_log'),
+  const [auditInfo, monsterColumns, combatantColumns] = await Promise.all([
+    tableInfo(env, 'player_monster_action_log'),
     tableColumns(env, 'monster_instances'),
     tableColumns(env, 'combatants')
   ]);
 
-  if (!auditColumns) return { code: 'MONSTER_DEFEAT_DIAG_AUDIT_SCHEMA_UNREADABLE', stage: 'audit-schema' };
+  if (!auditInfo) return { code: 'MONSTER_DEFEAT_DIAG_AUDIT_SCHEMA_UNREADABLE', stage: 'audit-schema' };
+  const auditColumns = auditInfo.map(row => String(row.name));
   const missingAuditColumns = EXPECTED_AUDIT_COLUMNS.filter(column => !auditColumns.includes(column));
   if (missingAuditColumns.length) {
     return {
       code: 'MONSTER_DEFEAT_DIAG_AUDIT_SCHEMA_DRIFT',
       stage: 'audit-schema',
       missingColumnCount: missingAuditColumns.length
+    };
+  }
+  const legacyRequired = legacyRequiredColumns(auditInfo);
+  if (legacyRequired.length) {
+    return {
+      code: 'MONSTER_DEFEAT_DIAG_AUDIT_LEGACY_REQUIRED_COLUMNS',
+      stage: 'audit-legacy-constraints',
+      requiredColumnCount: legacyRequired.length
     };
   }
   if (!monsterColumns?.length) return { code: 'MONSTER_DEFEAT_DIAG_MONSTER_SCHEMA_UNREADABLE', stage: 'monster-schema' };
