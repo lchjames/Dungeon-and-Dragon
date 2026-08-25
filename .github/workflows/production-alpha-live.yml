@@ -1,0 +1,54 @@
+name: Production Alpha Live Playtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Optional alpha-e2e run identifier
+        required: false
+        type: string
+      max_attack_attempts:
+        description: Maximum Player attacks per hostile target
+        required: false
+        default: '8'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-alpha:
+    name: Run production Alpha E2E
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dnd-production-alpha-live
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate live-playtest credential
+        shell: bash
+        env:
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DND_ALPHA_GM_PASSWORD" ]]; then
+            echo "Repository secret DND_ALPHA_GM_PASSWORD is not configured."
+            exit 1
+          fi
+
+      - name: Run production Alpha E2E
+        env:
+          DND_ALPHA_EXECUTE: '1'
+          DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
+          DND_ALPHA_GM_USERNAME: gm
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+          DND_ALPHA_RUN_ID: ${{ inputs.run_id }}
+          DND_ALPHA_MAX_ATTACK_ATTEMPTS: ${{ inputs.max_attack_attempts }}
+        run: node scripts/production-alpha-e2e.mjs

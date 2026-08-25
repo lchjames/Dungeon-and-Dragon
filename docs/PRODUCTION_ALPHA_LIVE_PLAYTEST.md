@@ -1,6 +1,6 @@
 # Production Alpha Live Playtest
 
-> Status: **Alpha Integration Gate — executable runner added; live write run still requires an authorised operator session**  
+> Status: **Alpha Integration Gate — executable runner + manual GitHub workflow added; live write run still requires an authorised operator credential**  
 > Date: 2026-08-25  
 > Scope: validate the deployed Worker + production D1 with separate GM/Admin and Player sessions.
 
@@ -15,6 +15,14 @@ scripts/production-alpha-e2e.mjs
 ```
 
 It is **plan-only by default**. It will not contact production or write data unless `DND_ALPHA_EXECUTE=1` is explicitly supplied.
+
+A manual GitHub Actions entrypoint is also provided:
+
+```text
+.github/workflows/production-alpha-live.yml
+```
+
+That workflow never accepts the GM password as a workflow input. It reads only the repository secret `DND_ALPHA_GM_PASSWORD` and fails before the live runner starts when the secret is missing.
 
 ## Live flow
 
@@ -69,17 +77,20 @@ The hostile test Skills intentionally deal zero damage so the live validation ca
 
 ## Safety gates
 
-The live runner has the following safeguards:
+The live runner and workflow have the following safeguards:
 
-- requires `DND_ALPHA_EXECUTE=1` before any network request;
-- requires `DND_ALPHA_GM_PASSWORD` at execution time;
-- never commits or prints the GM password;
-- creates a fresh timestamped `alpha-e2e-*` Player/content set;
-- uses separate GM and Player session cookie jars;
-- aborts before creating test data when an active Combat already exists;
-- caps repeated Player attack attempts;
-- does not issue broad D1 deletes or hard-delete unrelated campaign data;
-- archives the test Scenario after success.
+- require explicit manual execution before production-writing mode is entered;
+- require `DND_ALPHA_EXECUTE=1` before the runner makes any network request;
+- require `DND_ALPHA_GM_PASSWORD` at execution time;
+- do not accept the GM password as a normal workflow-dispatch input;
+- never commit or print the GM password;
+- create a fresh timestamped `alpha-e2e-*` Player/content set;
+- use separate GM and Player session cookie jars;
+- abort before creating test data when an active Combat already exists;
+- cap repeated Player attack attempts;
+- do not issue broad D1 deletes or hard-delete unrelated campaign data;
+- archive the test Scenario after success;
+- serialize manual live runs through a dedicated GitHub Actions concurrency group.
 
 Because the current Canonical application does not expose broad destructive cleanup APIs, successful or failed live runs may leave clearly named `alpha-e2e-*` audit/test entities in D1. They are deliberately identifiable and must not be cleaned up with unscoped SQL.
 
@@ -91,7 +102,7 @@ Plan-only / CI-safe check:
 node scripts/production-alpha-e2e.mjs
 ```
 
-Authorised production write run:
+Authorised production write run from a trusted shell:
 
 ```bash
 DND_ALPHA_EXECUTE=1 \
@@ -100,7 +111,17 @@ DND_ALPHA_GM_PASSWORD='<operator-supplied password>' \
 node scripts/production-alpha-e2e.mjs
 ```
 
-Optional variables:
+### GitHub Actions live run
+
+Configure this repository secret before using the manual workflow:
+
+```text
+DND_ALPHA_GM_PASSWORD
+```
+
+Then run **Production Alpha Live Playtest** from GitHub Actions. The workflow has optional non-secret inputs for a custom `run_id` and maximum attack attempts. The Admin password itself must remain in the repository secret and must not be copied into the workflow YAML or dispatch inputs.
+
+Optional runner variables:
 
 ```text
 DND_ALPHA_BASE_URL
@@ -114,7 +135,7 @@ The default base URL is the direct production Worker URL rather than the custom 
 
 ## Completion rule
 
-Do not mark the live Alpha integration milestone complete merely because this script exists or passes syntax checks.
+Do not mark the live Alpha integration milestone complete merely because the script/workflow exists or passes syntax checks.
 
 It becomes complete only after an authorised execution returns:
 
