@@ -2,7 +2,8 @@
 
 > Status: Canonical MVP Implementation Contract  
 > Date: 2026-08-24  
-> Scope: Minimum narrative/context layer required before Monster Runtime is integrated into the first end-to-end scenario.
+> Scope: Minimum narrative/context layer required before Monster Runtime is integrated into the first end-to-end scenario.  
+> **2026-08-26 integration note:** `WORLD_MAP_STORY_RUNTIME_ALPHA.md` supersedes the older metadata-only / fully-Deferred Map boundary in this file. Existing Scene Map metadata remains a compatibility field until the structured World/Map runtime replaces it.
 
 ---
 
@@ -21,6 +22,19 @@ Campaign
 ```
 
 Combat remains the authoritative Round / Turn runtime. Scenario / Scene / Encounter provide story and encounter context around that runtime rather than duplicating it.
+
+The active Alpha now extends this relationship with the World/Map runtime defined in `WORLD_MAP_STORY_RUNTIME_ALPHA.md`:
+
+```text
+Scenario Definition
+→ Scenario Run
+→ Scene Definition
+→ Scene Run
+→ reusable Location / Map Template reference
+→ Runtime Map Instance
+→ Encounter
+→ optional Combat on the same Map Instance
+```
 
 ---
 
@@ -43,9 +57,9 @@ If multi-campaign support is required later, Scenario ownership can be migrated 
 
 # 3. Scenario
 
-A Scenario is a persistent adventure-level container inside the current Campaign.
+A Scenario is a persistent adventure-level definition/container inside the current Campaign.
 
-Stored fields:
+Stored MVP fields:
 
 ```text
 Scenario ID
@@ -66,15 +80,17 @@ completed
 archived
 ```
 
-The MVP does not implement branching story graphs, automatic narrative generation, rewards, quest chains or publishing.
+The existing Scenario record is definition/context data. Runtime playthrough state is being separated into Scenario / Scene Run instances by `WORLD_MAP_STORY_RUNTIME_ALPHA.md` so repeated groups/runs do not overwrite one another.
+
+The current Alpha does not require automatic narrative generation, Word import or free-form story compilation.
 
 ---
 
 # 4. Scene
 
-A Scene belongs to exactly one Scenario.
+A Scene belongs to exactly one Scenario definition.
 
-Stored fields:
+Stored MVP fields currently include:
 
 ```text
 Scene ID
@@ -84,9 +100,9 @@ Description
 GM Notes
 Sort Order
 Status
-Map Name
-Map Asset Reference
-Map GM Notes
+legacy Map Name
+legacy Map Asset Reference
+legacy Map GM Notes
 created / updated timestamps
 ```
 
@@ -100,9 +116,9 @@ completed
 
 Scene status is GM-controlled in this slice. The system does not yet force a strictly linear progression graph.
 
-## 4.1 Map boundary
+## 4.1 Structured Map boundary — superseded Alpha direction
 
-Map support in this MVP is metadata only:
+The original Foundation implemented only Scene Map metadata:
 
 ```text
 Map Name
@@ -110,24 +126,45 @@ Asset Reference
 GM Notes
 ```
 
-The following remain Deferred:
+Those fields remain readable for compatibility, but they are no longer the target Map model.
+
+The active Alpha Map direction is defined by `WORLD_MAP_STORY_RUNTIME_ALPHA.md`:
 
 ```text
-token dragging
-movement distance
-grid dimensions
-terrain cost
-walls / doors
-line of sight
-fog of war
-cover
-AoE templates
-large-creature footprints
-collision
-forced movement
+reusable World Location / Map Template
+→ Scene-specific Map Configuration
+→ Runtime Map Instance
+→ entity positions / runtime state
 ```
 
-Existing Canonical adjacency remains unchanged:
+The following are therefore **promoted into the current Alpha integration path**:
+
+```text
+structured grid dimensions
+walkable / blocked cells
+walls / blocking doors
+runtime Map Instance
+Character / Monster / Boss positions
+9-grid / eight-direction adjacency
+one-cell Alpha Move
+no diagonal wall-corner cutting
+Player-token visibility with GM overrides
+zones / spawn points required for Story/Encounter integration
+```
+
+Advanced VTT features remain Deferred, including:
+
+```text
+advanced line of sight / lighting
+fog-of-war simulation
+cover percentages
+AoE drawing tools
+large-creature footprints
+terrain movement multipliers
+forced-movement edge cases
+```
+
+Canonical adjacency is:
 
 ```text
 eight surrounding cells are adjacent
@@ -135,7 +172,12 @@ including diagonals
 adjacent distance = 1
 ```
 
-Do not invent a permanent movement-per-turn grid count in this slice.
+The current Alpha movement rule is now explicitly:
+
+```text
+1 ordinary Move
+→ at most 1 legal adjacent cell
+```
 
 ---
 
@@ -168,6 +210,15 @@ skipped
 
 Not every Encounter must create Combat. Social, exploration, puzzle and trap encounters can resolve without Combat.
 
+The World/Map runtime may additionally bind an Encounter to structured spatial context such as:
+
+```text
+trigger Zone
+spawn points
+runtime Map Instance
+Story Event activation
+```
+
 ---
 
 # 6. Encounter Participants
@@ -180,15 +231,11 @@ monster_instance
 boss_instance
 ```
 
-However this Foundation slice only allows GM assignment of:
+The Foundation originally enabled active Player Character assignment first; later Monster and Boss runtime slices have since implemented those entity types.
 
-```text
-active Player Characters
-```
+The server validates runtime entities rather than trusting browser-supplied display information.
 
-`monster_instance` and `boss_instance` are reserved for the following runtime slices and must not be faked before those entities exist.
-
-Player Characters are associated with the Encounter before starting its Combat. The server validates Character existence and active status rather than trusting browser-supplied display information.
+Where positioned on a Runtime Map Instance, participants use the shared spatial position model defined by `WORLD_MAP_STORY_RUNTIME_ALPHA.md`.
 
 ---
 
@@ -204,7 +251,7 @@ Encounter
 An Encounter may resolve without Combat. If the GM starts Combat from an Encounter:
 
 ```text
-Encounter Character participants
+Encounter runtime participants
 → existing Combat Start resolver
 → DEX Initiative / Turn state
 → Combat linked back to Encounter
@@ -213,7 +260,18 @@ Encounter Character participants
 
 The existing Combat engine remains authoritative. Scenario code must not create a second Round / Turn model.
 
-For this MVP, one Encounter may link to at most one Combat. Multi-wave encounters requiring several separate Combats are a future extension after the first end-to-end scenario test.
+The World/Map integration adds one important invariant:
+
+```text
+Exploration position
+→ Start Combat
+→ same Runtime Map Instance
+→ same x/y
+```
+
+Combat does not automatically teleport or re-layout participants. Ending Combat also does not automatically discard Map positions.
+
+For this MVP, one Encounter may link to at most one Combat. Multi-wave encounters requiring several separate Combats remain a later extension.
 
 Ending Combat does not automatically mark the Encounter `resolved`; the GM records resolution explicitly so non-combat objectives and narrative consequences can be completed first.
 
@@ -227,42 +285,56 @@ Normal Players do not author or arbitrarily mutate narrative structure in this s
 
 All persistent state is stored in D1. Browser localStorage is not authoritative Scenario storage.
 
+The GM also owns World/Map authoring and runtime visibility overrides. Normal Players may move only their authorised Character through server-side movement resolvers.
+
 The MVP intentionally provides status updates rather than destructive hard-delete flows, avoiding premature deletion / archive semantics for linked story data.
 
 ---
 
-# 9. First Scenario Test Target
+# 9. Revised Playable Scenario Target
 
-The first representative vertical slice should support:
+The earlier representative vertical slice proved that Scenario → Encounter → Combat relationships could connect. The current Alpha target is now a genuinely spatial Story loop:
 
 ```text
-Create Scenario
-→ Create Scene
-→ Create Encounter
-→ associate Player Characters
-→ Start Encounter Combat
-→ later spawn Monster Instance(s)
+Create / select Scenario Definition
+→ start Scenario Run
+→ activate Scene Run
+→ bind reusable Location / Map Template
+→ create Runtime Map Instance
+→ place Character(s)
+→ Player sees Current Location + Map
+→ Player uses 9-grid movement
+→ entering / interacting with structured Map context can fire Story Event
+→ Story Event activates Encounter / approved effects
+→ Monster / Boss uses Spawn Point / Map position
+→ Start Combat on the same Map Instance
+→ Combat Move uses the same position model
 → complete Combat
-→ mark Encounter resolved
-→ mark / continue Scene
+→ resolve Encounter
+→ continue Scene with positions / runtime state preserved
 ```
 
-A simple Boss may then be added as the next validation layer.
+This is the next real playable E2E target.
 
 ---
 
 # 10. Deferred Systems
 
-The following remain outside this Foundation slice unless they become a genuine blocker:
+The following remain outside the immediate World/Map/Story runtime slice unless they become a genuine blocker:
 
 ```text
-full tactical Map engine
-Quest engine
-story branching graph executor
-automatic Scene transitions
-loot / rewards
+AI Story Generator
+Word / Google Docs story importer
+Adventure Script Template implementation
+free-form narrative compiler
+Quest automation
+advanced story branching graph editor
+loot / rewards automation
 economy
 Encounter difficulty calculator
 multi-Combat Encounter waves
 Player-authored Scenario structure
+advanced VTT lighting / line-of-sight / cover / AoE
 ```
+
+The future Story Import / Generator direction should first define an Adventure Script Template so imported/generated material can be translated into structured Scenario / Scene / Map / Event / Encounter drafts more reliably.
