@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Admin access for D&D Campaign Hub">
+  <title>Admin Access · D&D Campaign Hub</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/auth.css">
+  <script type="module" src="/assets/admin-auth.js"></script>
+</head>
+<body class="auth-body" data-admin-page="login">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <a class="auth-brand" href="/"><span class="brand-dot gm-dot">GM</span><span><strong>D&D Campaign Hub</strong><small>Admin Access</small></span></a>
+      <div class="auth-copy">
+        <p class="eyebrow">ADMIN ACCESS</p>
+        <h1>進入 GM 控制台</h1>
+        <p>GM 就係 Admin。使用獨立 Admin Username 同強密碼登入；Player User / 4-digit Key 唔可以進入呢度。</p>
+      </div>
+      <form id="admin-login-form" class="auth-form" autocomplete="off">
+        <label class="field"><span>Admin Username</span><input id="admin-username" class="input" name="username" type="text" minlength="3" maxlength="32" autocomplete="username" required autofocus></label>
+        <label class="field"><span>Admin Password</span><input id="admin-password" class="input" name="password" type="password" minlength="12" maxlength="128" autocomplete="current-password" required></label>
+        <div id="admin-auth-status" class="auth-status" hidden role="status" aria-live="polite"></div>
+        <button id="admin-login-submit" class="button button-full" type="submit">進入 GM 控制台</button>
+      </form>
+      <div class="auth-links"><a href="/gm/setup/">首次建立 Admin</a> · <a href="/player/login/">Player Access</a></div>
+    </section>
+  </main>
+</body>
+</html>
