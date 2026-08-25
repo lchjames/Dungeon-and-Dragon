@@ -8,7 +8,7 @@ let combatTimer = null;
 async function api(url, options={}) {
   const response = await fetch(url,{credentials:'same-origin',headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})},...options});
   let payload=null; try{payload=await response.json();}catch{}
-  if(response.status===401){location.replace(`/player/login/?next=${encodeURIComponent('/gm/#bosses')}`);throw new Error('Session expired.');}
+  if(response.status===401){location.replace(`/gm/login/?next=${encodeURIComponent('/gm/#bosses')}`);throw new Error('Session expired.');}
   if(!response.ok) throw new Error(payload?.error?.message||'Request failed.');
   return payload;
 }
