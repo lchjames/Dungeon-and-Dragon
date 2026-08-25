@@ -53,7 +53,8 @@ jobs:
 
       - name: Show tested revision
         shell: bash
-        run: git log -1 --format='Live playtest revision: %H %s'
+        run: |
+          git log -1 --format='Live playtest revision: %H %s'
 
       - name: Run production Alpha E2E
         env:
