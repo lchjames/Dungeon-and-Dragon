@@ -7,9 +7,12 @@ const DEFAULT_MIN_PASSWORD_LENGTH = 12;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const ALPHA_GM_USERNAME = 'gm';
 const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
-const ALPHA_GM_PASSWORD_HASH = 'LLqx99EyLTehxFYcJVyIK60jLu+B948YOzuv8dHPO/g=';
+// Temporary Alpha-only compatibility value. Workers/workerd currently rejects
+// PBKDF2 iteration counts above 100,000. Do not copy this into the long-term
+// Admin credential design; replace the production Admin KDF before Alpha exit.
+const ALPHA_GM_PASSWORD_HASH = 'cxzoZ2CTjgCw1w404Fc/z8eVgc5JuGcI6i15Ng/0GO0=';
 const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
-const ALPHA_GM_PASSWORD_ITERATIONS = 210000;
+const ALPHA_GM_PASSWORD_ITERATIONS = 100000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_SECONDS = 15 * 60;
 let loginSchemaPromise = null;
@@ -272,10 +275,10 @@ export default {
       if (error?.status) {
         return apiError(error.message || 'Admin authentication failed.', error.status, error.code || 'ADMIN_AUTH_ERROR');
       }
-      if (String(error?.message || '').includes('D1 binding DB is unavailable')) {
+      if (String(error?.message || error).includes('D1 binding DB is unavailable')) {
         return apiError('資料庫尚未完成配置。', 503, 'DATABASE_UNAVAILABLE');
       }
-      return apiError('Admin authentication runtime 暫時無法使用。', 500, 'ADMIN_AUTH_RUNTIME_ERROR');
+      return apiError('Admin authentication runtime 暫時無法使用。', 500, error?.stage === 'pbkdf2' ? 'ADMIN_AUTH_PBKDF2_RUNTIME_ERROR' : 'ADMIN_AUTH_RUNTIME_ERROR');
     }
   }
 };
