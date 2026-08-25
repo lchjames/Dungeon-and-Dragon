@@ -24,8 +24,8 @@ async function api(url, options = {}) {
   let payload = null;
   try { payload = await response.json(); } catch { payload = null; }
   if (response.status === 401) {
-    location.replace(`/player/login/?next=${encodeURIComponent('/gm/')}`);
-    throw new Error('Session expired.');
+    location.replace(`/gm/login/?next=${encodeURIComponent('/gm/')}`);
+    throw new Error('Admin session expired.');
   }
   if (!response.ok) throw new Error(payload?.error?.message || 'Request failed.');
   return payload;
@@ -52,8 +52,8 @@ function renderDashboard() {
   $('#metric-drafts').textContent = metrics.draftCharacters ?? 0;
   const campaignName = $('#campaign-name');
   if (campaignName) campaignName.textContent = bootstrap?.campaign?.name || 'D&D Campaign';
-  $('#dashboard-gm-name').textContent = bootstrap?.user?.displayName || 'GM';
-  $('#dashboard-gm-role').textContent = bootstrap?.user?.role || 'gm';
+  $('#dashboard-gm-name').textContent = bootstrap?.user?.displayName || 'Admin';
+  $('#dashboard-gm-role').textContent = bootstrap?.user?.role || 'admin';
 
   const recent = [...(bootstrap?.characters || [])]
     .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
@@ -291,9 +291,9 @@ $$('[data-exp-mode]').forEach(button => button.addEventListener('click', () => u
 $('#close-gm-character')?.addEventListener('click', () => renderCharacterDetail(null));
 $('#gm-logout')?.addEventListener('click', async () => {
   try {
-    await api('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) });
+    await api('/api/admin/auth/logout', { method: 'POST', body: JSON.stringify({}) });
   } finally {
-    location.replace('/player/login/?next=%2Fgm%2F');
+    location.replace('/gm/login/');
   }
 });
 bindThemeToggle($('#theme-toggle'));
