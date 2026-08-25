@@ -28,7 +28,7 @@
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--surface);
+  background: var(--panel);
 }
 
 .map-editor-grid {
@@ -46,7 +46,8 @@
   width: var(--map-cell-size);
   height: var(--map-cell-size);
   border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
-  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  background: color-mix(in srgb, var(--panel2) 80%, transparent);
+  color: var(--text);
   cursor: pointer;
   padding: 0;
   font: inherit;
@@ -54,7 +55,7 @@
 
 .map-editor-cell:hover,
 .map-editor-cell.selected {
-  outline: 2px solid currentColor;
+  outline: 2px solid var(--gm);
   outline-offset: -2px;
   z-index: 4;
 }
@@ -68,7 +69,7 @@
   content: '';
   position: absolute;
   inset: 5px;
-  border: 2px dashed currentColor;
+  border: 2px dashed var(--gm);
   border-radius: 6px;
   pointer-events: none;
 }
@@ -79,6 +80,7 @@
   inset: 0;
   display: grid;
   place-items: center;
+  color: var(--player);
   font-size: 14px;
   font-weight: 800;
   pointer-events: none;
@@ -86,18 +88,22 @@
 
 .map-editor-cell.edge-n {
   border-top-width: 4px;
+  border-top-color: var(--text);
 }
 
 .map-editor-cell.edge-e {
   border-right-width: 4px;
+  border-right-color: var(--text);
 }
 
 .map-editor-cell.edge-s {
   border-bottom-width: 4px;
+  border-bottom-color: var(--text);
 }
 
 .map-editor-cell.edge-w {
   border-left-width: 4px;
+  border-left-color: var(--text);
 }
 
 .map-editor-cell.door-n::before,
@@ -112,7 +118,8 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--panel);
+  color: var(--gm);
   font-size: 8px;
   font-weight: 800;
   pointer-events: none;
