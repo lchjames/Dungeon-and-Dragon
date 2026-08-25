@@ -1,0 +1,191 @@
+.runtime-map-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.runtime-scene-row,
+.runtime-instance-row {
+  align-items: flex-start;
+}
+
+.runtime-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 16px;
+  align-items: start;
+}
+
+.runtime-map-scroll {
+  overflow: auto;
+  max-height: 72vh;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel2);
+}
+
+.runtime-map-grid {
+  --runtime-map-cell-size: 42px;
+  display: grid;
+  width: max-content;
+  min-width: max-content;
+  position: relative;
+  user-select: none;
+}
+
+.runtime-map-cell {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--runtime-map-cell-size);
+  height: var(--runtime-map-cell-size);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--elev) 82%, transparent);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.runtime-map-cell:hover:not(:disabled) {
+  outline: 2px solid var(--gm);
+  outline-offset: -2px;
+  z-index: 4;
+}
+
+.runtime-map-cell:disabled {
+  cursor: default;
+}
+
+.runtime-map-cell.blocked {
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, currentColor 4px, currentColor 5px);
+  opacity: .58;
+}
+
+.runtime-map-cell.in-zone::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.runtime-map-cell.has-spawn::after {
+  content: '•';
+  position: absolute;
+  right: 2px;
+  bottom: -2px;
+  font-size: 18px;
+  color: var(--gm);
+  pointer-events: none;
+}
+
+.runtime-map-cell.edge-n { border-top-width: 4px; }
+.runtime-map-cell.edge-e { border-right-width: 4px; }
+.runtime-map-cell.edge-s { border-bottom-width: 4px; }
+.runtime-map-cell.edge-w { border-left-width: 4px; }
+
+.runtime-map-cell.door-n::before,
+.runtime-map-cell.door-e::before,
+.runtime-map-cell.door-s::before,
+.runtime-map-cell.door-w::before {
+  content: 'D';
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 8px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.runtime-map-cell.door-n::before { top: -7px; left: calc(50% - 6px); }
+.runtime-map-cell.door-e::before { right: -7px; top: calc(50% - 6px); }
+.runtime-map-cell.door-s::before { bottom: -7px; left: calc(50% - 6px); }
+.runtime-map-cell.door-w::before { left: -7px; top: calc(50% - 6px); }
+
+.runtime-map-cell.door-passable-n { border-top-style: dashed; }
+.runtime-map-cell.door-passable-e { border-right-style: dashed; }
+.runtime-map-cell.door-passable-s { border-bottom-style: dashed; }
+.runtime-map-cell.door-passable-w { border-left-style: dashed; }
+
+.runtime-map-token {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.runtime-map-token.selected {
+  outline: 2px solid var(--gm);
+  outline-offset: 1px;
+}
+
+.runtime-map-inspector {
+  display: grid;
+  gap: 12px;
+  position: sticky;
+  top: 12px;
+}
+
+.runtime-map-inspector .panel {
+  margin: 0;
+}
+
+.runtime-position-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.runtime-position-row span:first-child {
+  display: grid;
+}
+
+.runtime-position-row small {
+  color: var(--muted);
+}
+
+.runtime-position-row.selected {
+  border-color: var(--gm);
+  box-shadow: inset 0 0 0 1px var(--gm);
+}
+
+@media (max-width: 980px) {
+  .runtime-map-columns,
+  .runtime-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .runtime-map-inspector {
+    position: static;
+  }
+}
