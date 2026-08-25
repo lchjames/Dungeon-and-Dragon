@@ -13,6 +13,7 @@ function setStatus(message = '', kind = '') {
 
 function safeNext() {
   const value = new URLSearchParams(location.search).get('next') || '/gm/';
+  if (value === '/gm/setup' || value.startsWith('/gm/setup/')) return '/gm/';
   return (value === '/gm' || value.startsWith('/gm/')) && !value.startsWith('//') ? value : '/gm/';
 }
 
