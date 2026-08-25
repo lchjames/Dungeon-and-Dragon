@@ -1,3 +1,4 @@
+import './gm-hostile-movement.js';
 import { $, escapeHtml, toast, emptyState } from './common.js';
 
 let runtimeMaps = [];
