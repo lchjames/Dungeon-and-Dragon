@@ -5,6 +5,7 @@ const workflow = await readFile(new URL('../.github/workflows/mvp-checks.yml', i
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const releaseDoc = await readFile(new URL('../docs/PRODUCTION_RELEASE_ALPHA.md', import.meta.url), 'utf8');
 const adminGateway = await readFile(new URL('../src/admin-gateway.js', import.meta.url), 'utf8');
+const liveDiagnosticGateway = await readFile(new URL('../src/live-diagnostic-gateway.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -57,6 +58,28 @@ assert.doesNotMatch(seedConflictClause, /locked_until\s*=/, 'Temporary operator 
 assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
 assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
 assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
+
+// Production D1 is long-lived: CREATE TABLE IF NOT EXISTS cannot upgrade an older
+// player_monster_action_log definition. The outer compatibility gateway must
+// inspect the existing columns and add only the missing audit fields before an attack.
+assert.match(liveDiagnosticGateway, /ensurePlayerMonsterAuditCompatibility/);
+assert.match(liveDiagnosticGateway, /PRAGMA table_info\(\$\{table\}\)/);
+assert.match(liveDiagnosticGateway, /ALTER TABLE player_monster_action_log ADD COLUMN \$\{column\} \$\{definition\}/);
+assert.match(liveDiagnosticGateway, /AUDIT_COLUMN_DEFINITIONS/);
+for (const column of [
+  'target_monster_instance_id',
+  'monster_stored_defence',
+  'monster_defence_modifier',
+  'monster_modified_defence',
+  'monster_effective_defence',
+  'monster_final_armor_defence',
+  'monster_status_after'
+]) {
+  assert.match(liveDiagnosticGateway, new RegExp(`${column}:`), `Compatibility migration must define ${column}.`);
+}
+assert.match(liveDiagnosticGateway, /MONSTER_DEFEAT_AUDIT_SCHEMA_MIGRATION_ERROR/);
+assert.doesNotMatch(liveDiagnosticGateway, /DROP TABLE player_monster_action_log/, 'Audit compatibility migration must never drop production audit data.');
+assert.doesNotMatch(liveDiagnosticGateway, /DELETE FROM player_monster_action_log/, 'Audit compatibility migration must never delete production audit rows.');
 
 assert.match(releaseDoc, /Do \*\*not\*\* blindly execute every file under `schema\/`/);
 assert.match(releaseDoc, /Pull requests and feature-branch pushes must never deploy production/);
