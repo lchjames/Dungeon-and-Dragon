@@ -5,6 +5,7 @@ import { dyingRoundsFromCon, resolveDamage, resolveOpposedD100 } from '../src/co
 import { isMonsterActionable, resolveMonsterHpDamage } from '../src/monster-life.js';
 import { isBossActionable, resolveBossHpDamage } from '../src/boss-life.js';
 
+const adminAuth = await readFile(new URL('../src/admin-auth.js', import.meta.url), 'utf8');
 const scenario = await readFile(new URL('../src/scenario.js', import.meta.url), 'utf8');
 const monster = await readFile(new URL('../src/monster.js', import.meta.url), 'utf8');
 const monsterDefence = await readFile(new URL('../src/monster-defence.js', import.meta.url), 'utf8');
@@ -17,8 +18,9 @@ const playerCombat = await readFile(new URL('../public/assets/player-combat.js',
 const gmStory = await readFile(new URL('../public/assets/gm-story.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-// Production gateway chain: the playable Scenario must pass through every runtime layer.
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/boss-defeat\.js"/);
+// Production gateway chain: Admin auth is the outer boundary around the playable runtime.
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-auth\.js"/);
+assert.match(adminAuth, /import baseWorker from '\.\/boss-defeat\.js'/);
 assert.match(bossDefeat, /import baseWorker from '\.\/boss-runtime\.js'/);
 assert.match(bossRuntime, /import baseWorker from '\.\/boss\.js'/);
 assert.match(boss, /import baseWorker from '\.\/monster-defeat\.js'/);
