@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/admin-auth.js', import.meta.url), 'utf8');
 const core = await readFile(new URL('../src/admin-auth-core.js', import.meta.url), 'utf8');
@@ -37,6 +37,11 @@ assert.doesNotMatch(loginHtml, /\/gm\/setup\//, 'Admin login must not advertise 
 assert.doesNotMatch(loginHtml, /首次建立 Admin/, 'Admin creation CTA must stay removed.');
 assert.doesNotMatch(loginHtml, /name=["']key["']/i, 'Admin login form must not contain a Player Key field.');
 assert.match(loginJs, /\/api\/admin\/auth\/login/);
+assert.match(loginJs, /value === '\/gm\/setup'/, 'Login next-path sanitization must reject retired setup URLs.');
+assert.doesNotMatch(loginJs, /Initial Admin Setup/, 'Login guidance must not direct legacy accounts to a public setup form.');
+
+await assert.rejects(access(new URL('../public/gm/setup/index.html', import.meta.url)), 'Public GM setup HTML must not be shipped.');
+await assert.rejects(access(new URL('../public/assets/gm-setup.js', import.meta.url)), 'Public GM setup JavaScript must not be shipped.');
 
 assert.match(canonical, /不可由網站建立/);
 assert.match(canonical, /deployment \/ database/);
