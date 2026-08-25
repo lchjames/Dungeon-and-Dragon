@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
+  // Outer login compatibility gateway; all non-login requests delegate to "./src/admin-auth.js".
   "main": "./src/admin-gateway.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
