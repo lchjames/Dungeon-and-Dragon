@@ -82,10 +82,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE_URL="https://dungeon-and-dragon.lchjames.com"
+          CUSTOM_DOMAIN="https://dungeon-and-dragon.lchjames.com"
+          WORKER_BASE="https://dnd.apswsttss.workers.dev"
 
-          request() {
-            local path="$1"
+          request_url() {
+            local url="$1"
             local header_file="$2"
             local body_file="$3"
             curl \
@@ -99,15 +100,32 @@ jobs:
               --output "$body_file" \
               --dump-header "$header_file" \
               --write-out '%{http_code}' \
-              "$BASE_URL$path"
+              "$url"
           }
+
+          request_worker() {
+            local path="$1"
+            request_url "$WORKER_BASE$path" /tmp/headers /tmp/body
+          }
+
+          # The custom domain may intentionally challenge headless CI traffic.
+          # Treat a normal HTTP response or Cloudflare's explicit challenge marker
+          # as proof that the custom-domain edge wiring resolves to Cloudflare.
+          edge_status="$(request_url "$CUSTOM_DOMAIN/" /tmp/edge-headers /tmp/edge-body)"
+          edge_mitigation="$(awk 'BEGIN{IGNORECASE=1} /^cf-mitigated:/ {sub(/\r$/, "", $0); sub(/^[^:]+:[[:space:]]*/, "", $0); print; exit}' /tmp/edge-headers)"
+          if [[ ! "$edge_status" =~ ^[23][0-9][0-9]$ && !( "$edge_status" == "403" && "$edge_mitigation" == "challenge" ) ]]; then
+            echo "Custom domain edge check failed: status=$edge_status cf-mitigated=$edge_mitigation"
+            cat /tmp/edge-headers || true
+            head -c 1000 /tmp/edge-body || true
+            exit 1
+          fi
 
           expect_2xx() {
             local path="$1"
             local status
-            status="$(request "$path" /tmp/headers /tmp/body)"
+            status="$(request_worker "$path")"
             if [[ ! "$status" =~ ^2[0-9][0-9]$ ]]; then
-              echo "Expected 2xx for $path, got $status"
+              echo "Expected 2xx for workers.dev $path, got $status"
               cat /tmp/headers || true
               head -c 1000 /tmp/body || true
               exit 1
@@ -117,10 +135,10 @@ jobs:
           expect_redirect_to_login() {
             local path="$1"
             local status location
-            status="$(request "$path" /tmp/headers /tmp/body)"
+            status="$(request_worker "$path")"
             location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, "", $0); sub(/^[^:]+:[[:space:]]*/, "", $0); print; exit}' /tmp/headers)"
             if [[ "$status" != "302" || "$location" != *"/player/login/"* ]]; then
-              echo "Expected 302 login redirect for $path, got status=$status location=$location"
+              echo "Expected 302 login redirect for workers.dev $path, got status=$status location=$location"
               cat /tmp/headers || true
               exit 1
             fi
@@ -131,9 +149,9 @@ jobs:
           expect_redirect_to_login "/player/"
           expect_redirect_to_login "/gm/"
 
-          auth_status="$(request "/api/auth/me" /tmp/headers /tmp/body)"
+          auth_status="$(request_worker "/api/auth/me")"
           if [[ "$auth_status" != "401" ]]; then
-            echo "Expected unauthenticated /api/auth/me to return 401, got $auth_status"
+            echo "Expected unauthenticated workers.dev /api/auth/me to return 401, got $auth_status"
             cat /tmp/headers || true
             head -c 1000 /tmp/body || true
             exit 1
