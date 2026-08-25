@@ -15,6 +15,11 @@ assert.match(gateway, /pathname === '\/api\/admin\/provision-initial-gm'/, 'The 
 assert.match(gateway, /isGmSetupPath/, 'The historical GM setup page must be intercepted.');
 assert.match(gateway, /new URL\('\/gm\/login\/'/, 'GM setup requests must return to login, never to a creation form.');
 assert.match(gateway, /return authCore\.fetch\(request, env\)/, 'Normal authenticated traffic must still delegate to the existing Admin auth core.');
+assert.match(gateway, /PRAGMA table_info\(/, 'Live Admin auth must inspect legacy D1 columns before delegation.');
+assert.match(gateway, /ALTER TABLE \$\{table\} ADD COLUMN/, 'Live Admin auth must add missing legacy columns idempotently.');
+assert.match(gateway, /ensureAdminAuthCompatibility/, 'Admin auth compatibility migration must run before the core auth path.');
+assert.match(gateway, /password_iterations.*INTEGER NOT NULL DEFAULT 0/s, 'Legacy users must gain the Admin password iteration field when missing.');
+assert.match(gateway, /last_seen_at.*INTEGER NOT NULL DEFAULT 0/s, 'Legacy sessions must gain last_seen_at when missing.');
 
 assert.match(core, /import baseWorker from '\.\/boss-defeat\.js'/, 'Admin auth core must still delegate to the gameplay runtime.');
 assert.match(core, /ADMIN_PBKDF2_ITERATIONS\s*=\s*210000/, 'Admin passwords must use a dedicated slow hash.');
