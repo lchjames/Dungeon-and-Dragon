@@ -8,22 +8,24 @@ The application is a Cloudflare Worker + Static Assets + D1 Campaign Hub.
 
 Primary routes:
 
-- `/player/login/` — shared User login with visible User name + 4-digit Key
+- `/player/login/` — Player-only login with visible User name + 4-digit Key
 - `/player/register/` — create a normal `player` User
 - `/player/` — protected Player workspace backed by D1
-- `/gm/setup/` — one-time initial GM bootstrap flow
-- `/gm/` — protected D1-authoritative GM workspace for `gm` / `admin`
+- `/gm/login/` — dedicated Admin login with Admin Username + strong password
+- `/gm/setup/` — one-time direct Admin provisioning / legacy credential migration
+- `/gm/` — protected D1-authoritative GM workspace; GM = Admin
 
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/boss-defeat.js
+src/admin-auth.js
 ```
 
 The Worker is intentionally layered:
 
 ```text
-boss-defeat.js
+admin-auth.js
+→ boss-defeat.js
 → boss-runtime.js
 → boss.js
 → monster-defeat.js
@@ -41,9 +43,13 @@ boss-defeat.js
 → worker.js
 ```
 
+`admin-auth.js` is the outer identity boundary. It separates Player and Admin authentication, protects `/gm/*` and `/api/gm/*` as Admin-only, protects Player routes as Player-only, owns `/gm/login/` and direct Admin setup, and normalizes legacy `role = gm` data to `role = admin`.
+
+`gm-provision.js` remains in the historical gateway chain only as a compatibility tombstone; Player → GM promotion is retired and returns `410 GM_PROVISIONING_SUPERSEDED`.
+
 `boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn. It also preflights Boss participants before a Boss-enabled Encounter delegates to the lower Character/Monster Combat-start layers, and performs best-effort cleanup if a later Boss augmentation failure leaves a newly-created Encounter Combat link.
 
-`boss-defeat.js` is the outer Boss combat/life-state boundary. It owns Player → Boss attack resolution, Boss Armor-aware damage, Boss HP0 → immediate `defeated`, GM Current HP status reconciliation and the Player → Boss audit path.
+`boss-defeat.js` is the outer Boss combat/life-state boundary below Admin auth. It owns Player → Boss attack resolution, Boss Armor-aware damage, Boss HP0 → immediate `defeated`, GM Current HP status reconciliation and the Player → Boss audit path.
 
 Each layer handles scoped routes and delegates all other requests down the chain.
 
@@ -117,15 +123,29 @@ server rolls Attributes
 
 Player cannot choose arbitrary starting Level or directly edit canonical HP / MP numeric values.
 
-## GM MVP
+## GM / Admin MVP
 
-GM access uses the same User/session system as Player access.
+GM = Admin. Admin identity is not a Player subtype and does not use the Player 4-digit Key credential.
 
-Allowed roles:
+Canonical persistent roles:
 
 ```text
-gm
+player
 admin
+```
+
+Legacy `role = gm` rows are migration input only and are normalized to `admin`; new writes must not create `gm`.
+
+Authentication boundaries:
+
+```text
+/player/login/
+→ Player User + 4-digit Key
+→ role = player only
+
+/gm/login/
+→ Admin Username + strong password
+→ role = admin only
 ```
 
 Current GM workspace supports:
@@ -165,21 +185,31 @@ Current GM workspace supports:
 
 The old localStorage GM Character editor is not an authoritative MVP path.
 
-## Initial GM provisioning
+## Initial Admin provisioning
 
-Normal registration always creates `role = player`.
+Normal Player registration always creates `role = player` and can never promote itself to Admin.
 
-Before the first production GM is provisioned, configure:
+The first Admin is created directly at `/gm/setup/` using a one-time Worker provisioning secret plus a new Admin Username and strong password. No Player account is required or promoted.
 
-```bash
-npx wrangler secret put INITIAL_GM_PROVISION_TOKEN
+Preferred Worker secret:
+
+```text
+INITIAL_ADMIN_PROVISION_TOKEN
 ```
 
-Then log in as the intended first GM, open `/gm/setup/`, and submit the Secret once. The current User becomes `gm`; once any `gm/admin` exists, bootstrap closes. The route cannot target another User or create an `admin` role.
+During the Alpha migration, the existing `INITIAL_GM_PROVISION_TOKEN` name is accepted as a legacy fallback so an already-configured production secret can be reused safely.
+
+If production contains exactly one legacy Player-Key-backed `gm` account, runtime first normalizes the role to `admin`; `/gm/setup/` can then replace that legacy credential with the dedicated Admin Username + strong password while preserving the existing User ID. Once a fully provisioned Admin exists, initial setup closes.
+
+The historical endpoint `POST /api/admin/provision-initial-gm` is retired and returns `410 GM_PROVISIONING_SUPERSEDED`.
+
+See `docs/GM_INITIAL_PROVISIONING_MVP.md`.
 
 ## Authentication note
 
-The visible access UX intentionally uses a short 4-digit Key. The server stores a salted hash rather than the plain Key and sessions use Secure + HttpOnly cookies. Further credential-hardening remains a separate security backlog item.
+Player access intentionally uses the lightweight User + 4-digit Key UX. Admin access does not reuse it.
+
+Admin credentials use a dedicated strong-password path with PBKDF2-HMAC-SHA256, 210,000 iterations, a random 16-byte salt, and a 256-bit derived hash. Admin passwords require at least 12 characters; 16+ is recommended. Both Player and Admin sessions are server-side D1 sessions exposed through Secure + HttpOnly + SameSite=Lax cookies, while route authorization remains role-specific.
 
 ## Combat state MVP
 
@@ -518,9 +548,12 @@ node tests/boss-rules.test.mjs
 node tests/boss-life.test.mjs
 node tests/static-ui-contract.test.mjs
 node tests/boss-defeat-contract.test.mjs
+node tests/admin-auth-contract.test.mjs
 node tests/deployment-contract.test.mjs
 node tests/mvp-scenario-e2e.test.mjs
 ```
+
+`tests/admin-auth-contract.test.mjs` protects the Player/Admin identity split, dedicated Admin credential path, retired Player→GM promotion route and Admin outer gateway.
 
 `tests/mvp-scenario-e2e.test.mjs` is the permanent combined source-level regression gate for the Scenario → Encounter → Character/Monster/Boss → Combat → defeat lifecycle path. It also protects the Boss Encounter-start preflight / partial-start cleanup invariant.
 
@@ -537,6 +570,7 @@ push to main
 → node-checks SUCCESS
 → Deploy Cloudflare production
 → npx --yes wrangler@4 deploy
+→ challenge-aware production route smoke
 ```
 
 The deployment job reads these GitHub Actions repository secrets:
@@ -549,6 +583,8 @@ CLOUDFLARE_ACCOUNT_ID
 It deploys Worker `dnd`, the `./public` static assets, D1 binding `DB → dnd-db`, and the custom domain `dungeon-and-dragon.lchjames.com` according to `wrangler.jsonc`.
 
 The automatic path was verified successfully on 2026-08-25. Manual Wrangler deployment is now fallback-only for CI/CD recovery or controlled rollback.
+
+The custom domain may return a Cloudflare managed challenge to headless CI. The deployment smoke therefore verifies custom-domain edge reachability separately and runs precise application/auth assertions against the direct `dnd.apswsttss.workers.dev` Worker URL.
 
 Do **not** blindly replay every file in `schema/` against an existing production D1 database; later additive schema paths include guarded runtime initialization and some reference SQL is non-idempotent. See `docs/PRODUCTION_RELEASE_ALPHA.md` for the Canonical release and rollback procedure.
 
@@ -566,8 +602,9 @@ Boss Profile / Boss Instance runtime                 implemented MVP path
 Boss HP0 + Player ↔ Boss combat loop                 implemented MVP path
 First Scenario end-to-end integration gate          implemented
 Automatic Cloudflare production deployment          verified
+Player / Admin authentication separation            implemented Alpha correction
 ```
 
-The project is now in **Alpha Integration / Usability Tuning**. The next validation is a live browser + production D1 Scenario session that exercises the complete flow with real Character, Monster and Boss data.
+The project is in **Alpha Integration / Usability Tuning**. The next validation is a live browser + production D1 Scenario session using the dedicated Admin login and a separate Player session, exercising the complete flow with real Character, Monster and Boss data.
 
 Advanced Monster/Boss AI, exact balance curves, full tactical Map rules, economy, loot and Quest automation remain later work unless they become a concrete Alpha blocker.
