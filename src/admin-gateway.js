@@ -7,7 +7,7 @@ const DEFAULT_MIN_PASSWORD_LENGTH = 12;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const ALPHA_GM_USERNAME = 'gm';
 const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
-const ALPHA_GM_PASSWORD_SHA256 = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
+const ALPHA_GM_PASSWORD_BYTES = Uint8Array.of(112, 97, 115, 115, 119, 111, 114, 100);
 const ALPHA_GM_PASSWORD_HASH = 'LLqx99EyLTehxFYcJVyIK60jLu+B948YOzuv8dHPO/g=';
 const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
 const ALPHA_GM_PASSWORD_ITERATIONS = 210000;
@@ -58,9 +58,13 @@ function derivePassword(password, salt, iterations) {
 }
 
 function alphaGmPasswordMatches(password) {
-  const actual = createHash('sha256').update(password, 'utf8').digest();
-  const expected = Buffer.from(ALPHA_GM_PASSWORD_SHA256, 'hex');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  const actual = new TextEncoder().encode(password);
+  if (actual.length !== ALPHA_GM_PASSWORD_BYTES.length) return false;
+  let difference = 0;
+  for (let index = 0; index < actual.length; index += 1) {
+    difference |= actual[index] ^ ALPHA_GM_PASSWORD_BYTES[index];
+  }
+  return difference === 0;
 }
 
 function sessionCookie(token) {
@@ -228,9 +232,9 @@ async function adminLogin(request, env) {
     await env.DB.prepare('UPDATE users SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?')
       .bind(shouldLock ? 0 : attempts, shouldLock ? now + LOCK_SECONDS * 1000 : null, now, user.id).run();
     return apiError(
-      shouldLock ? '登入錯誤次數過多，Admin 帳戶已暫時鎖定。' : 'Admin Username 或密碼不正確。',
+      shouldLock ? '登入錯誤次數過多，Admin 帳戶已暫時鎖定。' : (username === ALPHA_GM_USERNAME ? 'Alpha GM fixed password mismatch.' : 'Admin Username 或密碼不正確。'),
       shouldLock ? 429 : 401,
-      shouldLock ? 'ADMIN_TEMPORARILY_LOCKED' : 'INVALID_ADMIN_CREDENTIALS'
+      shouldLock ? 'ADMIN_TEMPORARILY_LOCKED' : (username === ALPHA_GM_USERNAME ? 'ALPHA_GM_FIXED_PASSWORD_MISMATCH' : 'INVALID_ADMIN_CREDENTIALS')
     );
   }
 
