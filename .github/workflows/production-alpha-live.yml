@@ -56,6 +56,13 @@ jobs:
         run: |
           git log -1 --format='Live playtest revision: %H %s'
 
+      - name: Clean guarded stale Alpha Combat
+        env:
+          DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
+          DND_ALPHA_GM_USERNAME: gm
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+        run: node scripts/cleanup-stale-alpha-combat.mjs
+
       - name: Run production Alpha E2E
         env:
           DND_ALPHA_EXECUTE: '1'
