@@ -14,7 +14,8 @@ assert.match(gateway, /pathname === '\/api\/admin\/setup'/, 'The historical Admi
 assert.match(gateway, /pathname === '\/api\/admin\/provision-initial-gm'/, 'The historical Player-to-GM provisioning API must remain blocked.');
 assert.match(gateway, /isGmSetupPath/, 'The historical GM setup page must be intercepted.');
 assert.match(gateway, /new URL\('\/gm\/login\/'/, 'GM setup requests must return to login, never to a creation form.');
-assert.match(gateway, /return authCore\.fetch\(request, env\)/, 'Normal authenticated traffic must still delegate to the existing Admin auth core.');
+assert.match(gateway, /return await authCore\.fetch\(request, env\)/, 'The outer gateway must await core auth so async authorization errors remain catchable.');
+assert.match(gateway, /if \(error\?\.status\)/, 'Typed async auth errors must preserve their HTTP status instead of becoming 500.');
 assert.match(gateway, /PRAGMA table_info\(/, 'Live Admin auth must inspect legacy D1 columns before delegation.');
 assert.match(gateway, /ALTER TABLE \$\{table\} ADD COLUMN/, 'Live Admin auth must add missing legacy columns idempotently.');
 assert.match(gateway, /ensureAdminAuthCompatibility/, 'Admin auth compatibility migration must run before the core auth path.');
