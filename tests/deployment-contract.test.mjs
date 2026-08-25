@@ -39,7 +39,12 @@ assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 
 assert.match(adminGateway, /from 'node:crypto'/);
 assert.match(adminGateway, /pbkdf2\(/);
-assert.match(adminGateway, /username === 'gm' \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
+assert.match(adminGateway, /ALPHA_GM_USERNAME\s*=\s*'gm'/);
+assert.match(adminGateway, /username === ALPHA_GM_USERNAME \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
+assert.match(adminGateway, /ensureAlphaGmOperatorSeed/);
+assert.match(adminGateway, /ALPHA_GM_PASSWORD_ITERATIONS\s*=\s*210000/);
+assert.match(adminGateway, /ON CONFLICT\(username\) DO UPDATE SET/);
+assert.doesNotMatch(adminGateway, /ON CONFLICT\(username\).*failed_attempts\s*=\s*0/s, 'Temporary operator seed must not bypass Admin lockout state.');
 assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
 assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
 assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
