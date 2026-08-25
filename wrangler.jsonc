@@ -1,8 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  // Delegated downstream contracts: "main": "./src/world-map-editor.js", "main": "./src/world-map.js", "main": "./src/live-diagnostic-gateway.js", "main": "./src/admin-gateway.js" and "main": "./src/admin-auth.js"
-  "main": "./src/runtime-map.js",
+  // Delegated downstream contracts: "main": "./src/player-map.js", "main": "./src/runtime-map.js", "main": "./src/world-map-editor.js", "main": "./src/world-map.js", "main": "./src/live-diagnostic-gateway.js", "main": "./src/admin-gateway.js" and "main": "./src/admin-auth.js"
+  "main": "./src/player-map-gateway.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
   "routes": [

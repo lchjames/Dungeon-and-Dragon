@@ -48,6 +48,7 @@ jobs:
           node tests/world-map-foundation.test.mjs
           node tests/world-map-grid-editor.test.mjs
           node tests/runtime-map-position.test.mjs
+          node tests/player-map-movement.test.mjs
 
       - name: Scenario end-to-end regression
         run: node tests/mvp-scenario-e2e.test.mjs

@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/assets/styles.css">
   <script type="module" src="/assets/player.js"></script>
   <script type="module" src="/assets/player-creation-skills.js"></script>
+  <script type="module" src="/assets/player-map-ui.js"></script>
   <script type="module" src="/assets/player-combat.js"></script>
 </head>
 <body>
@@ -59,10 +60,10 @@
 
         <div class="form-actions wrap">
           <button id="player-consume-action" class="button button-ghost" type="button" disabled>Mark Action Spent</button>
-          <button id="player-consume-move" class="button button-ghost" type="button" disabled>Mark Move Spent</button>
+          <button id="player-consume-move" class="button button-ghost" type="button" disabled>Mark Move Spent (fallback)</button>
           <button id="player-end-turn" class="button button-ghost" type="button" disabled>End Own Turn</button>
         </div>
-        <p class="muted">Attack resolver 會自動消耗 Action。手動「Mark Action Spent」只保留俾其他尚未有專用 resolver 嘅 Action 測試。</p>
+        <p class="muted">Attack resolver 會自動消耗 Action。Map上嘅合法移動會自動消耗 Move；手動 Mark Action/Move只保留俾尚未有專用 resolver 嘅測試。</p>
         <div id="player-combat-initiative" class="stack-list"></div>
       </section>
 
