@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Initial GM provisioning for D&D Campaign Hub">
-  <title>Initial GM Setup · D&D Campaign Hub</title>
+  <meta name="description" content="Initial Admin setup for D&D Campaign Hub">
+  <title>Initial Admin Setup · D&D Campaign Hub</title>
   <link rel="stylesheet" href="/assets/styles.css">
   <link rel="stylesheet" href="/assets/auth.css">
   <script type="module" src="/assets/gm-setup.js"></script>
@@ -12,27 +12,22 @@
 <body class="auth-body">
   <main class="auth-shell">
     <section class="auth-card">
-      <a class="auth-brand" href="/"><span class="brand-dot gm-dot">GM</span><span><strong>D&D Campaign Hub</strong><small>Initial GM Provisioning</small></span></a>
-
+      <a class="auth-brand" href="/"><span class="brand-dot gm-dot">GM</span><span><strong>D&D Campaign Hub</strong><small>Initial Admin Setup</small></span></a>
       <div class="auth-copy">
-        <p class="eyebrow">ONE-TIME SETUP</p>
-        <h1>建立第一個 GM</h1>
-        <p>呢個頁面只會將<strong>目前已登入嘅 Player User</strong>升為 <code>gm</code>。一旦 D1 已存在任何 <code>gm</code> 或 <code>admin</code>，bootstrap 就會永久拒絕再次執行。</p>
+        <p class="eyebrow">ONE-TIME ADMIN SETUP</p>
+        <h1>建立第一個 Admin</h1>
+        <p>GM 就係 Admin。呢個流程會直接建立獨立 Admin 帳戶，唔需要 Player User，亦唔會將任何 Player 升級成 GM。</p>
       </div>
-
-      <form id="gm-provision-form" class="auth-form">
-        <label class="field">
-          <span>Provisioning Token</span>
-          <input id="gm-provision-token" class="input" type="password" autocomplete="off" minlength="24" required placeholder="Cloudflare Secret token">
-        </label>
-        <p class="muted">Token 必須同 Worker Secret <code>INITIAL_GM_PROVISION_TOKEN</code> 完全一致；token 唔會儲存在瀏覽器或 D1。</p>
+      <form id="gm-provision-form" class="auth-form" autocomplete="off">
+        <label class="field"><span>Provisioning Token</span><input id="gm-provision-token" class="input" type="password" autocomplete="off" minlength="24" required placeholder="Initial Admin provisioning secret"></label>
+        <label class="field"><span>Admin Username</span><input id="gm-admin-username" class="input" type="text" minlength="3" maxlength="32" autocomplete="username" required placeholder="例如 james.admin"></label>
+        <label class="field"><span>Admin Password</span><input id="gm-admin-password" class="input" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+        <label class="field"><span>Confirm Password</span><input id="gm-admin-password-confirm" class="input" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label>
+        <p class="muted">建議密碼至少 16 個字元。Provisioning Token 只用於首次建立／遷移 Admin，唔會儲存在瀏覽器或 D1。</p>
         <div id="gm-provision-status" class="auth-status" hidden role="status" aria-live="polite"></div>
-        <button id="gm-provision-submit" class="button button-full" type="submit">Provision this User as GM</button>
+        <button id="gm-provision-submit" class="button button-full" type="submit">建立 Admin</button>
       </form>
-
-      <div class="auth-links">
-        <a href="/player/">返回 Player Workspace</a>
-      </div>
+      <div class="auth-links"><a href="/gm/login/">返回 Admin Login</a> · <a href="/player/login/">Player Access</a></div>
     </section>
   </main>
 </body>
