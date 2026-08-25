@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const adminAuth = await readFile(new URL('../src/admin-auth.js', import.meta.url), 'utf8');
+const adminGateway = await readFile(new URL('../src/admin-auth.js', import.meta.url), 'utf8');
+const adminCore = await readFile(new URL('../src/admin-auth-core.js', import.meta.url), 'utf8');
 const worker = await readFile(new URL('../src/boss-defeat.js', import.meta.url), 'utf8');
 const playerUi = await readFile(new URL('../public/assets/player-combat.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
@@ -22,7 +23,8 @@ assert.match(playerUi, /· BOSS ·/, 'Player Combat UI must label Boss targets.'
 assert.match(playerUi, /Boss Defence/, 'Player attack result must distinguish Boss Defence from Character Dodge / Monster Defence.');
 assert.match(playerUi, /boss_stored_defence/, 'Player result handling must recognize Boss Stored Defence source.');
 
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-auth\.js"/, 'Wrangler must route through the Admin authentication boundary.');
-assert.match(adminAuth, /import baseWorker from '\.\/boss-defeat\.js'/, 'Admin authentication boundary must preserve the Boss defeat runtime gateway immediately below it.');
+assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-auth\.js"/, 'Wrangler must route through the outer Admin authentication boundary.');
+assert.match(adminGateway, /import authCore from '\.\/admin-auth-core\.js'/, 'The outer Admin lockdown gateway must preserve the authentication core below it.');
+assert.match(adminCore, /import baseWorker from '\.\/boss-defeat\.js'/, 'Admin authentication core must preserve the Boss defeat runtime gateway immediately below it.');
 assert.match(canonical, /Current HP <= 0[\s\S]*status = defeated immediately/, 'Canonical Boss HP0 must resolve immediately to defeated.');
 assert.ok(!/Boss Instances do not inherit the Player Character DYING system merely because they are important enemies[\s\S]*ceil\(CON \/ 5\) dying rounds[\s\S]*apply/i.test(canonical), 'Canonical must not instruct implementation to apply Player DYING to Bosses.');
