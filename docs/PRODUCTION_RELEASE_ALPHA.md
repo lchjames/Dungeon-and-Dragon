@@ -36,6 +36,7 @@ D1 binding: DB
 D1 database: dnd-db
 D1 database ID: 7a9abf7b-5f87-4295-89b1-8187e991b782
 Custom domain: dungeon-and-dragon.lchjames.com
+Workers.dev route: https://dnd.apswsttss.workers.dev
 Static assets: ./public
 ```
 
@@ -69,8 +70,9 @@ Therefore the current established production update path is:
 verified current main
 → MVP checks pass
 → GitHub Actions deploys Worker + assets
-→ automated unauthenticated production smoke validates public/auth boundaries
-→ authenticated smoke requests exercise the guarded runtime paths
+→ custom-domain edge check
+→ direct workers.dev runtime/auth smoke
+→ authenticated browser smoke exercises the real Player/GM paths
 → inspect any D1/runtime error before considering manual schema intervention
 ```
 
@@ -126,7 +128,8 @@ only when:
 - node-checks = success
 
 → Deploy Cloudflare production
-→ Smoke test production routes
+→ Verify custom-domain edge
+→ Smoke test direct Worker runtime
 ```
 
 The production job:
@@ -136,7 +139,8 @@ checks out the exact main commit
 uses Node 22
 validates that both Cloudflare secrets are present
 runs npx --yes wrangler@4 deploy
-runs the production route smoke against the custom domain
+checks custom-domain edge reachability
+runs route/auth smoke against workers.dev
 ```
 
 Pull requests and feature-branch pushes must never deploy production.
@@ -165,17 +169,48 @@ Do not treat local source tests as deployment success; use Wrangler / GitHub Act
 
 # 7. Immediate Post-Deploy Smoke Test
 
-Every successful production deploy now performs an automated unauthenticated production smoke against:
+Cloudflare may challenge headless CI traffic on the custom domain. A GitHub runner can therefore receive:
+
+```text
+HTTP 403
+cf-mitigated: challenge
+```
+
+for `https://dungeon-and-dragon.lchjames.com/` even when the Worker and custom-domain routing are healthy. This is a Cloudflare challenge response, not proof of an application failure.
+
+The automated smoke is therefore split into two layers.
+
+## 7.1 Custom-domain edge check
+
+The workflow requests:
 
 ```text
 https://dungeon-and-dragon.lchjames.com/
-https://dungeon-and-dragon.lchjames.com/player/login/
-https://dungeon-and-dragon.lchjames.com/player/
-https://dungeon-and-dragon.lchjames.com/gm/
-https://dungeon-and-dragon.lchjames.com/api/auth/me
 ```
 
-Expected automated contract:
+Accepted evidence that the domain resolves through the intended Cloudflare edge:
+
+```text
+2xx / 3xx response
+OR
+403 with cf-mitigated: challenge
+```
+
+Other errors, DNS/connectivity failure or an unexplained 4xx/5xx fail the edge check.
+
+## 7.2 Direct Worker runtime/auth check
+
+Precise application behavior is tested against:
+
+```text
+https://dnd.apswsttss.workers.dev/
+https://dnd.apswsttss.workers.dev/player/login/
+https://dnd.apswsttss.workers.dev/player/
+https://dnd.apswsttss.workers.dev/gm/
+https://dnd.apswsttss.workers.dev/api/auth/me
+```
+
+Expected contract:
 
 ```text
 GET /
@@ -194,9 +229,9 @@ GET /api/auth/me
 → 401 when no session cookie is supplied
 ```
 
-The smoke uses bounded retries so short Cloudflare propagation delay does not create a false deployment failure. A route returning an unexpected status, a broken auth redirect, unresolved production domain or 5xx response fails the production job.
+The smoke uses bounded retries so short Cloudflare propagation delay does not create a false deployment failure.
 
-This automated smoke does **not** replace the authenticated browser test. After deployment, a real Player and GM session must still verify:
+This automated smoke does **not** replace the authenticated browser test on the custom domain. After deployment, a real Player and GM browser session must still verify:
 
 ```text
 Player User
@@ -254,8 +289,9 @@ The release is suitable for continued Alpha use when:
 ```text
 MVP checks succeed on the deployed main commit
 Deploy Cloudflare production succeeds
-automated unauthenticated production smoke succeeds
-production routes load
+custom-domain edge check succeeds
+direct workers.dev runtime/auth smoke succeeds
+production routes load in a real browser
 D1-backed reads/writes succeed
 GM and Player authorization boundaries hold
 Scenario / Scene / Encounter data persists after refresh
@@ -284,7 +320,11 @@ credential / Wrangler deployment failure
 → main remains source-of-truth, but production stays on the previous successful Worker version
 → inspect GitHub Actions deploy log
 
-post-deploy production smoke failure
+custom-domain challenge response
+→ accepted only when status=403 and cf-mitigated=challenge
+→ does not replace the direct Worker runtime smoke
+
+post-deploy runtime smoke failure
 → Worker publish may already have completed
 → treat production parity as unverified
 → inspect route/status/auth failure immediately
@@ -309,7 +349,7 @@ D1 data changes are a separate boundary from Worker rollback. Rolling back Worke
 
 # 11. Current Operational Status
 
-Automatic deployment is verified operational; the automated route smoke is the next production gate being added:
+Automatic deployment is verified operational. The first custom-domain machine smoke exposed Cloudflare's intentional bot challenge, so the gate now separates edge reachability from direct Worker runtime validation:
 
 ```text
 GitHub MVP feature construction: complete for first vertical slice
@@ -319,8 +359,9 @@ Automatic production deployment: verified working
 Worker: dnd
 D1 binding: env.DB → dnd-db
 Custom domain deployment: verified by Wrangler
+Custom-domain CI response: Cloudflare challenge-aware edge check
+Direct runtime/auth smoke: workers.dev
 Feature / PR pushes: deployment correctly skipped
 main push after successful MVP checks: production deployment enabled
-automated unauthenticated production smoke: required after each deploy
 Authenticated live browser + production D1 Alpha session: next validation stage
 ```
