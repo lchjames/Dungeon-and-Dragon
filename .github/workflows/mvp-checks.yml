@@ -47,6 +47,7 @@ jobs:
           node tests/deployment-contract.test.mjs
           node tests/world-map-foundation.test.mjs
           node tests/world-map-grid-editor.test.mjs
+          node tests/runtime-map-position.test.mjs
 
       - name: Scenario end-to-end regression
         run: node tests/mvp-scenario-e2e.test.mjs
@@ -151,8 +152,8 @@ jobs:
           expect_2xx "/"
           expect_2xx "/player/login/"
           expect_2xx "/gm/login/"
-          expect_redirect "/player/" "/player/login/"
-          expect_redirect "/gm/" "/gm/login/"
+          expect_redirect "/player/" "/player/login\/"
+          expect_redirect "/gm/" "/gm/login\/"
 
           player_auth_status="$(request_worker "/api/auth/me")"
           if [[ "$player_auth_status" != "401" ]]; then
