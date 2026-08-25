@@ -40,6 +40,7 @@ jobs:
         run: |
           node tests/static-ui-contract.test.mjs
           node tests/boss-defeat-contract.test.mjs
+          node tests/admin-auth-contract.test.mjs
           node tests/deployment-contract.test.mjs
 
       - name: Scenario end-to-end regression
@@ -108,9 +109,6 @@ jobs:
             request_url "$WORKER_BASE$path" /tmp/headers /tmp/body
           }
 
-          # The custom domain may intentionally challenge headless CI traffic.
-          # Treat a normal HTTP response or Cloudflare's explicit challenge marker
-          # as proof that the custom-domain edge wiring resolves to Cloudflare.
           edge_status="$(request_url "$CUSTOM_DOMAIN/" /tmp/edge-headers /tmp/edge-body)"
           edge_mitigation="$(awk 'BEGIN{IGNORECASE=1} /^cf-mitigated:/ {sub(/\r$/, "", $0); sub(/^[^:]+:[[:space:]]*/, "", $0); print; exit}' /tmp/edge-headers)"
           if [[ ! "$edge_status" =~ ^[23][0-9][0-9]$ && !( "$edge_status" == "403" && "$edge_mitigation" == "challenge" ) ]]; then
@@ -132,13 +130,14 @@ jobs:
             fi
           }
 
-          expect_redirect_to_login() {
+          expect_redirect() {
             local path="$1"
+            local target="$2"
             local status location
             status="$(request_worker "$path")"
             location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, "", $0); sub(/^[^:]+:[[:space:]]*/, "", $0); print; exit}' /tmp/headers)"
-            if [[ "$status" != "302" || "$location" != *"/player/login/"* ]]; then
-              echo "Expected 302 login redirect for workers.dev $path, got status=$status location=$location"
+            if [[ "$status" != "302" || "$location" != *"$target"* ]]; then
+              echo "Expected 302 redirect for workers.dev $path to $target, got status=$status location=$location"
               cat /tmp/headers || true
               exit 1
             fi
@@ -146,13 +145,18 @@ jobs:
 
           expect_2xx "/"
           expect_2xx "/player/login/"
-          expect_redirect_to_login "/player/"
-          expect_redirect_to_login "/gm/"
+          expect_2xx "/gm/login/"
+          expect_redirect "/player/" "/player/login/"
+          expect_redirect "/gm/" "/gm/login/"
 
-          auth_status="$(request_worker "/api/auth/me")"
-          if [[ "$auth_status" != "401" ]]; then
-            echo "Expected unauthenticated workers.dev /api/auth/me to return 401, got $auth_status"
-            cat /tmp/headers || true
-            head -c 1000 /tmp/body || true
+          player_auth_status="$(request_worker "/api/auth/me")"
+          if [[ "$player_auth_status" != "401" ]]; then
+            echo "Expected unauthenticated workers.dev /api/auth/me to return 401, got $player_auth_status"
+            exit 1
+          fi
+
+          admin_auth_status="$(request_worker "/api/admin/auth/me")"
+          if [[ "$admin_auth_status" != "401" ]]; then
+            echo "Expected unauthenticated workers.dev /api/admin/auth/me to return 401, got $admin_auth_status"
             exit 1
           fi
