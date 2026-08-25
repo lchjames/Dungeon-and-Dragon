@@ -20,14 +20,17 @@ assert.match(workflow, /npx --yes wrangler@4 deploy/);
 assert.match(workflow, /group:\s*cloudflare-production/);
 assert.match(workflow, /cancel-in-progress:\s*false/);
 
-// Every successful main deployment must immediately exercise the public production boundary.
+// Every successful main deployment must exercise both the custom-domain edge and direct Worker runtime.
 assert.match(workflow, /Smoke test production routes/);
-assert.match(workflow, /BASE_URL="https:\/\/dungeon-and-dragon\.lchjames\.com"/);
+assert.match(workflow, /CUSTOM_DOMAIN="https:\/\/dungeon-and-dragon\.lchjames\.com"/);
+assert.match(workflow, /WORKER_BASE="https:\/\/dnd\.apswsttss\.workers\.dev"/);
+assert.match(workflow, /cf-mitigated:/);
+assert.match(workflow, /edge_mitigation" == "challenge"/);
 assert.match(workflow, /expect_2xx "\/"/);
 assert.match(workflow, /expect_2xx "\/player\/login\/"/);
 assert.match(workflow, /expect_redirect_to_login "\/player\/"/);
 assert.match(workflow, /expect_redirect_to_login "\/gm\/"/);
-assert.match(workflow, /request "\/api\/auth\/me"/);
+assert.match(workflow, /request_worker "\/api\/auth\/me"/);
 assert.match(workflow, /auth_status" != "401"/);
 assert.match(workflow, /--retry 8/);
 
@@ -42,4 +45,5 @@ assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 // Operations docs must preserve the non-idempotent schema safety boundary and smoke contract.
 assert.match(releaseDoc, /Do \*\*not\*\* blindly execute every file under `schema\/`/);
 assert.match(releaseDoc, /Pull requests and feature-branch pushes must never deploy production/);
-assert.match(releaseDoc, /automated unauthenticated production smoke/);
+assert.match(releaseDoc, /Cloudflare challenge/);
+assert.match(releaseDoc, /workers\.dev/);
