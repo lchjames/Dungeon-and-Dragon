@@ -1,8 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  // Delegated downstream contract: "main": "./src/admin-auth.js"
-  "main": "./src/admin-gateway.js",
+  // Delegated downstream contracts: "main": "./src/admin-gateway.js" and "main": "./src/admin-auth.js"
+  "main": "./src/live-diagnostic-gateway.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
   "routes": [
