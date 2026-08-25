@@ -185,12 +185,27 @@ async function sessionUser(request, env) {
   };
 }
 
+function isProvisionedAdmin(user) {
+  return Boolean(
+    user &&
+    user.role === 'admin' &&
+    user.passwordIterations >= 100000 &&
+    String(user.username || '').startsWith('a_')
+  );
+}
+
 async function requireRole(request, env, role) {
   const user = await sessionUser(request, env);
   if (!user || user.role !== role) {
     throw Object.assign(new Error(role === 'admin' ? 'Admin 未登入。' : 'Player 未登入。'), {
       status: 401,
       code: role === 'admin' ? 'ADMIN_UNAUTHENTICATED' : 'UNAUTHENTICATED'
+    });
+  }
+  if (role === 'admin' && !isProvisionedAdmin(user)) {
+    throw Object.assign(new Error('Legacy GM credential 必須先重新設定成獨立 Admin Username + 強密碼。'), {
+      status: 409,
+      code: 'ADMIN_CREDENTIAL_RESET_REQUIRED'
     });
   }
   return user;
@@ -249,7 +264,7 @@ async function adminLogin(request, env) {
   if (Number(user.locked_until || 0) > now) {
     return apiError('登入錯誤次數過多，Admin 帳戶已暫時鎖定。', 429, 'ADMIN_TEMPORARILY_LOCKED');
   }
-  if (Number(user.password_iterations) < 100000) {
+  if (Number(user.password_iterations) < 100000 || !String(user.username || '').startsWith('a_')) {
     return apiError('此 Admin 帳戶需要重新設定強密碼。', 409, 'ADMIN_CREDENTIAL_RESET_REQUIRED');
   }
   const actual = await pbkdf2Hash(password, base64ToBytes(user.password_salt), Number(user.password_iterations));
@@ -288,7 +303,7 @@ async function adminMe(request, env) {
   return json({ ok: true, user: { id: user.id, displayName: user.displayName, role: 'admin', status: user.status, createdAt: user.createdAt } });
 }
 
-async function configuredProvisionToken(env) {
+function configuredProvisionToken(env) {
   return String(env.INITIAL_ADMIN_PROVISION_TOKEN || env.INITIAL_GM_PROVISION_TOKEN || '');
 }
 
@@ -299,7 +314,7 @@ async function adminSetup(request, env) {
   const body = await readJson(request);
   const validated = validateAdminCredentials(body.username, body.password);
   if (validated.error) return apiError(validated.error, 400, 'VALIDATION_ERROR');
-  const configuredToken = await configuredProvisionToken(env);
+  const configuredToken = configuredProvisionToken(env);
   if (!configuredToken) return apiError('Initial Admin provisioning secret 尚未配置。', 503, 'PROVISION_SECRET_NOT_CONFIGURED');
   if (configuredToken.length < 24) return apiError('Initial Admin provisioning secret 配置過短。', 503, 'PROVISION_SECRET_TOO_SHORT');
   const submittedToken = String(body.token || '');
@@ -316,11 +331,11 @@ async function adminSetup(request, env) {
   const legacy = admins.length === 1 && (
     Number(admins[0].password_iterations || 0) < 100000 || !String(admins[0].username || '').startsWith('a_')
   );
+  if (admins.length > 1) {
+    return apiError('偵測到多個 Admin；Initial Admin setup 已關閉。', 409, 'MULTIPLE_ADMINS_PRESENT');
+  }
   if (admins.length > 0 && !legacy) {
     return apiError('Admin 已經完成 provisioning；初始 setup 已關閉。', 409, 'INITIAL_ADMIN_ALREADY_PROVISIONED');
-  }
-  if (admins.length > 1) {
-    return apiError('偵測到多個 legacy Admin；請先進行資料修復。', 409, 'MULTIPLE_LEGACY_ADMINS');
   }
 
   const salt = randomBytes(16);
@@ -398,16 +413,15 @@ function internalGmNext(url) {
 
 async function handleGmLoginPage(request, env) {
   const user = await sessionUser(request, env);
-  if (user?.role === 'admin') return Response.redirect(new URL('/gm/', request.url).toString(), 302);
+  if (isProvisionedAdmin(user)) return Response.redirect(new URL('/gm/', request.url).toString(), 302);
+  if (user?.role === 'admin') return Response.redirect(new URL('/gm/setup/', request.url).toString(), 302);
   return env.ASSETS.fetch(request);
 }
 
 async function handleGmSetupPage(request, env) {
   await ensureAuthSchema(env);
   const user = await sessionUser(request, env);
-  if (user?.role === 'admin' && user.passwordIterations >= 100000 && String(user.username || '').startsWith('a_')) {
-    return Response.redirect(new URL('/gm/', request.url).toString(), 302);
-  }
+  if (isProvisionedAdmin(user)) return Response.redirect(new URL('/gm/', request.url).toString(), 302);
   const rows = await env.DB.prepare(`SELECT username, password_iterations FROM users WHERE LOWER(role) = 'admin'`).all();
   const admins = rows.results || [];
   const legacy = admins.length === 1 && (Number(admins[0].password_iterations || 0) < 100000 || !String(admins[0].username || '').startsWith('a_'));
@@ -421,6 +435,9 @@ async function handleGmPage(request, env) {
     const login = new URL('/gm/login/', request.url);
     login.searchParams.set('next', internalGmNext(new URL(request.url)));
     return Response.redirect(login.toString(), 302);
+  }
+  if (!isProvisionedAdmin(user)) {
+    return Response.redirect(new URL('/gm/setup/', request.url).toString(), 302);
   }
   return env.ASSETS.fetch(request);
 }
