@@ -3,6 +3,10 @@ import authCore from './admin-auth-core.js';
 const SESSION_COOKIE = '__Host-dnd_session';
 const ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60;
 const ALPHA_GM_USERNAME = 'gm';
+const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
+const ALPHA_GM_PASSWORD_HASH = 'LLqx99EyLTehxFYcJVyIK60jLu+B948YOzuv8dHPO/g=';
+const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
+const ALPHA_GM_PASSWORD_ITERATIONS = 210000;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_SECONDS = 15 * 60;
@@ -75,6 +79,61 @@ function alphaGmSessionCookie(token) {
   return `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${ADMIN_SESSION_TTL_SECONDS}; HttpOnly; Secure; SameSite=Lax`;
 }
 
+async function ensureAlphaGmAccount(env) {
+  if (!env.DB) return;
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      display_name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      password_salt TEXT NOT NULL,
+      password_iterations INTEGER NOT NULL DEFAULT 0,
+      role TEXT NOT NULL DEFAULT 'player',
+      status TEXT NOT NULL DEFAULT 'active',
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`)
+  ]);
+
+  await env.DB.prepare(`
+    INSERT INTO users (
+      id, username, display_name, password_hash, password_salt, password_iterations,
+      role, status, failed_attempts, locked_until, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'admin', 'active', 0, NULL, ?, ?)
+    ON CONFLICT(username) DO UPDATE SET
+      display_name = excluded.display_name,
+      password_hash = excluded.password_hash,
+      password_salt = excluded.password_salt,
+      password_iterations = excluded.password_iterations,
+      role = 'admin',
+      status = 'active',
+      failed_attempts = 0,
+      locked_until = NULL,
+      updated_at = excluded.updated_at
+  `).bind(
+    'admin_alpha_gm',
+    ALPHA_GM_INTERNAL_USERNAME,
+    ALPHA_GM_USERNAME,
+    ALPHA_GM_PASSWORD_HASH,
+    ALPHA_GM_PASSWORD_SALT,
+    ALPHA_GM_PASSWORD_ITERATIONS,
+    now,
+    now
+  ).run();
+}
+
 async function alphaGmLogin(request, env) {
   if (request.method !== 'POST' || !env.DB) return null;
   let body;
@@ -90,12 +149,11 @@ async function alphaGmLogin(request, env) {
     return json({ ok: false, error: { code: 'INVALID_ADMIN_CREDENTIALS', message: 'Admin Username 或密碼不正確。' } }, 401);
   }
 
-  const internalUsername = `a_${(await sha256Hex(username)).slice(0, 24)}`;
   const user = await env.DB.prepare(`
     SELECT id, username, display_name, password_hash, password_salt,
            password_iterations, role, status, failed_attempts, locked_until, created_at
     FROM users WHERE username = ? AND LOWER(role) = 'admin' LIMIT 1
-  `).bind(internalUsername).first();
+  `).bind(ALPHA_GM_INTERNAL_USERNAME).first();
   if (!user || user.status !== 'active' || Number(user.password_iterations || 0) < 100000) {
     return json({ ok: false, error: { code: 'INVALID_ADMIN_CREDENTIALS', message: 'Admin Username 或密碼不正確。' } }, 401);
   }
@@ -152,6 +210,10 @@ export default {
 
     if (isGmSetupPath(pathname)) {
       return Response.redirect(new URL('/gm/login/', request.url).toString(), 302);
+    }
+
+    if (isGmLoginPath(pathname) || pathname === '/api/admin/auth/login') {
+      await ensureAlphaGmAccount(env);
     }
 
     if (pathname === '/api/admin/auth/login') {
