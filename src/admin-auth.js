@@ -288,9 +288,14 @@ export default {
         return env.ASSETS.fetch(request);
       }
 
-      return authCore.fetch(request, env);
+      // Await the core promise here so rejected async handlers (notably an
+      // unauthenticated adminMe request) remain inside this outer boundary.
+      return await authCore.fetch(request, env);
     } catch (error) {
       console.error('Admin compatibility gateway error', error);
+      if (error?.status) {
+        return json({ ok: false, error: { code: error.code || 'AUTH_ERROR', message: error.message || 'Authentication failed.' } }, error.status);
+      }
       if (String(error?.message || error).includes('D1 binding DB is unavailable')) {
         return json({ ok: false, error: { code: 'DATABASE_UNAVAILABLE', message: '資料庫尚未完成配置。' } }, 503);
       }
