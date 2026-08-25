@@ -58,7 +58,7 @@ assert.match(server, /import baseWorker from '\.\/live-diagnostic-gateway\.js';/
 
 assert.match(canonical, /World Location \/ Map Template/);
 assert.match(canonical, /Runtime Map Instance/);
-assert.match(canonical, /1 ordinary Move/);
+assert.match(canonical, /One ordinary Move/);
 assert.match(canonical, /Player tokens are visible to other Players by default/);
 assert.match(canonical, /Word\/story import and AI story generation are \*\*Future\*\*/);
 
