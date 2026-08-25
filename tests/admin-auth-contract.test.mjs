@@ -14,6 +14,11 @@ assert.match(worker, /ADMIN_PBKDF2_ITERATIONS\s*=\s*210000/, 'Admin passwords mu
 assert.match(worker, /PBKDF2/);
 assert.match(worker, /role\s*=\s*'admin'/);
 assert.match(worker, /UPDATE users SET role = 'admin'.*LOWER\(role\) = 'gm'/s, 'Legacy gm rows must migrate to admin.');
+assert.match(worker, /function isProvisionedAdmin/);
+assert.match(worker, /passwordIterations >= 100000/);
+assert.match(worker, /startsWith\('a_'\)/, 'Admin authorization must require the dedicated Admin username namespace.');
+assert.match(worker, /ADMIN_CREDENTIAL_RESET_REQUIRED/, 'Legacy Player-key GM sessions must be blocked until credential reset.');
+assert.match(worker, /DELETE FROM sessions WHERE user_id = \?/, 'Legacy credential migration must invalidate old sessions.');
 assert.match(worker, /\/api\/admin\/auth\/login/);
 assert.match(worker, /\/api\/admin\/auth\/me/);
 assert.match(worker, /\/api\/admin\/setup/);
@@ -21,6 +26,7 @@ assert.match(worker, /GM_PROVISIONING_SUPERSEDED/, 'Player-to-GM promotion endpo
 assert.match(worker, /await requireRole\(request, env, 'admin'\)/, 'GM APIs must be protected by Admin role.');
 assert.match(worker, /await requireRole\(request, env, 'player'\)/, 'Player APIs must remain Player-only.');
 assert.match(worker, /new URL\('\/gm\/login\/'/, 'Unauthenticated GM access must go to Admin login.');
+assert.match(worker, /new URL\('\/gm\/setup\/'/, 'Legacy Admin sessions must be routed to credential reset setup.');
 
 assert.match(loginHtml, /Admin Access/);
 assert.match(loginHtml, /Admin Username/);
