@@ -48,7 +48,7 @@ form?.addEventListener('submit', async event => {
     location.replace(safeNext());
   } catch (error) {
     if (error.code === 'ADMIN_CREDENTIAL_RESET_REQUIRED') {
-      setStatus('呢個係舊 GM 帳戶，需要到 Initial Admin Setup 設定強密碼。', 'error');
+      setStatus('呢個舊 GM 帳戶未符合 Admin 憑證要求；請由系統管理員喺 deployment / database 管理層直接重新設定。', 'error');
     } else {
       setStatus(error.message || 'Admin 登入失敗。', 'error');
     }
