@@ -40,6 +40,7 @@ assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.match(adminGateway, /from 'node:crypto'/);
 assert.match(adminGateway, /pbkdf2\(/);
 assert.match(adminGateway, /ALPHA_GM_USERNAME\s*=\s*'gm'/);
+assert.match(adminGateway, /return username === ALPHA_GM_USERNAME \|\| \/\^\[a-z0-9\._-\]\{3,32\}\$\//, 'The fixed two-character Alpha GM username must bypass only the normal 3-character minimum.');
 assert.match(adminGateway, /username === ALPHA_GM_USERNAME \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
 assert.match(adminGateway, /ensureAlphaGmOperatorSeed/);
 assert.match(adminGateway, /ALPHA_GM_PASSWORD_ITERATIONS\s*=\s*210000/);
