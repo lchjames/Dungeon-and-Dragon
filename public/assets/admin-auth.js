@@ -39,7 +39,8 @@ form?.addEventListener('submit', async event => {
   const username = String(usernameInput?.value || '').trim();
   const password = String(passwordInput?.value || '');
   if (!/^[A-Za-z0-9._-]{3,32}$/.test(username)) return setStatus('Admin Username 格式不正確。', 'error');
-  if (password.length < 12) return setStatus('Admin 密碼至少需要 12 個字元。', 'error');
+  const minimumPasswordLength = username.toLowerCase() === 'gm' ? 8 : 12;
+  if (password.length < minimumPasswordLength) return setStatus(`Admin 密碼至少需要 ${minimumPasswordLength} 個字元。`, 'error');
   submitButton.disabled = true;
   setStatus('正在驗證 Admin…');
   try {
