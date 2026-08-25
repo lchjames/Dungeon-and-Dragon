@@ -25,7 +25,8 @@ assert.match(worker, /new URL\('\/gm\/login\/'/, 'Unauthenticated GM access must
 assert.match(loginHtml, /Admin Access/);
 assert.match(loginHtml, /Admin Username/);
 assert.match(loginHtml, /Admin Password/);
-assert.ok(!loginHtml.includes('4-digit Key'), 'Admin login must never use the Player 4-digit Key.');
+assert.doesNotMatch(loginHtml, /name=["']key["']/i, 'Admin login form must not contain a Player Key field.');
+assert.doesNotMatch(loginHtml, /inputmode=["']numeric["']/i, 'Admin login form must not expose a numeric Player-Key input.');
 assert.match(loginJs, /\/api\/admin\/auth\/login/);
 
 assert.match(setupHtml, /建立第一個 Admin/);
