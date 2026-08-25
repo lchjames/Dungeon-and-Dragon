@@ -8,24 +8,26 @@
 
 # 1. Canonical Identity Model
 
-GM is the campaign administrator.
+GM = Admin.
 
-The canonical role model is:
+The canonical persistent role model is:
 
 ```text
 player
 admin
 ```
 
-`GM` is the product / workspace name for the administrator experience; it is not a Player subtype and does not require a separate persistent `gm` role for new data.
+`GM` is the product / workspace name for the administrator experience. It is not a Player subtype and new data must not create a separate persistent `gm` role.
 
-New code must not create or promote a Player into a GM/Admin identity.
+New code must never create or promote a Player into a GM/Admin identity.
 
-Legacy rows with `role = gm` may be accepted only as a temporary migration compatibility case while the Admin-auth correction is rolled out. New writes must use:
+Legacy rows with `role = gm` are migration-only input and are normalized to:
 
 ```text
 role = admin
 ```
+
+New writes use `admin` only.
 
 ---
 
@@ -35,33 +37,71 @@ Player access and GM/Admin access are independent authentication paths.
 
 ```text
 /player/login/
-→ Player authentication only
+→ Player User + 4-digit Key
+→ role = player only
 → Player workspace only
 
 /gm/login/
-→ Admin authentication only
+→ Admin Username + 強密碼
+→ role = admin only
 → GM/Admin workspace only
 ```
 
-An unauthenticated request to `/gm/` must never redirect to `/player/login/`.
+An unauthenticated request to `/gm/` must never redirect to `/player/login/`; it redirects to `/gm/login/`.
 
-It must redirect to:
+A Player session never satisfies the Admin authentication requirement. An Admin session never satisfies `/api/player/*` or protected `/player/*` access.
 
-```text
-/gm/login/
-```
-
-A Player session must never satisfy the Admin authentication requirement merely because the Player account was later assigned another role.
-
-The Player registration flow must never contain an Admin/GM creation or escalation path.
+The Player registration flow contains no Admin/GM creation or escalation path.
 
 ---
 
-# 3. Initial Admin Provisioning
+# 3. Admin Credential Contract
+
+Permanent Admin credential:
+
+```text
+Admin Username
++ strong password
+```
+
+Admin password requirements for MVP:
+
+```text
+minimum length: 12 characters
+maximum length: 128 characters
+recommended: 16+ characters
+password must not contain the complete Admin Username
+```
+
+Admin passwords are not stored with the Player 4-digit-Key hash format.
+
+Server storage uses:
+
+```text
+PBKDF2-HMAC-SHA256
+210,000 iterations
+random 16-byte salt
+256-bit derived hash
+```
+
+The stored internal Admin username is namespaced separately from Player usernames so Player and Admin credentials cannot collide accidentally.
+
+Failed Admin logins use the existing temporary lockout principle:
+
+```text
+5 failed attempts
+→ temporary 15-minute lock
+```
+
+Admin sessions use the server-side D1 session table and a Secure / HttpOnly / SameSite=Lax session cookie. Admin login replaces the active browser session credential; authorization still depends on server-side `role = admin`.
+
+---
+
+# 4. Initial Admin Provisioning
 
 The first administrator is provisioned directly as an Admin identity.
 
-The bootstrap flow must not require:
+The superseded flow is forbidden:
 
 ```text
 register Player
@@ -69,55 +109,69 @@ register Player
 → promote Player to GM/Admin
 ```
 
-That model is explicitly superseded.
-
-Instead:
+Canonical bootstrap:
 
 ```text
 /gm/setup/
 → one-time provisioning secret
-→ create initial Admin identity directly
-→ Admin signs in through /gm/login/
+→ choose Admin Username
+→ choose strong Admin Password
+→ create role = admin directly
+→ establish Admin session
+→ /gm/
 ```
 
-Production provisioning continues to rely on a non-committed Worker secret such as:
+The preferred Worker secret name is:
+
+```text
+INITIAL_ADMIN_PROVISION_TOKEN
+```
+
+During Alpha migration the existing secret name remains accepted as a legacy fallback:
 
 ```text
 INITIAL_GM_PROVISION_TOKEN
 ```
 
-The secret is bootstrap authorization only. It is not the permanent Admin login credential.
+The provisioning secret is bootstrap authorization only. It is not the permanent Admin password and is never stored in D1 or browser storage.
 
 ---
 
-# 4. One-Time Closure
+# 5. One-Time Closure + Legacy Migration
 
-Initial Admin provisioning is allowed only while no active Admin identity exists.
+Initial Admin provisioning is allowed only while there is no fully provisioned Admin credential.
 
-Once an Admin exists:
+If the old implementation previously created exactly one legacy `role = gm` / Player-Key-backed administrator, runtime migration first normalizes its role to `admin`, then `/gm/setup/` may replace that legacy credential with the new Admin Username + strong password while preserving the existing User ID.
+
+After a fully provisioned Admin credential exists:
 
 ```text
 /gm/setup/
 → bootstrap creation disabled
 ```
 
-The provisioning endpoint must not become a general Player role-management API.
-
-There is no supported operation:
+The old endpoint:
 
 ```text
-Player → Admin promotion
+POST /api/admin/provision-initial-gm
 ```
 
-through Player APIs or the bootstrap endpoint.
+is retired and must return a superseded / gone response. It must never promote a Player.
 
 ---
 
-# 5. Admin Authentication Boundary
+# 6. Admin Authentication Boundary
 
-All `/gm/` pages and `/api/gm/*` APIs require an authenticated Admin session.
+Canonical routes:
 
-Canonical authorization:
+```text
+POST /api/admin/auth/login
+POST /api/admin/auth/logout
+GET  /api/admin/auth/me
+POST /api/admin/setup
+```
+
+All `/gm/` pages and `/api/gm/*` APIs require a server-validated Admin session.
 
 ```text
 admin
@@ -130,11 +184,19 @@ unauthenticated
 → /gm/login/
 ```
 
-Client-side checks are never sufficient; the Worker must enforce the Admin boundary server-side.
+Player boundaries remain independently enforced:
+
+```text
+/player/*
+/api/player/*
+→ role = player only
+```
+
+Client-side checks are never sufficient.
 
 ---
 
-# 6. Security Invariants
+# 7. Security Invariants
 
 Forbidden:
 
@@ -144,40 +206,28 @@ Admin using Player registration as bootstrap
 Player choosing admin during registration
 Player promoting self to admin
 Player session being treated as an Admin session
-4-digit Player Key implicitly becoming an Admin credential
-storing the bootstrap token in D1 or source control
+Admin session being treated as Player access
+4-digit Player Key becoming an Admin credential
+new role = gm writes
+storing bootstrap token in D1 or source control
 committing permanent Admin credentials to Git
 ```
 
 ---
 
-# 7. Migration Requirement
+# 8. Implementation Status
 
-The currently deployed implementation still contains the superseded Player-promotion model and must be corrected before authenticated Live Alpha GM testing is considered valid.
-
-Required implementation work:
+The Admin-auth correction implements:
 
 ```text
-add /gm/login/
-separate Admin authentication from Player authentication
-make /gm/ redirect unauthenticated users to /gm/login/
-change /gm/setup/ to create Admin directly
-remove Player → GM/Admin promotion logic
-write new administrator identities as role = admin
-restrict GM server guards to Admin identity
-retain only minimal legacy role=gm migration compatibility if needed
+/gm/login/
+Admin Username + strong password
+Admin-only /gm/ and /api/gm/* boundary
+Player-only /player/* and /api/player/* boundary
+/gm/setup/ direct Admin creation
+legacy role=gm → admin normalization
+legacy Player-Key GM credential reset through one-time setup
+retired Player → GM promotion endpoint
 ```
 
----
-
-# 8. Remaining Credential Decision
-
-One implementation decision remains before the Admin-auth correction can be completed:
-
-```text
-permanent Admin login credential format
-```
-
-The Player `User + 4-digit Key` credential model must not be reused automatically for Admin access.
-
-Until that credential decision is confirmed, this document governs the identity and authorization architecture, while the current production GM-login behavior is considered non-conformant and pending correction.
+This identity model supersedes every earlier document or implementation statement that describes GM as a promoted Player role.
