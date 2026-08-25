@@ -8,18 +8,18 @@
 
 # 1. Source Release Checkpoint
 
-Current release checkpoint when this document was created:
+Current source checkpoint before automatic deployment was enabled:
 
 ```text
 Repository: lchjames/Dungeon-and-Dragon
 Branch: main
-Commit: acf4a4c2f248287fe0a3c39fb93e4597c744de5d
+Commit: c96a222ec2322df944aef5f3b321eddd4d81a475
 Production URL: https://dungeon-and-dragon.lchjames.com
 ```
 
-Before deploying, re-read `main`. If `main` has advanced, the deploy target must be the new verified `main` head rather than this historical SHA.
+After automatic deployment is merged, the deploy target is always the exact `main` commit that has just passed the `MVP checks` workflow. The historical SHA above remains only a checkpoint reference.
 
-GitHub `main` and successful GitHub Actions checks are source-release evidence only. They do not prove that Cloudflare production has been deployed.
+GitHub `main` alone is not deployment proof. A release is published only after the `Deploy Cloudflare production` job succeeds for that `main` commit.
 
 ---
 
@@ -65,7 +65,8 @@ Therefore the current established production update path is:
 
 ```text
 verified current main
-→ deploy Worker + assets
+→ MVP checks pass
+→ GitHub Actions deploys Worker + assets
 → authenticated smoke requests exercise the guarded runtime paths
 → inspect any D1/runtime error before considering manual schema intervention
 ```
@@ -76,37 +77,88 @@ For a completely new blank D1 database, use the repository schema files delibera
 
 ---
 
-# 4. Required Secret Boundary
+# 4. GitHub Deployment Credentials
 
-Initial GM provisioning uses:
+Automatic production deployment uses GitHub Actions repository secrets:
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+```
+
+The API token must have the minimum Cloudflare permissions required for this Worker deployment, including:
+
+```text
+Account → Workers Scripts → Edit
+Zone → Workers Routes → Edit
+```
+
+The token is scoped to the intended Cloudflare account and `lchjames.com` zone.
+
+Never commit either secret value into GitHub files, Markdown, Worker source or static assets. Workflow YAML may reference the secret names only.
+
+Initial GM provisioning remains a separate Worker secret:
 
 ```text
 INITIAL_GM_PROVISION_TOKEN
 ```
 
-Only configure / use this secret when the production environment still has no `gm/admin` User.
-
-If the first GM has already been provisioned, normal deployment does not require re-running `/gm/setup/` and must not create another bootstrap path.
-
-Never commit the secret value into GitHub, Markdown, Worker source or static assets.
+Only configure / use that secret when the production environment still has no `gm/admin` User. Normal deployments do not require re-running `/gm/setup/` after the first GM exists.
 
 ---
 
-# 5. Deployment Command
+# 5. Automatic Deployment Gate
 
-From a clean checkout of the verified `main`:
+`.github/workflows/mvp-checks.yml` owns both validation and production publish.
+
+The required flow is:
+
+```text
+push / pull_request
+→ node-checks
+
+only when:
+- event = push
+- branch = main
+- node-checks = success
+
+→ Deploy Cloudflare production
+```
+
+The production job:
+
+```text
+checks out the exact main commit
+uses Node 22
+validates that both Cloudflare secrets are present
+runs npx --yes wrangler@4 deploy
+```
+
+Pull requests and feature-branch pushes must never deploy production.
+
+The production deployment uses a `cloudflare-production` concurrency group with `cancel-in-progress: false`, so a later push does not cancel an already-running publish halfway through.
+
+---
+
+# 6. Manual Deployment Fallback
+
+Automatic GitHub deployment is the normal Alpha path. Manual deployment is fallback-only for CI/CD recovery or controlled rollback.
+
+From a clean checkout of a verified commit:
 
 ```bash
-npx wrangler deploy
+npx --yes wrangler@4 deploy
 ```
+
+with valid Cloudflare credentials in the execution environment.
 
 The deployment output must identify the intended Worker / custom domain rather than a test Worker or unrelated Cloudflare account.
 
-Do not treat a successful local source test as deployment success; use Wrangler's deployment result as the publish boundary.
+Do not treat local source tests as deployment success; use Wrangler / GitHub Actions deployment completion as the publish boundary.
 
 ---
 
-# 6. Immediate Post-Deploy Smoke Test
+# 7. Immediate Post-Deploy Smoke Test
 
 Use the real production browser session.
 
@@ -138,7 +190,7 @@ A 500 / 503 on a new feature route must be treated as a release blocker until it
 
 ---
 
-# 7. Live Alpha Vertical Slice
+# 8. Live Alpha Vertical Slice
 
 Run one intentionally small live Scenario using disposable / Alpha data where possible:
 
@@ -173,11 +225,13 @@ Do not use the live Alpha session to invent new rules. Record failures as integr
 
 ---
 
-# 8. Pass Criteria
+# 9. Pass Criteria
 
 The release is suitable for continued Alpha use when:
 
 ```text
+MVP checks succeed on the deployed main commit
+Deploy Cloudflare production succeeds
 production routes load
 D1-backed reads/writes succeed
 GM and Player authorization boundaries hold
@@ -195,9 +249,20 @@ UI friction that does not corrupt authoritative data may be recorded for Alpha u
 
 ---
 
-# 9. Failure / Rollback Boundary
+# 10. Failure / Rollback Boundary
 
-If deployment introduces a production-blocking runtime error:
+If automatic deployment fails:
+
+```text
+MVP checks failure
+→ do not deploy
+
+credential / Wrangler deployment failure
+→ main remains source-of-truth, but production stays on the previous successful Worker version
+→ inspect GitHub Actions deploy log
+```
+
+If deployment succeeds but introduces a production-blocking runtime error:
 
 ```text
 stop live data mutation
@@ -213,14 +278,15 @@ D1 data changes are a separate boundary from Worker rollback. Rolling back Worke
 
 ---
 
-# 10. Current Operational Status
+# 11. Current Operational Status
 
-At the time this document was created:
+After the automatic deployment workflow lands on `main`, the operational model is:
 
 ```text
 GitHub MVP feature construction: complete for first vertical slice
 Scenario E2E source regression: passing
-GitHub main: ready as source release checkpoint
-Cloudflare production deployment: must be verified separately
-Live browser + production D1 Alpha session: pending until deployment is confirmed
+GitHub Actions Cloudflare credentials: configured
+Automatic production deployment: configured and gated by MVP checks
+First automatic main deployment: must succeed before production parity is claimed
+Live browser + production D1 Alpha session: follows successful deployment
 ```
