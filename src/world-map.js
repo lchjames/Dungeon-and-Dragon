@@ -1,4 +1,4 @@
-import baseWorker from './live-diagnostic-gateway.js';
+import baseWorker from './player-monster-audit-compat.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const DEFINITION_STATUSES = new Set(['active', 'archived']);
