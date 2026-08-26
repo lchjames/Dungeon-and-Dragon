@@ -27,8 +27,8 @@ assert.match(worker, /last_progress_round INTEGER NOT NULL/);
 assert.match(worker, /recovery_applied INTEGER NOT NULL DEFAULT 0/);
 assert.doesNotMatch(worker, /setTimeout|setInterval/, 'Rest progress must never use a server wall-clock timer.');
 
-assert.match(worker, /\/rest\/start\$\//);
-assert.match(worker, /\/rest\/cancel\$\//);
+assert.match(worker, /\\\/rest\\\/start\$\//);
+assert.match(worker, /\\\/rest\\\/cancel\$\//);
 assert.match(worker, /request\.method !== 'POST'/);
 assert.match(worker, /validOrigin\(request\)/);
 assert.match(worker, /REST_RUNTIME_MAP_REQUIRED/);
@@ -49,7 +49,7 @@ assert.match(worker, /MIN\(max_value, current_value \+ \?\)/, 'Recovery must cla
 assert.match(worker, /status = 'completed'/);
 
 assert.match(worker, /pathname === '\/api\/gm\/combat\/start'/);
-assert.match(worker, /start-combat\$/.source ? /start-combat/ : /start-combat/);
+assert.match(worker, /start-combat/);
 assert.match(worker, /if \(response\.ok\) await interruptActiveRests/);
 assert.match(worker, /status = 'combat_interrupted'/);
 assert.match(worker, /combat_started/);
