@@ -1,4 +1,4 @@
-import baseWorker from './player-attack.js';
+import baseWorker from './player-focus.js';
 import { dyingRoundsFromCon } from './combat-rules.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
