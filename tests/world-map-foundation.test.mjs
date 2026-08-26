@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const schema = await readFile(new URL('../schema/0011_world_map_foundation.sql', import.meta.url), 'utf8');
 const server = await readFile(new URL('../src/world-map.js', import.meta.url), 'utf8');
+const auditCompat = await readFile(new URL('../src/player-monster-audit-compat.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-world-map.js', import.meta.url), 'utf8');
 const attackProfiles = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
@@ -54,7 +55,10 @@ assert.match(ui, /\/gm\/login\/\?next=/);
 assert.match(attackProfiles, /import '\.\/gm-world-map\.js';/);
 
 assert.match(wrangler, /"main"\s*:\s*"\.\/src\/world-map\.js"/);
-assert.match(server, /import baseWorker from '\.\/live-diagnostic-gateway\.js';/);
+assert.match(server, /import baseWorker from '\.\/player-monster-audit-compat\.js';/);
+assert.doesNotMatch(server, /live-diagnostic-gateway/);
+assert.match(auditCompat, /import baseWorker from '\.\/admin-gateway\.js';/);
+assert.doesNotMatch(auditCompat, /MONSTER_DEFEAT_DIAG_/);
 
 assert.match(canonical, /World Location \/ Map Template/);
 assert.match(canonical, /Runtime Map Instance/);

@@ -2,7 +2,7 @@
 
 Production source repository for `https://dungeon-and-dragon.lchjames.com`.
 
-The project is currently in **Alpha Integration / Usability Tuning**. The minimum Character → Scenario → Encounter → Monster/Boss → Combat vertical slice is implemented and protected by CI; the next gameplay validation is an authorised live production session using separate GM/Admin and Player sessions.
+The project is currently in **Alpha Integration / Usability Tuning**. The minimum Character → Scenario → Encounter → Monster/Boss → Combat vertical slice has been exercised successfully against the deployed Cloudflare Worker and production D1 with separate Admin and Player sessions. The production Alpha live gate is therefore **verified**, not pending.
 
 ## Current architecture
 
@@ -20,13 +20,22 @@ Primary routes:
 Current Worker entry from `wrangler.jsonc`:
 
 ```text
-src/admin-auth.js
+src/hostile-combat-movement-gateway.js
 ```
 
-The Worker is intentionally layered:
+The Worker is intentionally layered. The current outer-to-inner chain includes:
 
 ```text
-admin-auth.js
+hostile-combat-movement-gateway.js
+→ runtime-door-gateway.js
+→ player-map-gateway.js
+→ player-map.js
+→ runtime-map.js
+→ world-map-editor.js
+→ world-map.js
+→ player-monster-audit-compat.js
+→ admin-gateway.js
+→ admin-auth.js
 → boss-defeat.js
 → boss-runtime.js
 → boss.js
@@ -45,15 +54,13 @@ admin-auth.js
 → worker.js
 ```
 
-`admin-auth.js` is the outer identity and security boundary. It separates Player and Admin authentication, protects `/gm/*` and `/api/gm/*` as Admin-only, protects Player routes as Player-only, owns the dedicated `/gm/login/` path, blocks public Admin provisioning and provides additive compatibility for older production auth-table shapes.
+Each layer handles scoped routes and delegates unrelated requests down the chain.
 
-`gm-provision.js` remains in the historical gateway chain only as a compatibility tombstone. The outer Admin gateway is authoritative: public Admin setup and Player → GM/Admin promotion are disabled.
+`admin-gateway.js` owns the dedicated Admin password login runtime. `admin-auth.js` is the outer identity/authorization boundary below it: Player and Admin authentication remain separate, `/gm/*` and `/api/gm/*` are Admin-only, Player routes are Player-only, and public Admin provisioning is disabled.
 
-`boss-runtime.js` is the hardened Boss authoring / spawn boundary. It owns validated D1 bind contracts for Boss Profile create/update and Boss Instance snapshot spawn. It also preflights Boss participants before a Boss-enabled Encounter delegates to the lower Character/Monster Combat-start layers, and performs best-effort cleanup if a later Boss augmentation failure leaves a newly-created Encounter Combat link.
+`player-monster-audit-compat.js` is a permanent additive compatibility boundary for the long-lived production `player_monster_action_log` table. It may add missing audit columns/indexes required by the current Player → Monster resolver; it does not perform the temporary production failure diagnostics that were used while bringing the first live Alpha E2E online.
 
-`boss-defeat.js` owns Player → Boss attack resolution, Boss Armor-aware damage, Boss HP0 → immediate `defeated`, GM Current HP status reconciliation and the Player → Boss audit path.
-
-Each layer handles scoped routes and delegates all other requests down the chain.
+`gm-provision.js` remains in the historical gateway chain only as a compatibility tombstone. The authoritative security boundary rejects public Admin setup and Player → Admin promotion.
 
 ## D1 authority
 
@@ -79,7 +86,6 @@ Authoritative areas currently include:
 - shared damage resolution and Character HP0 / DYING baseline
 - Scenario / Scene / Encounter structure and participants
 - Encounter → optional Combat link
-- simple Scene Map reference metadata
 - Monster Templates, Skills, loadouts and spawned Instances
 - Monster resource, Spread, Defence and Armor snapshots / overrides
 - Monster → Character and Player → Monster attack audit
@@ -88,8 +94,14 @@ Authoritative areas currently include:
 - spawned Boss Instances and runtime Phase state
 - Boss → Character and Player → Boss attack audit
 - Boss active / defeated / removed lifecycle
+- World Locations and reusable Map Templates
+- Map Cell walkability, Edges, Doors, Zones and Spawn Points
+- Scene → Map bindings
+- runtime Map snapshots / Instances and entity positions
+- Player tactical movement
+- GM-controlled Monster/Boss tactical movement and runtime door state
 
-Reference / migration SQL lives under `schema/`.
+Reference / migration SQL lives under `schema/`. Runtime compatibility code is additive where an existing production table must be upgraded safely.
 
 Browser storage is not authoritative campaign storage. It may only be used for UI preferences such as theme.
 
@@ -139,7 +151,7 @@ Normal Player registration always creates `role = player` and can never promote 
 
 ### Admin assignment is operator-only
 
-GM/Admin accounts are **not publicly creatable**. If an Admin identity must be created or replaced, an authorised operator must do it through the trusted deployment / database administration boundary.
+GM/Admin accounts are **not publicly creatable**. If an Admin identity must be created or replaced, an authorised operator must do it through a trusted deployment/database administration boundary.
 
 The public application may authenticate an already configured Admin, but it may not:
 
@@ -163,13 +175,13 @@ POST /api/admin/provision-initial-gm
 → 410 ADMIN_PROVISIONING_DISABLED
 ```
 
-Historical provisioning-secret names are not an authorised browser bootstrap path.
+The operator-assigned Alpha `gm` account remains an explicit compatibility exception for its two-character username and eight-character Alpha password. Its credential is now persisted only in production D1; the temporary deterministic runtime seed and embedded hash/salt were removed after the live gate succeeded.
 
-Permanent Admin credentials use the dedicated Admin credential format with PBKDF2-HMAC-SHA256, 210,000 iterations, a random 16-byte salt and a 256-bit derived hash. The Canonical normal Admin password contract requires at least 12 characters; Alpha-only test credentials may have an explicit temporary compatibility exception in runtime and must not redefine the permanent rule.
+The Canonical permanent Admin contract remains stronger than the Alpha compatibility account. The current Workers/workerd PBKDF2 ceiling means the production Admin KDF still requires a Workers-compatible stronger long-term design before Alpha exit; the temporary 100,000-iteration Alpha credential must not become the permanent security standard.
 
 Admin and Player sessions are server-side D1 sessions exposed through Secure + HttpOnly + SameSite=Lax cookies, while route authorization remains role-specific.
 
-See `docs/GM_INITIAL_PROVISIONING_MVP.md` for the authoritative security contract. It supersedes earlier setup/provisioning text.
+See `docs/GM_INITIAL_PROVISIONING_MVP.md` for the authoritative security contract.
 
 ## Current GM workspace
 
@@ -180,7 +192,6 @@ The GM workspace currently supports:
 - Current HP / MP correction
 - Character Attack Profile authoring
 - Scenario / Scene / Encounter authoring
-- simple Scene Map reference metadata
 - Character Encounter participant assignment
 - Common Monster Skill authoring
 - Monster Template authoring
@@ -197,6 +208,12 @@ The GM workspace currently supports:
 - Combat creation / control
 - GM-controlled Monster Turn attack resolution
 - GM-controlled Boss Turn attack resolution
+- World Location / Map Template authoring
+- Map Cell / Edge / Door / Zone / Spawn Point editing
+- Scene → Map binding
+- runtime Map creation and entity placement
+- runtime Door control
+- GM-controlled Monster/Boss movement
 
 The old localStorage GM Character editor is not an authoritative MVP path.
 
@@ -273,7 +290,7 @@ Character
 → same Round / Turn state
 ```
 
-Boss participants must still be `active` with `Current HP > 0` before the lower-layer Encounter Combat start is allowed. If a later Boss augmentation fails after a new lower-layer Combat link was created, the hardened gateway attempts to end that partial Combat and unlink it so the Encounter can be corrected and retried.
+Boss participants must still be `active` with `Current HP > 0` before Encounter Combat start. If later Boss augmentation fails after a lower-layer Combat link was created, the hardened gateway attempts to end that partial Combat and unlink it so the Encounter can be corrected and retried.
 
 On a Boss Turn:
 
@@ -288,7 +305,24 @@ GM selects snapshotted Boss Skill + living Character target
 
 Player → Boss uses the same opposed D100 + separate Armor reduction model as Player → Monster.
 
-Monster / Boss AI is not implemented. The GM explicitly selects Skills and targets.
+Monster / Boss AI is not implemented. The GM explicitly selects Skills, targets and hostile movement.
+
+## Tactical Map Alpha
+
+Map support is no longer metadata-only. The current Alpha includes a grid-based World/Runtime Map path:
+
+```text
+World Location
+→ Map Template
+→ Cells / Edges / Doors / Zones / Spawn Points
+→ Scene Map Binding
+→ Runtime Map Instance
+→ Entity positions
+→ Player / hostile movement
+→ runtime Door state
+```
+
+Current movement is discrete adjacent-cell movement with walkability, occupied-cell, wall/door and diagonal-corner checks. Advanced line-of-sight, fog-of-war, pathfinding/AI navigation, ranged distance rules and a final encounter-scale tactical UX remain later Alpha work unless they become blockers.
 
 ## Monster Defence / Armor MVP
 
@@ -420,41 +454,51 @@ monster_instance
 boss_instance
 ```
 
-All three participant types have runtime persistence and executable combat participation for the minimum MVP path.
+All three participant types have runtime persistence and executable combat participation for the minimum MVP path. One Encounter may link to zero or one Combat. Combat ending and Encounter resolution remain separate GM-controlled actions.
 
-For MVP, one Encounter may link to zero or one Combat. Combat ending and Encounter resolution remain separate GM-controlled actions. A full tactical Map engine remains Deferred; current Map support is metadata only.
+## Production Alpha live gate
 
-See `docs/FIRST_END_TO_END_SCENARIO_PLAYTEST.md`.
+The production-writing runner is `scripts/production-alpha-e2e.mjs`, with manual GitHub Actions entrypoint `.github/workflows/production-alpha-live.yml`.
+
+It is plan-only by default and writes to production only when explicitly operator-triggered with the Admin credential supplied through the repository secret.
+
+The live gate was verified on 2026-08-26 against the direct production Worker + production D1. The verified flow exercised:
+
+```text
+Admin login / admin role
+separate Player registration/session
+Character creation + 200-point finalization
+GM Attack Profile authoring
+Scenario / Scene / Encounter setup
+Monster create/spawn
+Boss create/phases/spawn
+shared Character + Monster + Boss Initiative
+Monster → Character attack
+Boss → Character attack
+manual Boss Phase 2
+Player → Monster defeat
+Player → Boss defeat
+Combat end
+Encounter resolve
+Scenario archive
+```
+
+All required runner assertions returned `true`.
+
+After that success, the temporary deterministic Alpha GM runtime seed and embedded credential material were removed. A second full live E2E on revision `a10b5074fcd9e3be67239a691cf247d8ec641235` again returned `ok: true`, proving the persisted production D1 Admin credential and normal runtime path work without automatic reseeding.
+
+See `docs/PRODUCTION_ALPHA_LIVE_PLAYTEST.md` for the detailed gate and recorded run evidence.
 
 ## Automated checks
 
-GitHub Actions runs `.github/workflows/mvp-checks.yml` on branch pushes and pull requests.
+GitHub Actions runs `.github/workflows/mvp-checks.yml` on branch pushes and pull requests. The suite includes JavaScript syntax checks, the plan-only production runner safety gate, rules/combat/Monster/Boss regressions, static/deployment contracts and source-level Scenario E2E coverage.
 
-Current checks include:
+Key permanent gates include:
 
-```bash
-node --check for src/*.js, public/assets/*.js and scripts/*.mjs
-node scripts/production-alpha-e2e.mjs   # plan-only safety gate
-node tests/rules.test.mjs
-node tests/combat-rules.test.mjs
-node tests/monster-rules.test.mjs
-node tests/monster-life.test.mjs
-node tests/boss-rules.test.mjs
-node tests/boss-life.test.mjs
-node tests/static-ui-contract.test.mjs
-node tests/boss-defeat-contract.test.mjs
-node tests/admin-auth-contract.test.mjs
-node tests/deployment-contract.test.mjs
-node tests/mvp-scenario-e2e.test.mjs
-```
-
-`tests/admin-auth-contract.test.mjs` protects the Player/Admin identity split, dedicated Admin credential path, retired public Admin provisioning routes and Admin outer gateway.
-
-`tests/mvp-scenario-e2e.test.mjs` is the permanent source-level regression gate for the Scenario → Encounter → Character/Monster/Boss → Combat → defeat lifecycle path, including the Boss Encounter-start preflight / partial-start cleanup invariant.
-
-`scripts/production-alpha-e2e.mjs` is **plan-only by default**. CI runs that non-writing mode to prove the safety gate itself. A real live session requires explicit operator execution and a runtime-supplied Admin password; credentials are never committed to Git.
-
-See `docs/PRODUCTION_ALPHA_LIVE_PLAYTEST.md`.
+- `tests/admin-auth-contract.test.mjs` — Player/Admin identity split and public provisioning lockdown
+- `tests/deployment-contract.test.mjs` — production deployment boundaries, Admin seed removal and additive D1 compatibility
+- `tests/mvp-scenario-e2e.test.mjs` — Scenario → Encounter → Character/Monster/Boss → Combat lifecycle
+- `scripts/production-alpha-e2e.mjs` — plan-only in normal CI; production writes only through explicit operator execution
 
 ## Deployment
 
@@ -477,15 +521,13 @@ CLOUDFLARE_ACCOUNT_ID
 
 It deploys Worker `dnd`, `./public` static assets, D1 binding `DB → dnd-db`, and the custom domain according to `wrangler.jsonc`.
 
-The automatic path was verified successfully on 2026-08-25. Manual Wrangler deployment is fallback-only for CI/CD recovery or controlled rollback.
-
 The custom domain may return a Cloudflare managed challenge to headless CI. Deployment smoke therefore verifies custom-domain edge reachability separately and runs precise application/auth assertions against the direct `dnd.apswsttss.workers.dev` Worker URL.
 
-Do **not** blindly replay every file in `schema/` against an existing production D1 database. Later additive schema paths include guarded runtime initialization and some reference SQL is non-idempotent. See `docs/PRODUCTION_RELEASE_ALPHA.md`.
+Do **not** blindly replay every file in `schema/` against an existing production D1 database. Later additive schema paths include guarded runtime initialization/compatibility and some reference SQL is non-idempotent. See `docs/PRODUCTION_RELEASE_ALPHA.md`.
 
 ## Current direction
 
-The minimum source-level MVP vertical slice is implemented and protected by CI:
+Verified / implemented Alpha baseline:
 
 ```text
 Character D100 / Damage / HP0 resolver              implemented MVP path
@@ -495,12 +537,13 @@ Monster Dedicated Defence + Armor                   implemented
 Monster HP0 + Player ↔ Monster combat loop          implemented
 Boss Profile / Boss Instance runtime                implemented MVP path
 Boss HP0 + Player ↔ Boss combat loop                implemented MVP path
+World / Runtime Map grid foundation                 implemented Alpha path
+Player + GM hostile movement                        implemented Alpha path
 First Scenario source-level E2E gate                implemented
 Automatic Cloudflare production deployment          verified
 Player / Admin authentication separation            implemented Alpha correction
-Production Alpha live E2E runner                     implemented, live execution pending
+Production Alpha live E2E                            VERIFIED
+Temporary Alpha GM deterministic runtime seed        removed
 ```
 
-The immediate validation target is an **authorised live production D1 Scenario session** using the dedicated Admin login and a separate Player session, exercising the complete flow with real Character, Monster and Boss data. The live milestone is not complete merely because the runner exists; it is complete only after an authorised execution returns the required success assertions documented in `docs/PRODUCTION_ALPHA_LIVE_PLAYTEST.md`.
-
-Advanced Monster/Boss AI, exact balance curves, full tactical Map rules, economy, loot and Quest automation remain later work unless they become a concrete Alpha blocker.
+The next work should therefore be chosen from actual Alpha gameplay/usability gaps rather than continuing to treat the core production vertical slice as unverified. Advanced Monster/Boss AI, final balance curves, richer tactical Map UX/rules, economy, loot and Quest automation remain later work unless promoted into the next concrete Alpha slice.
