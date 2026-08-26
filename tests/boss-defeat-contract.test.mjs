@@ -17,6 +17,8 @@ assert.match(worker, /move_available = 0/, 'Defeated Boss must lose ordinary Act
 assert.match(worker, /BOSS_TARGET_NOT_ACTIVE/, 'Defeated / removed Boss must reject ordinary Player targeting.');
 assert.match(worker, /reconcileBossStatusFromHp/, 'GM Boss HP correction must reconcile active / defeated state.');
 assert.match(worker, /min: 0, max: maxHp/, 'GM Boss runtime correction must permit Current HP 0.');
+assert.match(worker, /const body = await readBody\(request\.clone\(\)\)/,
+  'Boss attack router must inspect a clone so non-Boss Player attacks retain their body for the downstream Monster resolver.');
 
 assert.match(playerUi, /boss_instance/, 'Player Combat UI must recognize Boss Instance targets.');
 assert.match(playerUi, /· BOSS ·/, 'Player Combat UI must label Boss targets.');
