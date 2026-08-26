@@ -1,8 +1,39 @@
 # Production Alpha Live Playtest
 
-> Status: **Alpha Integration Gate — executable runner + manual GitHub workflow added; live write run still requires an authorised operator credential**  
-> Date: 2026-08-25  
-> Scope: validate the deployed Worker + production D1 with separate GM/Admin and Player sessions.
+> Status: **VERIFIED — authorised production E2E completed successfully**  
+> Verified: 2026-08-26  
+> Scope: deployed Worker + production D1 with separate GM/Admin and Player sessions.
+
+## Verified production execution
+
+The Alpha Integration Gate completed successfully against the direct production Worker on 2026-08-26.
+
+Verified workflow run:
+
+```text
+Production Alpha Live Playtest
+run: 32920792372
+job: 98036693943
+revision: 2582627cb9f3cd66448dcf4350dc6837d830b5a8
+runId: alpha-e2e-260826-021158
+```
+
+The runner returned `ok: true` and confirmed every required exercised flag:
+
+```json
+{
+  "monsterToCharacter": true,
+  "bossToCharacter": true,
+  "bossManualPhase2": true,
+  "playerToMonsterDefeat": true,
+  "playerToBossDefeat": true,
+  "combatEnded": true,
+  "encounterResolved": true,
+  "scenarioArchived": true
+}
+```
+
+The final production blocker was a shared Request-body routing defect: the outer Boss attack router consumed the Player attack POST body before delegating non-Boss targets to the downstream Monster resolver. The fix changed the Boss router to inspect `request.clone()`, preserving the original body for downstream delegation. A regression contract now protects that boundary.
 
 ## Purpose
 
@@ -23,6 +54,8 @@ A manual GitHub Actions entrypoint is also provided:
 ```
 
 That workflow never accepts the GM password as a workflow input. It reads only the repository secret `DND_ALPHA_GM_PASSWORD` and fails before the live runner starts when the secret is missing.
+
+Normal `main` deployment does not execute this production-writing playtest. Live execution remains an explicit operator action.
 
 ## Live flow
 
@@ -155,4 +188,4 @@ It becomes complete only after an authorised execution returns:
 }
 ```
 
-Any production failure becomes an Alpha blocker to diagnose before adding another major gameplay subsystem.
+The 2026-08-26 verified run above satisfies this completion rule. Future production failures remain Alpha blockers and must be diagnosed before the affected gameplay subsystem is treated as production-valid.
