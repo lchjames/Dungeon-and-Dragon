@@ -6,7 +6,8 @@ const liveWorkflow = await readFile(new URL('../.github/workflows/production-alp
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const releaseDoc = await readFile(new URL('../docs/PRODUCTION_RELEASE_ALPHA.md', import.meta.url), 'utf8');
 const adminGateway = await readFile(new URL('../src/admin-gateway.js', import.meta.url), 'utf8');
-const liveDiagnosticGateway = await readFile(new URL('../src/live-diagnostic-gateway.js', import.meta.url), 'utf8');
+const auditCompatGateway = await readFile(new URL('../src/player-monster-audit-compat.js', import.meta.url), 'utf8');
+const worldMap = await readFile(new URL('../src/world-map.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -58,6 +59,7 @@ assert.match(wrangler, /"binding"\s*:\s*"DB"/);
 assert.match(wrangler, /"database_name"\s*:\s*"dnd-db"/);
 assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b782"/);
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
+assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
 
 assert.match(adminGateway, /from 'node:crypto'/);
 assert.match(adminGateway, /pbkdf2\(/);
@@ -86,12 +88,13 @@ for (const forbidden of [
 }
 
 // Production D1 is long-lived: CREATE TABLE IF NOT EXISTS cannot upgrade an older
-// player_monster_action_log definition. The outer compatibility gateway must
-// inspect the existing columns and add only the missing audit fields before an attack.
-assert.match(liveDiagnosticGateway, /ensurePlayerMonsterAuditCompatibility/);
-assert.match(liveDiagnosticGateway, /PRAGMA table_info\(\$\{table\}\)/);
-assert.match(liveDiagnosticGateway, /ALTER TABLE player_monster_action_log ADD COLUMN \$\{column\} \$\{definition\}/);
-assert.match(liveDiagnosticGateway, /AUDIT_COLUMN_DEFINITIONS/);
+// player_monster_action_log definition. The permanent compatibility boundary must
+// inspect the existing columns and add only missing audit fields before Player attacks.
+assert.match(auditCompatGateway, /ensurePlayerMonsterAuditCompatibility/);
+assert.match(auditCompatGateway, /PRAGMA table_info\(\$\{table\}\)/);
+assert.match(auditCompatGateway, /ALTER TABLE player_monster_action_log ADD COLUMN \$\{column\} \$\{definition\}/);
+assert.match(auditCompatGateway, /AUDIT_COLUMN_DEFINITIONS/);
+assert.match(auditCompatGateway, /isPlayerAttack/);
 for (const column of [
   'target_monster_instance_id',
   'monster_stored_defence',
@@ -101,34 +104,15 @@ for (const column of [
   'monster_final_armor_defence',
   'monster_status_after'
 ]) {
-  assert.match(liveDiagnosticGateway, new RegExp(`${column}:`), `Compatibility migration must define ${column}.`);
+  assert.match(auditCompatGateway, new RegExp(`${column}:`), `Compatibility migration must define ${column}.`);
 }
-assert.match(liveDiagnosticGateway, /MONSTER_DEFEAT_AUDIT_SCHEMA_MIGRATION_ERROR/);
-assert.doesNotMatch(liveDiagnosticGateway, /DROP TABLE player_monster_action_log/, 'Audit compatibility migration must never drop production audit data.');
-assert.doesNotMatch(liveDiagnosticGateway, /DELETE FROM player_monster_action_log/, 'Audit compatibility migration must never delete production audit rows.');
-
-// The temporary production diagnostic must narrow unexpected Player→Monster 500s
-// without exposing column names or raw SQL to the client. It distinguishes schema/query
-// failures from failures before and after the Action reservation boundary.
-for (const marker of [
-  'EXPECTED_MONSTER_COLUMNS',
-  'EXPECTED_COMBATANT_COLUMNS',
-  'EXPECTED_COMBAT_COLUMNS',
-  'EXPECTED_PROFILE_COLUMNS',
-  'EXPECTED_ATTRIBUTE_COLUMNS',
-  'MONSTER_DEFEAT_DIAG_MONSTER_SCHEMA_DRIFT',
-  'MONSTER_DEFEAT_DIAG_COMBATANT_SCHEMA_DRIFT',
-  'MONSTER_DEFEAT_DIAG_PROFILE_SCHEMA_DRIFT',
-  'MONSTER_DEFEAT_DIAG_ATTRIBUTE_SCHEMA_DRIFT',
-  'MONSTER_DEFEAT_DIAG_PROFILE_LOOKUP_FAILED',
-  'MONSTER_DEFEAT_DIAG_ATTRIBUTE_LOOKUP_FAILED',
-  'MONSTER_DEFEAT_DIAG_POST_RESERVATION_FAILURE',
-  'MONSTER_DEFEAT_DIAG_PRE_RESERVATION_FAILURE'
-]) {
-  assert.match(liveDiagnosticGateway, new RegExp(marker), `Live diagnostic must retain ${marker}.`);
-}
-assert.match(liveDiagnosticGateway, /const profileId = String\(body\?\.profileId/);
-assert.match(liveDiagnosticGateway, /actionReserved = !Boolean\(actor\.action_available\)/);
+assert.match(auditCompatGateway, /MONSTER_DEFEAT_AUDIT_SCHEMA_MIGRATION_ERROR/);
+assert.doesNotMatch(auditCompatGateway, /DROP TABLE player_monster_action_log/, 'Audit compatibility migration must never drop production audit data.');
+assert.doesNotMatch(auditCompatGateway, /DELETE FROM player_monster_action_log/, 'Audit compatibility migration must never delete production audit rows.');
+assert.doesNotMatch(auditCompatGateway, /MONSTER_DEFEAT_DIAG_/, 'Temporary Monster defeat live diagnostic codes must stay removed.');
+assert.doesNotMatch(auditCompatGateway, /diagnoseMonsterAttackFailure/, 'Compatibility boundary must not retain the one-off production failure probe.');
+assert.match(worldMap, /import baseWorker from '\.\/player-monster-audit-compat\.js'/);
+assert.doesNotMatch(worldMap, /live-diagnostic-gateway/, 'World Map chain must not retain the temporary diagnostic gateway.');
 
 assert.match(releaseDoc, /Do \*\*not\*\* blindly execute every file under `schema\/`/);
 assert.match(releaseDoc, /Pull requests and feature-branch pushes must never deploy production/);
