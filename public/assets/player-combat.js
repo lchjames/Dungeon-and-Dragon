@@ -34,6 +34,21 @@ function setStatus(message = '', kind = '') {
   box.hidden = !message;
 }
 
+function ensureFocusButton() {
+  if ($('#player-focus')) return $('#player-focus');
+  const actionButton = $('#player-consume-action');
+  const actions = actionButton?.parentElement;
+  if (!actionButton || !actions) return null;
+  const button = document.createElement('button');
+  button.id = 'player-focus';
+  button.className = 'button button-ghost';
+  button.type = 'button';
+  button.disabled = true;
+  button.textContent = 'Focus / 集中 (+5% Max MP)';
+  actions.insertBefore(button, actionButton);
+  return button;
+}
+
 function renderNoCombat() {
   const panel = $('#player-combat-panel');
   if (!panel) return;
@@ -146,14 +161,20 @@ function renderCombat(combat) {
   const current = combat.currentCombatant;
   const ownTurn = Boolean(combat.isOwnTurn && current);
   const alive = String(current?.lifeState || 'alive').toLowerCase() === 'alive';
+  const hpText = current?.hp ? ` · HP ${current.hp.current}/${current.hp.max}` : '';
+  const mpText = current?.mp ? ` · MP ${current.mp.current}/${current.mp.max}` : '';
   $('#player-combat-current').textContent = current
-    ? `${ownTurn ? 'Your Turn' : 'Current Turn'}: ${current.displayName} · ${lifeLabel(current)}${current.hp ? ` · HP ${current.hp.current}/${current.hp.max}` : ''} · DEX ${current.dex} · Action ${current.actionAvailable ? 'Ready' : 'Spent'} · Move ${current.moveAvailable ? 'Ready' : 'Spent'}`
+    ? `${ownTurn ? 'Your Turn' : 'Current Turn'}: ${current.displayName} · ${lifeLabel(current)}${hpText}${mpText} · DEX ${current.dex} · Action ${current.actionAvailable ? 'Ready' : 'Spent'} · Move ${current.moveAvailable ? 'Ready' : 'Spent'}`
     : 'Current Turn state is invalid.';
 
+  const focus = ensureFocusButton();
   const action = $('#player-consume-action');
   const move = $('#player-consume-move');
   const endTurn = $('#player-end-turn');
+  const hasMissingMp = !current?.mp || !Number.isFinite(Number(current.mp.current)) || !Number.isFinite(Number(current.mp.max));
+  const mpFull = !hasMissingMp && Number(current.mp.current) >= Number(current.mp.max);
 
+  if (focus) focus.disabled = !ownTurn || !alive || !current.actionAvailable || hasMissingMp || mpFull;
   if (action) action.disabled = !ownTurn || !alive || !current.actionAvailable;
   if (move) move.disabled = !ownTurn || !alive || !current.moveAvailable;
   if (endTurn) endTurn.disabled = !ownTurn;
@@ -161,6 +182,9 @@ function renderCombat(combat) {
   const initiative = $('#player-combat-initiative');
   initiative.innerHTML = (combat.combatants || []).map(combatant => {
     const flags = [combatant.isCurrent ? 'Current Turn' : '', combatant.controlledByCurrentUser ? 'Yours' : '', lifeLabel(combatant)].filter(Boolean);
+    const resourceBits = [];
+    if (combatant.hp) resourceBits.push(`HP ${escapeHtml(combatant.hp.current)}/${escapeHtml(combatant.hp.max)}`);
+    if (combatant.mp) resourceBits.push(`MP ${escapeHtml(combatant.mp.current)}/${escapeHtml(combatant.mp.max)}`);
     return `<article class="stack-item compact-item ${combatant.isCurrent ? 'selected' : ''}">
       <div>
         <div class="row-inline">
@@ -168,7 +192,7 @@ function renderCombat(combat) {
           <span class="tag">DEX ${escapeHtml(combatant.dex)}</span>
           ${flags.map(flag => `<span class="status-pill">${escapeHtml(flag)}</span>`).join('')}
         </div>
-        <p>${combatant.hp ? `HP ${escapeHtml(combatant.hp.current)}/${escapeHtml(combatant.hp.max)} · ` : ''}Action ${combatant.actionAvailable ? 'Ready' : 'Spent'} · Move ${combatant.moveAvailable ? 'Ready' : 'Spent'}${combatant.turnCompleted ? ' · Turn completed' : ''}</p>
+        <p>${resourceBits.length ? `${resourceBits.join(' · ')} · ` : ''}Action ${combatant.actionAvailable ? 'Ready' : 'Spent'} · Move ${combatant.moveAvailable ? 'Ready' : 'Spent'}${combatant.turnCompleted ? ' · Turn completed' : ''}</p>
       </div>
     </article>`;
   }).join('');
@@ -231,6 +255,25 @@ async function consumeAllowance(kind) {
   }
 }
 
+async function focus() {
+  const combat = combatState?.combat;
+  if (!combat?.isOwnTurn) return;
+  const button = $('#player-focus');
+  if (button) button.disabled = true;
+  try {
+    const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/focus`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    renderState(payload);
+    const result = payload.focus;
+    toast(`集中完成：MP ${result?.mpBefore ?? '—'} → ${result?.mpAfter ?? '—'}（+${result?.recoveryApplied ?? 0}）`, 'success');
+  } catch (error) {
+    toast(error.message, 'error');
+    await loadCombat({ quiet: true });
+  }
+}
+
 async function attack() {
   const combat = combatState?.combat;
   if (!combat?.isOwnTurn) return;
@@ -274,7 +317,9 @@ function scheduleRefresh() {
   }, 5000);
 }
 
+ensureFocusButton();
 $('#player-refresh-combat')?.addEventListener('click', () => loadCombat());
+$('#player-focus')?.addEventListener('click', focus);
 $('#player-consume-action')?.addEventListener('click', () => consumeAllowance('action'));
 $('#player-consume-move')?.addEventListener('click', () => consumeAllowance('move'));
 $('#player-attack')?.addEventListener('click', attack);
