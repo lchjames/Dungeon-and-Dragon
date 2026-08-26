@@ -1,4 +1,4 @@
-import baseWorker from './player-map-gateway.js';
+import baseWorker from './player-rest.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const DOOR_STATES = new Set(['open', 'closed', 'locked', 'broken']);
