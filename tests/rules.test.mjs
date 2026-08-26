@@ -4,6 +4,7 @@ import {
   buildCombatInitiative,
   calculatePlayerResources,
   expThresholdForLevel,
+  focusMpRecovery,
   levelFromExp,
   reconcileResourceCurrentOnMaxChange,
   validateCreationSkillAllocations
@@ -25,6 +26,10 @@ assert.deepEqual({ hp: resources.finalMaxHP, mp: resources.finalMaxMP }, { hp: 1
 assert.equal(reconcileResourceCurrentOnMaxChange(5, 10, 15), 10);
 assert.equal(reconcileResourceCurrentOnMaxChange(12, 15, 8), 8);
 assert.equal(reconcileResourceCurrentOnMaxChange(4, 15, 8), 4);
+assert.equal(focusMpRecovery(0), 0);
+assert.equal(focusMpRecovery(39), 2);
+assert.equal(focusMpRecovery(100), 5);
+assert.equal(focusMpRecovery(641), 33);
 
 const randomValues = [0, 0];
 const initiative = buildCombatInitiative([

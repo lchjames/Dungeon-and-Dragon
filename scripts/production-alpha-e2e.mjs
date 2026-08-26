@@ -136,6 +136,13 @@ function findEncounterContainer(story, scenarioName, sceneName) {
   return { scenario, scene };
 }
 
+function findResource(character, key) {
+  const wanted = String(key || '').toUpperCase();
+  const resource = (character?.resources || []).find(item => String(item?.key || '').toUpperCase() === wanted);
+  if (!resource) throw new Error(`Character is missing canonical ${wanted} resource.`);
+  return resource;
+}
+
 async function ensureNoExistingCombat(gm) {
   const state = await gm.json('/api/gm/combat');
   if (state?.combat?.status === 'active') {
@@ -192,6 +199,21 @@ async function createPlayerCharacter(player) {
   const finalDetail = await player.json(`/api/player/characters/${encodeURIComponent(characterId)}`);
   assert(finalDetail?.character?.status === 'active', 'Character did not become active after Finalize.');
   return finalDetail.character;
+}
+
+async function prepareFocusMp(gm, character) {
+  const mp = findResource(character, 'MP');
+  const max = Number(mp.max);
+  assert(Number.isInteger(max) && max > 0, 'Disposable Character must have positive integer Max MP for Focus validation.');
+  const recoveryExpected = Math.ceil(max * 0.05);
+  assert(recoveryExpected > 0, 'Focus recovery must be positive for the disposable Character.');
+  const current = Math.max(0, max - recoveryExpected);
+  const corrected = await gm.json(`/api/gm/characters/${encodeURIComponent(character.id)}/resources/MP`, {
+    method: 'PATCH', body: { current }
+  });
+  assert(Number(corrected?.resource?.max) === max, 'GM MP correction changed Max MP unexpectedly.');
+  assert(Number(corrected?.resource?.current) === current, 'GM MP correction did not set the requested Focus precondition.');
+  return { current, max, recoveryExpected, after: Math.min(max, current + recoveryExpected) };
 }
 
 async function createAttackProfile(gm, characterId) {
@@ -376,6 +398,44 @@ async function advanceToNextRound(gm, combatId) {
   throw new Error('Combat did not advance to the next Round within 20 End Turn operations.');
 }
 
+async function exercisePlayerFocus({ gm, player, combatId, characterCombatantId, expected }) {
+  let state = await player.json('/api/player/combat');
+  let character = state?.combat?.combatants?.find(item => item.id === characterCombatantId);
+  if (!character?.actionAvailable) {
+    await advanceToNextRound(gm, combatId);
+  }
+
+  await forceTurn(gm, combatId, characterCombatantId);
+  state = await player.json('/api/player/combat');
+  character = state?.combat?.combatants?.find(item => item.id === characterCombatantId);
+  assert(state?.combat?.isOwnTurn, 'Player does not own forced Character turn while exercising Focus.');
+  assert(character?.actionAvailable, 'Character Action must be ready before Focus.');
+  assert(Number(character?.mp?.current) === expected.current, `Focus precondition Current MP mismatch: expected ${expected.current}, got ${character?.mp?.current}.`);
+  assert(Number(character?.mp?.max) === expected.max, `Focus precondition Max MP mismatch: expected ${expected.max}, got ${character?.mp?.max}.`);
+
+  const result = await player.json(`/api/player/combat/${encodeURIComponent(combatId)}/focus`, {
+    method: 'POST', body: {}
+  });
+  const focus = result?.focus;
+  assert(focus, 'Player Focus returned no resolver result.');
+  assert(Number(focus.mpBefore) === expected.current, 'Focus reported an unexpected MP-before value.');
+  assert(Number(focus.mpMax) === expected.max, 'Focus reported an unexpected Max MP value.');
+  assert(Number(focus.recoveryRequested) === expected.recoveryExpected, 'Focus did not request ceil(Max MP × 5%).');
+  assert(Number(focus.recoveryApplied) === expected.recoveryExpected, 'Focus did not apply the expected 5% Max MP recovery.');
+  assert(Number(focus.mpAfter) === expected.after, 'Focus MP-after value is incorrect.');
+  assert(focus.actionSpent === true, 'Focus did not report Action consumption.');
+
+  const refreshed = result?.combat?.combatants?.find(item => item.id === characterCombatantId);
+  assert(refreshed && refreshed.actionAvailable === false, 'Focus did not consume the Character Action allowance.');
+  assert(Number(refreshed?.mp?.current) === expected.after, 'Focus response did not expose the updated Current MP.');
+  assert(Number(refreshed?.mp?.max) === expected.max, 'Focus response changed Max MP unexpectedly.');
+
+  await player.json(`/api/player/combat/${encodeURIComponent(combatId)}/end-turn`, {
+    method: 'POST', body: {}
+  });
+  return focus;
+}
+
 async function playerAttackTarget({ gm, player, combatId, characterCombatantId, targetCombatantId, profileId, targetLabel }) {
   for (let attempt = 1; attempt <= MAX_ATTACK_ATTEMPTS; attempt += 1) {
     let state = await player.json('/api/player/combat');
@@ -446,11 +506,12 @@ async function main() {
       writes: [
         'test Player',
         'active Character',
+        'temporary GM MP correction for Focus validation',
         'Attack Profile',
         'Scenario/Scene/Encounter',
         'Monster Skill/Template/Instance',
         'Boss Profile/Skill/Phases/Instance',
-        'Combat audit data'
+        'Focus + Combat audit data'
       ]
     }, null, 2));
     return;
@@ -478,6 +539,7 @@ async function main() {
   ]);
 
   const character = await createPlayerCharacter(player);
+  const focusExpectation = await prepareFocusMp(gm, character);
   const attackProfile = await createAttackProfile(gm, character.id);
   const story = await createStory(gm, character.id);
   await createMonster(gm, story.encounter.id);
@@ -499,6 +561,13 @@ async function main() {
   assert(monsterCombatant, 'Monster Combatant is missing from shared Initiative.');
   assert(bossCombatant, 'Boss Combatant is missing from shared Initiative.');
 
+  const playerFocus = await exercisePlayerFocus({
+    gm,
+    player,
+    combatId,
+    characterCombatantId: characterCombatant.id,
+    expected: focusExpectation
+  });
   const monsterAttack = await exerciseMonsterTurn(gm, combatId, monsterCombatant.id);
   const bossAttack = await exerciseBossTurn(gm, combatId, bossCombatant.id, boss.instance.id);
   const playerVsMonster = await playerAttackTarget({
@@ -564,7 +633,16 @@ async function main() {
       monster: monsterCombatant.id,
       boss: bossCombatant.id
     },
+    focus: {
+      mpBefore: Number(playerFocus.mpBefore),
+      mpMax: Number(playerFocus.mpMax),
+      recoveryApplied: Number(playerFocus.recoveryApplied),
+      mpAfter: Number(playerFocus.mpAfter)
+    },
     exercised: {
+      playerFocus: Boolean(playerFocus?.actionSpent)
+        && Number(playerFocus?.recoveryApplied) === focusExpectation.recoveryExpected
+        && Number(playerFocus?.mpAfter) === focusExpectation.after,
       monsterToCharacter: Boolean(monsterAttack),
       bossToCharacter: Boolean(bossAttack),
       bossManualPhase2: true,
