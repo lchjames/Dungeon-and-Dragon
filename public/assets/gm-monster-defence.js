@@ -16,7 +16,7 @@ async function api(url, options = {}) {
   let payload = null;
   try { payload = await response.json(); } catch { payload = null; }
   if (response.status === 401) {
-    location.replace(`/player/login/?next=${encodeURIComponent('/gm/#monsters')}`);
+    location.replace(`/gm/login/?next=${encodeURIComponent('/gm/#monsters')}`);
     throw new Error('Session expired.');
   }
   if (!response.ok) throw new Error(payload?.error?.message || 'Request failed.');
