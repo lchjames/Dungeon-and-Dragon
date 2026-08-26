@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const workflow = await readFile(new URL('../.github/workflows/mvp-checks.yml', import.meta.url), 'utf8');
+const liveWorkflow = await readFile(new URL('../.github/workflows/production-alpha-live.yml', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const releaseDoc = await readFile(new URL('../docs/PRODUCTION_RELEASE_ALPHA.md', import.meta.url), 'utf8');
 const adminGateway = await readFile(new URL('../src/admin-gateway.js', import.meta.url), 'utf8');
@@ -30,6 +31,22 @@ assert.match(workflow, /expect_redirect "\/gm\/" "\/gm\/login\/"/);
 assert.match(workflow, /request_worker "\/api\/auth\/me"/);
 assert.match(workflow, /request_worker "\/api\/admin\/auth\/me"/);
 assert.match(workflow, /--retry 8/);
+
+// Automatic main deployment must remain read-only with respect to gameplay data.
+// Production-writing Alpha execution is operator-triggered only.
+assert.doesNotMatch(workflow, /DND_ALPHA_GM_PASSWORD/);
+assert.doesNotMatch(workflow, /DND_ALPHA_EXECUTE:\s*'1'/);
+assert.doesNotMatch(workflow, /cleanup-stale-alpha-combat\.mjs/);
+assert.doesNotMatch(workflow, /Temporary production Alpha diagnostic probe/);
+assert.match(liveWorkflow, /workflow_dispatch:/);
+assert.match(liveWorkflow, /Checkout current main/);
+assert.match(liveWorkflow, /ref:\s*main/);
+assert.match(liveWorkflow, /secrets\.DND_ALPHA_GM_PASSWORD/);
+assert.match(liveWorkflow, /DND_ALPHA_EXECUTE:\s*'1'/);
+assert.match(liveWorkflow, /cleanup-stale-alpha-combat\.mjs/);
+assert.match(liveWorkflow, /production-alpha-e2e\.mjs/);
+assert.doesNotMatch(liveWorkflow, /\npush:/, 'Production-writing Alpha workflow must not run on push.');
+assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha workflow must not run on pull requests.');
 
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
 assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-gateway\.js"/);
