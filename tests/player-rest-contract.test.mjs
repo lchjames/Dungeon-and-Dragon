@@ -74,7 +74,7 @@ assert.match(ui, /no Rest recovery/);
 
 assert.match(canonical, /Short Rest[\s\S]*2 Rounds/);
 assert.match(canonical, /Long Rest[\s\S]*5 Rounds/);
-assert.match(canonical, /每次 Rest 必須選擇一個資源/);
+assert.match(canonical, /Rest 每次必須選擇一個資源/);
 assert.match(canonical, /完成前進入 Combat，該次 Rest 取消且沒有回復/);
 assert.match(canonical, /D1 \+ server resolver/);
 
