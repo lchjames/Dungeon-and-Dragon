@@ -116,6 +116,11 @@ export function reconcileResourceCurrentOnMaxChange(current, oldMax, newMax) {
   return Math.min(safeCurrent, safeNewMax);
 }
 
+export function focusMpRecovery(finalMaxMp) {
+  const safeMax = Math.max(0, Number(finalMaxMp) || 0);
+  return Math.ceil(safeMax * 0.05);
+}
+
 export function expRequiredForNextLevel(level) {
   const safeLevel = Math.max(1, Math.min(MAX_LEVEL - 1, Math.trunc(Number(level) || 1)));
   return 5 * safeLevel * Math.ceil(6 * safeLevel ** 1.5);
