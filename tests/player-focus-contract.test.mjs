@@ -29,7 +29,7 @@ assert.doesNotMatch(focusWorker, /HP[^\n]*SET current_value/i, 'Focus must never
 assert.match(rules, /export function focusMpRecovery/);
 assert.match(rules, /Math\.ceil\(safeMax \* 0\.05\)/, 'Canonical Focus recovery is ceil(Final Max MP × 5%).');
 assert.match(canonical, /集中[\s\S]*ceil\(Final Max MP × 5%\)/, 'Runtime Focus must remain anchored to the Canonical recovery document.');
-assert.match(canonical, /集中只可以在正式 Combat 狀態使用/, 'Focus must remain Combat-only.');
+assert.match(canonical, /`集中`\s*只可以在正式 Combat 狀態使用/, 'Focus must remain Combat-only.');
 
 assert.match(playerUi, /Focus \/ 集中 \(\+5% Max MP\)/, 'Player Combat UI must expose Focus explicitly.');
 assert.match(playerUi, /\/focus`/, 'Player UI must use the dedicated server Focus resolver.');
