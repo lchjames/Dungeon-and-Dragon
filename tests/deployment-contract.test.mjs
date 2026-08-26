@@ -49,7 +49,11 @@ assert.doesNotMatch(liveWorkflow, /\npush:/, 'Production-writing Alpha workflow 
 assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha workflow must not run on pull requests.');
 
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-gateway\.js"/);
+assert.match(
+  wrangler,
+  /^\s*"main"\s*:\s*"\.\/src\/hostile-combat-movement-gateway\.js"\s*,?\s*$/m,
+  'Deployment contract must validate the actual Wrangler main property, not a historical gateway marker inside a comment.'
+);
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);
 assert.match(wrangler, /"database_name"\s*:\s*"dnd-db"/);
 assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b782"/);
@@ -97,6 +101,29 @@ for (const column of [
 assert.match(liveDiagnosticGateway, /MONSTER_DEFEAT_AUDIT_SCHEMA_MIGRATION_ERROR/);
 assert.doesNotMatch(liveDiagnosticGateway, /DROP TABLE player_monster_action_log/, 'Audit compatibility migration must never drop production audit data.');
 assert.doesNotMatch(liveDiagnosticGateway, /DELETE FROM player_monster_action_log/, 'Audit compatibility migration must never delete production audit rows.');
+
+// The temporary production diagnostic must narrow unexpected Player→Monster 500s
+// without exposing column names or raw SQL to the client. It distinguishes schema/query
+// failures from failures before and after the Action reservation boundary.
+for (const marker of [
+  'EXPECTED_MONSTER_COLUMNS',
+  'EXPECTED_COMBATANT_COLUMNS',
+  'EXPECTED_COMBAT_COLUMNS',
+  'EXPECTED_PROFILE_COLUMNS',
+  'EXPECTED_ATTRIBUTE_COLUMNS',
+  'MONSTER_DEFEAT_DIAG_MONSTER_SCHEMA_DRIFT',
+  'MONSTER_DEFEAT_DIAG_COMBATANT_SCHEMA_DRIFT',
+  'MONSTER_DEFEAT_DIAG_PROFILE_SCHEMA_DRIFT',
+  'MONSTER_DEFEAT_DIAG_ATTRIBUTE_SCHEMA_DRIFT',
+  'MONSTER_DEFEAT_DIAG_PROFILE_LOOKUP_FAILED',
+  'MONSTER_DEFEAT_DIAG_ATTRIBUTE_LOOKUP_FAILED',
+  'MONSTER_DEFEAT_DIAG_POST_RESERVATION_FAILURE',
+  'MONSTER_DEFEAT_DIAG_PRE_RESERVATION_FAILURE'
+]) {
+  assert.match(liveDiagnosticGateway, new RegExp(marker), `Live diagnostic must retain ${marker}.`);
+}
+assert.match(liveDiagnosticGateway, /const profileId = String\(body\?\.profileId/);
+assert.match(liveDiagnosticGateway, /actionReserved = !Boolean\(actor\.action_available\)/);
 
 assert.match(releaseDoc, /Do \*\*not\*\* blindly execute every file under `schema\/`/);
 assert.match(releaseDoc, /Pull requests and feature-branch pushes must never deploy production/);
