@@ -6,13 +6,6 @@ const ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60;
 const DEFAULT_MIN_PASSWORD_LENGTH = 12;
 const ALPHA_GM_MIN_PASSWORD_LENGTH = 8;
 const ALPHA_GM_USERNAME = 'gm';
-const ALPHA_GM_INTERNAL_USERNAME = 'a_a474219e5e9503c84d59500b';
-// Temporary Alpha-only compatibility value. Workers/workerd currently rejects
-// PBKDF2 iteration counts above 100,000. Do not copy this into the long-term
-// Admin credential design; replace the production Admin KDF before Alpha exit.
-const ALPHA_GM_PASSWORD_HASH = 'cxzoZ2CTjgCw1w404Fc/z8eVgc5JuGcI6i15Ng/0GO0=';
-const ALPHA_GM_PASSWORD_SALT = 'v3nYhKUXDjd+NGBXR2a3Vg==';
-const ALPHA_GM_PASSWORD_ITERATIONS = 100000;
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_SECONDS = 15 * 60;
 let loginSchemaPromise = null;
@@ -110,37 +103,6 @@ async function ensureLoginSchema(env) {
   await loginSchemaPromise;
 }
 
-// TEMPORARY ALPHA OPERATOR SEED.
-// This does not expose a public provisioning API and cannot create arbitrary
-// Admin identities. It deterministically assigns the single Alpha GM account
-// requested by the operator. Remove after the first successful live E2E run.
-async function ensureAlphaGmOperatorSeed(env) {
-  const now = Date.now();
-  await env.DB.prepare(`
-    INSERT INTO users (
-      id, username, display_name, password_hash, password_salt, password_iterations,
-      role, status, failed_attempts, locked_until, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, 'admin', 'active', 0, NULL, ?, ?)
-    ON CONFLICT(username) DO UPDATE SET
-      display_name = excluded.display_name,
-      password_hash = excluded.password_hash,
-      password_salt = excluded.password_salt,
-      password_iterations = excluded.password_iterations,
-      role = 'admin',
-      status = 'active',
-      updated_at = excluded.updated_at
-  `).bind(
-    'admin_alpha_gm',
-    ALPHA_GM_INTERNAL_USERNAME,
-    ALPHA_GM_USERNAME,
-    ALPHA_GM_PASSWORD_HASH,
-    ALPHA_GM_PASSWORD_SALT,
-    ALPHA_GM_PASSWORD_ITERATIONS,
-    now,
-    now
-  ).run();
-}
-
 async function readJson(request) {
   if (!(request.headers.get('Content-Type') || '').toLowerCase().includes('application/json')) {
     throw Object.assign(new Error('請使用 JSON 格式提交。'), { status: 415, code: 'UNSUPPORTED_MEDIA_TYPE' });
@@ -167,10 +129,6 @@ async function adminLogin(request, env) {
   // operator-assigned before this validation contract was introduced.
   if (!validAdminUsername(username) || password.length < minLength || password.length > 128) {
     return apiError('Admin Username 或密碼不正確。', 401, 'INVALID_ADMIN_CREDENTIALS');
-  }
-
-  if (username === ALPHA_GM_USERNAME) {
-    await ensureAlphaGmOperatorSeed(env);
   }
 
   const user = await env.DB.prepare(`
