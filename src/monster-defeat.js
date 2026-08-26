@@ -26,6 +26,15 @@ function apiError(message, status = 400, code = 'BAD_REQUEST') {
   return json({ ok: false, error: { code, message } }, status);
 }
 
+function classifyRuntimeFailure(errorValue) {
+  const message = String(errorValue?.message || errorValue || '').toLowerCase();
+  if (message.includes('nan') || message.includes('undefined') || message.includes('bind') || message.includes('type')) return 'BIND_TYPE_ERROR';
+  if (message.includes('no such table') || message.includes('no such column') || message.includes('schema')) return 'SCHEMA_ERROR';
+  if (message.includes('constraint') || message.includes('foreign key') || message.includes('check constraint')) return 'CONSTRAINT_ERROR';
+  if (message.includes('locked') || message.includes('busy')) return 'DATABASE_BUSY';
+  return 'RUNTIME_ERROR';
+}
+
 function validOrigin(request) {
   const origin = request.headers.get('Origin');
   return !origin || origin === new URL(request.url).origin;
@@ -202,7 +211,14 @@ async function writeAttackAudit(env, values) {
 }
 
 async function resolvePlayerMonsterAttack(request, env, combatId, body, user, combatPayload, target) {
-  await ensureSchema(env);
+  try {
+    await ensureSchema(env);
+  } catch (errorValue) {
+    const classification = classifyRuntimeFailure(errorValue);
+    console.error('Monster Defeat schema runtime failure', { classification });
+    return apiError('Player → Monster resolver schema 暫時無法初始化。', 500, `MONSTER_DEFEAT_SCHEMA_${classification}`);
+  }
+
   const combat = combatPayload?.combat;
   if (!combat || combat.id !== combatId || combat.status !== 'active') {
     return apiError('找不到有效 Combat。', 404, 'COMBAT_NOT_FOUND');
@@ -238,7 +254,14 @@ async function resolvePlayerMonsterAttack(request, env, combatId, body, user, co
     return apiError('攻擊者缺少 STR / SIZ，不能計 Character Damage Bonus。', 409, 'ATTACKER_DAMAGE_BONUS_ATTRIBUTES_REQUIRED');
   }
 
-  const reserved = await reservePlayerAction(env, combat, actor, user.id);
+  let reserved;
+  try {
+    reserved = await reservePlayerAction(env, combat, actor, user.id);
+  } catch (errorValue) {
+    const classification = classifyRuntimeFailure(errorValue);
+    console.error('Monster Defeat Action reservation runtime failure', { classification });
+    return apiError('Player Attack Action 暫時無法安全預留。', 500, `MONSTER_DEFEAT_RESERVE_ACTION_${classification}`);
+  }
   if (!reserved) return apiError('Combat state 已改變，Attack 未執行。', 409, 'COMBAT_STATE_CHANGED');
 
   const monsterDefence = monsterEffectiveD100Defence(monsterRow.stored_defence, monsterRow.defence_modifier);
