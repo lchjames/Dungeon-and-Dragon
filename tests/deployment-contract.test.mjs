@@ -64,21 +64,26 @@ assert.match(adminGateway, /pbkdf2\(/);
 assert.match(adminGateway, /ALPHA_GM_USERNAME\s*=\s*'gm'/);
 assert.match(adminGateway, /return username === ALPHA_GM_USERNAME \|\| \/\^\[a-z0-9\._-\]\{3,32\}\$\//, 'The fixed two-character Alpha GM username must bypass only the normal 3-character minimum.');
 assert.match(adminGateway, /username === ALPHA_GM_USERNAME \? ALPHA_GM_MIN_PASSWORD_LENGTH : DEFAULT_MIN_PASSWORD_LENGTH/);
-assert.match(adminGateway, /ensureAlphaGmOperatorSeed/);
-assert.match(adminGateway, /ALPHA_GM_PASSWORD_ITERATIONS\s*=\s*100000/, 'Temporary Alpha GM PBKDF2 must stay within the current Workers runtime ceiling.');
-assert.match(adminGateway, /Temporary Alpha-only compatibility value/);
-assert.match(adminGateway, /replace the production Admin KDF before Alpha exit/);
+assert.match(adminGateway, /const iterations = Number\(user\.password_iterations \|\| 0\)/);
+assert.match(adminGateway, /iterations < 100000/, 'Persisted Alpha credential remains subject to the current minimum compatible iteration floor.');
 assert.match(adminGateway, /ADMIN_AUTH_PBKDF2_RUNTIME_ERROR/);
-assert.match(adminGateway, /ON CONFLICT\(username\) DO UPDATE SET/);
-const seedConflictStart = adminGateway.indexOf('ON CONFLICT(username) DO UPDATE SET');
-const seedConflictEnd = adminGateway.indexOf('`).bind(', seedConflictStart);
-assert.ok(seedConflictStart >= 0 && seedConflictEnd > seedConflictStart, 'Temporary operator seed conflict clause must be inspectable.');
-const seedConflictClause = adminGateway.slice(seedConflictStart, seedConflictEnd);
-assert.doesNotMatch(seedConflictClause, /failed_attempts\s*=/, 'Temporary operator seed must preserve failed-attempt state.');
-assert.doesNotMatch(seedConflictClause, /locked_until\s*=/, 'Temporary operator seed must preserve lockout expiry.');
 assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
 assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
 assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
+
+// The verified Alpha credential now lives only in production D1. Runtime source
+// must never recreate or overwrite that Admin row with deterministic seed material.
+for (const forbidden of [
+  /ensureAlphaGmOperatorSeed/,
+  /ALPHA_GM_INTERNAL_USERNAME/,
+  /ALPHA_GM_PASSWORD_HASH/,
+  /ALPHA_GM_PASSWORD_SALT/,
+  /ALPHA_GM_PASSWORD_ITERATIONS/,
+  /admin_alpha_gm/,
+  /ON CONFLICT\(username\) DO UPDATE SET/
+]) {
+  assert.doesNotMatch(adminGateway, forbidden, `Temporary Alpha GM runtime seed material must stay removed: ${forbidden}`);
+}
 
 // Production D1 is long-lived: CREATE TABLE IF NOT EXISTS cannot upgrade an older
 // player_monster_action_log definition. The outer compatibility gateway must
