@@ -10,6 +10,28 @@ const EXPECTED_AUDIT_COLUMNS = [
   'monster_status_after', 'outcome', 'created_at'
 ];
 
+const EXPECTED_MONSTER_COLUMNS = [
+  'id', 'display_name', 'status', 'current_hp', 'final_max_hp',
+  'stored_defence', 'defence_modifier', 'armor_name', 'armor_base_defence',
+  'armor_defence_adjustment', 'final_armor_defence', 'updated_at'
+];
+
+const EXPECTED_COMBATANT_COLUMNS = [
+  'id', 'combat_id', 'entity_type', 'entity_id', 'controller_user_id',
+  'initiative_order', 'action_available', 'move_available', 'turn_completed', 'updated_at'
+];
+
+const EXPECTED_COMBAT_COLUMNS = [
+  'id', 'status', 'round_number', 'current_turn_index'
+];
+
+const EXPECTED_PROFILE_COLUMNS = [
+  'id', 'character_id', 'name', 'stored_accuracy', 'damage_dice_count',
+  'damage_dice_sides', 'fixed_damage_modifier', 'applies_character_damage_bonus', 'is_active'
+];
+
+const EXPECTED_ATTRIBUTE_COLUMNS = ['character_id', 'key', 'value'];
+
 const AUDIT_COLUMN_DEFINITIONS = Object.freeze({
   combat_id: 'TEXT',
   round_number: 'INTEGER',
@@ -68,6 +90,12 @@ async function tableInfo(env, table) {
 async function tableColumns(env, table) {
   const rows = await tableInfo(env, table);
   return rows ? rows.map(row => String(row.name)) : null;
+}
+
+function missingColumns(actual, expected) {
+  if (!Array.isArray(actual)) return [...expected];
+  const available = new Set(actual);
+  return expected.filter(column => !available.has(column));
 }
 
 function legacyRequiredColumns(rows) {
@@ -147,18 +175,21 @@ async function ensurePlayerMonsterAuditCompatibility(env) {
   await auditMigrationPromise;
 }
 
-async function diagnoseMonsterAttackFailure(env, combatId, targetCombatantId) {
+async function diagnoseMonsterAttackFailure(env, combatId, targetCombatantId, profileId) {
   if (!env.DB) return { code: 'MONSTER_DEFEAT_DIAG_DATABASE_UNAVAILABLE', stage: 'database-binding' };
 
-  const [auditInfo, monsterColumns, combatantColumns] = await Promise.all([
+  const [auditInfo, monsterColumns, combatantColumns, combatColumns, profileColumns, attributeColumns] = await Promise.all([
     tableInfo(env, 'player_monster_action_log'),
     tableColumns(env, 'monster_instances'),
-    tableColumns(env, 'combatants')
+    tableColumns(env, 'combatants'),
+    tableColumns(env, 'combats'),
+    tableColumns(env, 'player_attack_profiles'),
+    tableColumns(env, 'character_attributes')
   ]);
 
   if (!auditInfo) return { code: 'MONSTER_DEFEAT_DIAG_AUDIT_SCHEMA_UNREADABLE', stage: 'audit-schema' };
   const auditColumns = auditInfo.map(row => String(row.name));
-  const missingAuditColumns = EXPECTED_AUDIT_COLUMNS.filter(column => !auditColumns.includes(column));
+  const missingAuditColumns = missingColumns(auditColumns, EXPECTED_AUDIT_COLUMNS);
   if (missingAuditColumns.length) {
     return {
       code: 'MONSTER_DEFEAT_DIAG_AUDIT_SCHEMA_DRIFT',
@@ -174,8 +205,18 @@ async function diagnoseMonsterAttackFailure(env, combatId, targetCombatantId) {
       requiredColumnCount: legacyRequired.length
     };
   }
-  if (!monsterColumns?.length) return { code: 'MONSTER_DEFEAT_DIAG_MONSTER_SCHEMA_UNREADABLE', stage: 'monster-schema' };
-  if (!combatantColumns?.length) return { code: 'MONSTER_DEFEAT_DIAG_COMBATANT_SCHEMA_UNREADABLE', stage: 'combatant-schema' };
+
+  for (const [actual, expected, code, stage] of [
+    [monsterColumns, EXPECTED_MONSTER_COLUMNS, 'MONSTER_DEFEAT_DIAG_MONSTER_SCHEMA_DRIFT', 'monster-schema'],
+    [combatantColumns, EXPECTED_COMBATANT_COLUMNS, 'MONSTER_DEFEAT_DIAG_COMBATANT_SCHEMA_DRIFT', 'combatant-schema'],
+    [combatColumns, EXPECTED_COMBAT_COLUMNS, 'MONSTER_DEFEAT_DIAG_COMBAT_SCHEMA_DRIFT', 'combat-schema'],
+    [profileColumns, EXPECTED_PROFILE_COLUMNS, 'MONSTER_DEFEAT_DIAG_PROFILE_SCHEMA_DRIFT', 'profile-schema'],
+    [attributeColumns, EXPECTED_ATTRIBUTE_COLUMNS, 'MONSTER_DEFEAT_DIAG_ATTRIBUTE_SCHEMA_DRIFT', 'attribute-schema']
+  ]) {
+    if (!actual?.length) return { code: code.replace('_DRIFT', '_UNREADABLE'), stage };
+    const missing = missingColumns(actual, expected);
+    if (missing.length) return { code, stage, missingColumnCount: missing.length };
+  }
 
   let target = null;
   try {
@@ -193,11 +234,55 @@ async function diagnoseMonsterAttackFailure(env, combatId, targetCombatantId) {
     return { code: 'MONSTER_DEFEAT_DIAG_TARGET_TYPE_CHANGED', stage: 'target-lookup' };
   }
 
+  let actor = null;
+  try {
+    actor = await env.DB.prepare(`
+      SELECT cb.id, cb.entity_type, cb.entity_id, cb.controller_user_id,
+             cb.action_available, cb.move_available, cb.turn_completed
+      FROM combats c
+      JOIN combatants cb
+        ON cb.combat_id = c.id AND cb.initiative_order = c.current_turn_index
+      WHERE c.id = ? AND c.status = 'active'
+      LIMIT 1
+    `).bind(combatId).first();
+  } catch {
+    return { code: 'MONSTER_DEFEAT_DIAG_ACTOR_LOOKUP_FAILED', stage: 'actor-lookup' };
+  }
+  if (!actor) return { code: 'MONSTER_DEFEAT_DIAG_ACTOR_MISSING', stage: 'actor-lookup' };
+  if (actor.entity_type !== 'character') {
+    return { code: 'MONSTER_DEFEAT_DIAG_ACTOR_TYPE_CHANGED', stage: 'actor-lookup' };
+  }
+
+  if (!profileId) return { code: 'MONSTER_DEFEAT_DIAG_PROFILE_ID_MISSING', stage: 'profile-lookup' };
+  try {
+    const profile = await env.DB.prepare(`
+      SELECT id, character_id, stored_accuracy, damage_dice_count, damage_dice_sides,
+             fixed_damage_modifier, applies_character_damage_bonus, is_active
+      FROM player_attack_profiles
+      WHERE id = ? AND character_id = ? AND is_active = 1
+      LIMIT 1
+    `).bind(profileId, actor.entity_id).first();
+    if (!profile) return { code: 'MONSTER_DEFEAT_DIAG_PROFILE_MISSING', stage: 'profile-lookup' };
+  } catch {
+    return { code: 'MONSTER_DEFEAT_DIAG_PROFILE_LOOKUP_FAILED', stage: 'profile-lookup' };
+  }
+
+  try {
+    await env.DB.prepare(`
+      SELECT UPPER(key) AS key, value
+      FROM character_attributes
+      WHERE character_id = ? AND UPPER(key) IN (?, ?)
+    `).bind(actor.entity_id, 'STR', 'SIZ').all();
+  } catch {
+    return { code: 'MONSTER_DEFEAT_DIAG_ATTRIBUTE_LOOKUP_FAILED', stage: 'attribute-lookup' };
+  }
+
   let monster = null;
   try {
     monster = await env.DB.prepare(`
-      SELECT id, status, current_hp, final_max_hp, stored_defence, defence_modifier,
-             armor_base_defence, armor_defence_adjustment
+      SELECT id, display_name, status, current_hp, final_max_hp,
+             stored_defence, defence_modifier,
+             armor_name, armor_base_defence, armor_defence_adjustment, final_armor_defence
       FROM monster_instances WHERE id = ? LIMIT 1
     `).bind(target.entity_id).first();
   } catch {
@@ -218,26 +303,40 @@ async function diagnoseMonsterAttackFailure(env, combatId, targetCombatantId) {
   }
 
   const hp = Number(monster.current_hp);
+  const maxHp = Number(monster.final_max_hp);
   const status = String(monster.status || '').toLowerCase();
+  const actionReserved = !Boolean(actor.action_available);
+
   if (auditCount > 0) {
     return {
       code: 'MONSTER_DEFEAT_DIAG_POST_AUDIT_FAILURE',
       stage: 'post-audit-refresh',
-      monsterDefeated: status === 'defeated' || hp <= 0
+      monsterDefeated: status === 'defeated' || hp <= 0,
+      actionReserved
     };
   }
-  if (status === 'defeated' || hp <= 0) {
+  if (status === 'defeated' || hp <= 0 || (Number.isFinite(maxHp) && hp < maxHp)) {
     return {
       code: 'MONSTER_DEFEAT_DIAG_AUDIT_WRITE_FAILURE',
       stage: 'audit-write-after-damage',
-      monsterDefeated: true
+      monsterDefeated: status === 'defeated' || hp <= 0,
+      actionReserved
+    };
+  }
+  if (actionReserved) {
+    return {
+      code: 'MONSTER_DEFEAT_DIAG_POST_RESERVATION_FAILURE',
+      stage: 'post-action-reservation-pre-audit',
+      monsterDefeated: false,
+      actionReserved: true
     };
   }
 
   return {
-    code: 'MONSTER_DEFEAT_DIAG_PRE_AUDIT_FAILURE',
-    stage: 'pre-audit',
-    monsterDefeated: false
+    code: 'MONSTER_DEFEAT_DIAG_PRE_RESERVATION_FAILURE',
+    stage: 'pre-action-reservation',
+    monsterDefeated: false,
+    actionReserved: false
   };
 }
 
@@ -275,12 +374,14 @@ export default {
     try { body = await requestCopy.json(); }
     catch { return response; }
     const targetCombatantId = String(body?.targetCombatantId || '').trim();
+    const profileId = String(body?.profileId || '').trim();
     if (!targetCombatantId) return response;
 
     const diagnostic = await diagnoseMonsterAttackFailure(
       env,
       decodeURIComponent(match[1]),
-      targetCombatantId
+      targetCombatantId,
+      profileId
     );
     console.error('Temporary Monster defeat live diagnostic', diagnostic);
     return json({
