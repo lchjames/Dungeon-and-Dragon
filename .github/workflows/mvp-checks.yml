@@ -33,6 +33,7 @@ jobs:
       - name: Rules regression tests
         run: |
           node tests/rules.test.mjs
+          node tests/rest-rules.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
@@ -43,6 +44,7 @@ jobs:
         run: |
           node tests/static-ui-contract.test.mjs
           node tests/player-focus-contract.test.mjs
+          node tests/player-rest-contract.test.mjs
           node tests/boss-defeat-contract.test.mjs
           node tests/admin-auth-contract.test.mjs
           node tests/deployment-contract.test.mjs
