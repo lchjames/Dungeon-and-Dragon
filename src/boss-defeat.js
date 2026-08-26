@@ -328,7 +328,9 @@ async function resolvePlayerBossAttack(request, env, combatId, body, user, comba
 
 async function playerAttack(request, env, combatId) {
   const user = await requireUser(request, env);
-  const body = await readBody(request);
+  // This gateway must preserve the original request body when the target is not a Boss,
+  // because the same Player attack route is delegated downstream to Monster defeat.
+  const body = await readBody(request.clone());
   const state = await playerCombatPayload(request, env);
   if (!state.response.ok) return state.response;
   const targetId = String(body?.targetCombatantId || '').trim();
