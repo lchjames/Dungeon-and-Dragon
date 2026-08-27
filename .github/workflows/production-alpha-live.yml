@@ -63,7 +63,15 @@ jobs:
           DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
         run: node scripts/cleanup-stale-alpha-combat.mjs
 
-      - name: Run production Alpha E2E
+      - name: Run production Short Rest E2E
+        env:
+          DND_ALPHA_EXECUTE: '1'
+          DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
+          DND_ALPHA_GM_USERNAME: gm
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+        run: node scripts/production-alpha-rest-e2e.mjs
+
+      - name: Run production Combat and Focus E2E
         env:
           DND_ALPHA_EXECUTE: '1'
           DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
