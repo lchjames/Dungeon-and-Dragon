@@ -65,3 +65,4 @@ function mountPlayerMap() {
 
 mountPlayerMap();
 await import('./player-map.js');
+await import('./player-rest.js');
