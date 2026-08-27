@@ -39,10 +39,16 @@ assert.match(loginHtml, /Admin Access/);
 assert.match(loginHtml, /Admin Username/);
 assert.match(loginHtml, /Admin Password/);
 assert.match(loginHtml, /Admin 帳戶不設公開註冊/);
+assert.match(loginHtml, /name="username"[^>]*minlength="2"[^>]*maxlength="32"/, 'The browser must allow the fixed two-character Alpha GM username to reach JavaScript validation.');
+assert.doesNotMatch(loginHtml, /name="username"[^>]*minlength="3"/, 'The old browser-level three-character minimum must not block gm.');
 assert.doesNotMatch(loginHtml, /\/gm\/setup\//, 'Admin login must not advertise any creation/setup route.');
 assert.doesNotMatch(loginHtml, /首次建立 Admin/, 'Admin creation CTA must stay removed.');
 assert.doesNotMatch(loginHtml, /name=["']key["']/i, 'Admin login form must not contain a Player Key field.');
 assert.match(loginJs, /\/api\/admin\/auth\/login/);
+assert.match(loginJs, /function validAdminUsername/);
+assert.match(loginJs, /normalized\.toLowerCase\(\) === 'gm'/, 'Only the fixed Alpha gm username may use the two-character exception.');
+assert.match(loginJs, /\^\[A-Za-z0-9\._-\]\{3,32\}\$/, 'All non-gm Admin usernames must retain the normal 3-32 character rule.');
+assert.match(loginJs, /if \(!validAdminUsername\(username\)\)/, 'Login submission must use the canonical frontend username validator.');
 assert.match(loginJs, /value === '\/gm\/setup'/, 'Login next-path sanitization must reject retired setup URLs.');
 assert.doesNotMatch(loginJs, /Initial Admin Setup/, 'Login guidance must not direct legacy accounts to a public setup form.');
 
