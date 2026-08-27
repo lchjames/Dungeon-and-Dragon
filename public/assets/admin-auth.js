@@ -17,6 +17,11 @@ function safeNext() {
   return (value === '/gm' || value.startsWith('/gm/')) && !value.startsWith('//') ? value : '/gm/';
 }
 
+function validAdminUsername(username) {
+  const normalized = String(username || '').trim();
+  return normalized.toLowerCase() === 'gm' || /^[A-Za-z0-9._-]{3,32}$/.test(normalized);
+}
+
 async function login(username, password) {
   const response = await fetch('/api/admin/auth/login', {
     method: 'POST',
@@ -38,7 +43,7 @@ form?.addEventListener('submit', async event => {
   event.preventDefault();
   const username = String(usernameInput?.value || '').trim();
   const password = String(passwordInput?.value || '');
-  if (!/^[A-Za-z0-9._-]{3,32}$/.test(username)) return setStatus('Admin Username 格式不正確。', 'error');
+  if (!validAdminUsername(username)) return setStatus('Admin Username 格式不正確。', 'error');
   const minimumPasswordLength = username.toLowerCase() === 'gm' ? 8 : 12;
   if (password.length < minimumPasswordLength) return setStatus(`Admin 密碼至少需要 ${minimumPasswordLength} 個字元。`, 'error');
   submitButton.disabled = true;
