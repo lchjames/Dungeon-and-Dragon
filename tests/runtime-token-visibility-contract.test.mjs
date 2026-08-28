@@ -12,8 +12,14 @@ assert.match(gateway, /SELF_VISIBILITY_ALWAYS_VISIBLE/);
 assert.match(gateway, /runtimeTokenVisible\(/);
 assert.match(gateway, /viewer_override/);
 assert.match(gateway, /rebuildPlayerTokens/);
-assert.match(gateway, /\/api\/player\/world\/characters\//);
-assert.match(gateway, /\/visibility\//);
+assert.ok(
+  gateway.includes("pathname.match(/^\\/api\\/player\\/world\\/characters\\/([^/]+)(?:\\/.*)?$/)"),
+  'Visibility gateway must intercept the Player world-character route family.'
+);
+assert.ok(
+  gateway.includes("\\/visibility\\/([^/]+)$"),
+  'Visibility gateway must expose the per-viewer visibility override route.'
+);
 
 assert.match(ui, /<h4>Token Visibility<\/h4>/);
 assert.match(ui, /id="runtime-token-global"/);
