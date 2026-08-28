@@ -77,10 +77,10 @@ export function normalizeStoryCondition(raw) {
     return { type, status };
   }
   if (type === 'door_state') {
-    const edgeId = text(raw.edgeId, 'Door edgeId', 160);
+    const sourceEdgeId = text(raw.sourceEdgeId, 'Map Template Door sourceEdgeId', 160);
     const state = String(raw.state || '').trim().toLowerCase();
     if (!DOOR_STATES.has(state)) throw new Error('Door state condition is invalid.');
-    return { type, edgeId, state };
+    return { type, sourceEdgeId, state };
   }
   throw new Error('Unsupported Story Event condition.');
 }
@@ -97,10 +97,10 @@ export function normalizeStoryEffect(raw) {
     return { type, key: normalizeStoryFlagKey(raw.key), value: scalar(raw.value, 'Story flag value') };
   }
   if (type === 'reveal_zone') {
-    return { type, zoneId: text(raw.zoneId, 'Runtime Zone ID', 160) };
+    return { type, sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   }
   if (type === 'open_door' || type === 'close_door') {
-    return { type, edgeId: text(raw.edgeId, 'Runtime Door edgeId', 160) };
+    return { type, sourceEdgeId: text(raw.sourceEdgeId, 'Map Template Door sourceEdgeId', 160) };
   }
   throw new Error('Unsupported Story Event effect.');
 }
@@ -145,7 +145,9 @@ export function evaluateStoryConditions(conditions, context = {}) {
       continue;
     }
     if (condition.type === 'door_state') {
-      if (String(doors.get(condition.edgeId) || '') !== condition.state) failures.push({ type: condition.type, edgeId: condition.edgeId, reason: 'door_state_mismatch' });
+      if (String(doors.get(condition.sourceEdgeId) || '') !== condition.state) {
+        failures.push({ type: condition.type, sourceEdgeId: condition.sourceEdgeId, reason: 'door_state_mismatch' });
+      }
       continue;
     }
     failures.push({ type: condition.type || 'unknown', reason: 'unsupported_condition' });
