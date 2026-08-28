@@ -9,6 +9,7 @@ const adminGateway = await readFile(new URL('../src/admin-gateway.js', import.me
 const auditCompatGateway = await readFile(new URL('../src/player-monster-audit-compat.js', import.meta.url), 'utf8');
 const worldMap = await readFile(new URL('../src/world-map.js', import.meta.url), 'utf8');
 const runtimeVisibilityGateway = await readFile(new URL('../src/runtime-visibility-gateway.js', import.meta.url), 'utf8');
+const storyEventGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -53,7 +54,7 @@ assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha w
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
 assert.match(
   wrangler,
-  /^\s*"main"\s*:\s*"\.\/src\/runtime-visibility-gateway\.js"\s*,?\s*$/m,
+  /^\s*"main"\s*:\s*"\.\/src\/story-event-gateway\.js"\s*,?\s*$/m,
   'Deployment contract must validate the actual Wrangler main property, not a historical gateway marker inside a comment.'
 );
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);
@@ -61,6 +62,15 @@ assert.match(wrangler, /"database_name"\s*:\s*"dnd-db"/);
 assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b782"/);
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
+
+assert.match(storyEventGateway, /import baseWorker from '\.\/runtime-visibility-gateway\.js'/);
+assert.match(storyEventGateway, /runtime_story_event_executions/);
+assert.match(storyEventGateway, /activateStoryEvent/);
+assert.match(storyEventGateway, /STORY_EVENT_TRIGGER_NOT_MANUAL/);
+assert.match(storyEventGateway, /sourceEdgeId/);
+assert.match(storyEventGateway, /sourceZoneId/);
+assert.doesNotMatch(storyEventGateway, /eval\s*\(/, 'Story Event gateway must not execute arbitrary code.');
+assert.doesNotMatch(storyEventGateway, /new Function\s*\(/, 'Story Event gateway must not execute arbitrary functions.');
 
 assert.match(runtimeVisibilityGateway, /import baseWorker from '\.\/hostile-combat-movement-gateway\.js'/);
 assert.match(runtimeVisibilityGateway, /runtime_entity_visibility_overrides/);
