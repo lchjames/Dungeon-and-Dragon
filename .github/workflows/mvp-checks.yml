@@ -55,6 +55,7 @@ jobs:
           node tests/runtime-map-position.test.mjs
           node tests/runtime-token-visibility-contract.test.mjs
           node tests/story-event-runtime-contract.test.mjs
+          node tests/story-enter-zone-trigger-contract.test.mjs
           node tests/player-map-movement.test.mjs
           node tests/runtime-door-control.test.mjs
           node tests/hostile-combat-movement.test.mjs
