@@ -19,15 +19,19 @@ assert.ok(STORY_EVENT_EFFECT_TYPES.includes('close_door'));
 assert.equal(normalizeStoryFlagKey('Boss.Defeated'), 'boss.defeated');
 assert.throws(() => normalizeStoryFlagKey('bad key'));
 assert.deepEqual(normalizeStoryCondition({ type: 'event_not_fired' }), { type: 'event_not_fired' });
-assert.deepEqual(normalizeStoryCondition({ type: 'door_state', edgeId: 'edge_1', state: 'CLOSED' }), {
-  type: 'door_state', edgeId: 'edge_1', state: 'closed'
+assert.deepEqual(normalizeStoryCondition({ type: 'door_state', sourceEdgeId: 'edge_1', state: 'CLOSED' }), {
+  type: 'door_state', sourceEdgeId: 'edge_1', state: 'closed'
 });
 assert.deepEqual(normalizeStoryEffect({ type: 'set_flag', key: 'door.opened', value: true }), {
   type: 'set_flag', key: 'door.opened', value: true
 });
-assert.deepEqual(normalizeStoryEffect({ type: 'open_door', edgeId: 'edge_2' }), {
-  type: 'open_door', edgeId: 'edge_2'
+assert.deepEqual(normalizeStoryEffect({ type: 'open_door', sourceEdgeId: 'edge_2' }), {
+  type: 'open_door', sourceEdgeId: 'edge_2'
 });
+assert.deepEqual(normalizeStoryEffect({ type: 'reveal_zone', sourceZoneId: 'zone_er' }), {
+  type: 'reveal_zone', sourceZoneId: 'zone_er'
+});
+assert.throws(() => normalizeStoryEffect({ type: 'open_door', edgeId: 'runtime-edge-is-not-stable' }));
 assert.throws(() => normalizeStoryEffect({ type: 'javascript', code: 'alert(1)' }));
 assert.throws(() => normalizeStoryEffect({ type: 'set_flag', key: 'x', value: { arbitrary: 'object' } }));
 
@@ -38,12 +42,12 @@ const structure = normalizeStoryEventStructure({
     { type: 'event_not_fired' },
     { type: 'flag_not_equals', key: 'ambush.done', value: true },
     { type: 'scene_run_status', status: 'active' },
-    { type: 'door_state', edgeId: 'edge_er', state: 'open' }
+    { type: 'door_state', sourceEdgeId: 'edge_er', state: 'open' }
   ],
   effects: [
     { type: 'show_narrative', text: 'The lights go out.' },
     { type: 'set_flag', key: 'ambush.done', value: true },
-    { type: 'close_door', edgeId: 'edge_er' }
+    { type: 'close_door', sourceEdgeId: 'edge_er' }
   ]
 });
 assert.equal(structure.triggerType, 'manual');
