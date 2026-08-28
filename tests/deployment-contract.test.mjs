@@ -65,7 +65,7 @@ assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnos
 assert.match(runtimeVisibilityGateway, /import baseWorker from '\.\/hostile-combat-movement-gateway\.js'/);
 assert.match(runtimeVisibilityGateway, /runtime_entity_visibility_overrides/);
 assert.match(runtimeVisibilityGateway, /runtimeTokenVisible/);
-assert.match(runtimeVisibilityGateway, /visibility\/\(\[\^\/\]\+\)/);
+assert.ok(runtimeVisibilityGateway.includes('visibility\\/([^/]+)$'), 'Visibility gateway must expose the per-viewer route segment.');
 assert.doesNotMatch(runtimeVisibilityGateway, /eval\s*\(/, 'Visibility gateway must not execute arbitrary code.');
 
 assert.match(adminGateway, /from 'node:crypto'/);
