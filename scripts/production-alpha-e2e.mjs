@@ -16,11 +16,12 @@ function runComponent(label, relativePath) {
 
 try {
   runComponent('Production Short Rest E2E', './production-alpha-rest-e2e.mjs');
+  runComponent('Production Long Rest / Combat Interruption E2E', './production-alpha-rest-extended-e2e.mjs');
   runComponent('Production Combat / Focus E2E', './production-alpha-combat-e2e.mjs');
   console.log(JSON.stringify({
     ok: true,
     suite: 'production-alpha-live',
-    components: ['short-rest', 'combat-focus']
+    components: ['short-rest', 'long-rest-combat-interruption', 'combat-focus']
   }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({
