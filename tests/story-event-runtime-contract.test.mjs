@@ -7,6 +7,8 @@ const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', impor
 const gmRoot = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
 const playerUi = await readFile(new URL('../public/assets/player-story-narratives.js', import.meta.url), 'utf8');
 const playerMapUi = await readFile(new URL('../public/assets/player-map-ui.js', import.meta.url), 'utf8');
+const liveRunner = await readFile(new URL('../scripts/production-alpha-story-event-e2e.mjs', import.meta.url), 'utf8');
+const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-event-gateway\.js"\s*,?\s*$/m);
@@ -49,6 +51,17 @@ assert.match(gmUi, /\/story-events\/\$\{encodeURIComponent\(event\.id\)\}\/activ
 assert.match(playerUi, /storyNarratives/);
 assert.match(playerUi, /GM-revealed narrative/);
 assert.match(playerMapUi, /player-story-narratives\.js/);
+
+// Production live coverage must keep proving the full manual Event vertical slice.
+assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(liveRunner, /flag_not_equals/);
+assert.match(liveRunner, /set_flag/);
+assert.match(liveRunner, /show_narrative/);
+assert.match(liveRunner, /STORY_EVENT_ALREADY_FIRED/);
+assert.match(liveRunner, /storyExecutions/);
+assert.match(liveRunner, /storyNarratives/);
+assert.match(orchestrator, /production-alpha-story-event-e2e\.mjs/);
+assert.match(orchestrator, /'story-event'/);
 
 // Loading the Story UI must not replace the existing Attack Profile workspace logic.
 assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
