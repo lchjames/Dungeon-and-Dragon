@@ -34,6 +34,7 @@ jobs:
         run: |
           node tests/rules.test.mjs
           node tests/rest-rules.test.mjs
+          node tests/runtime-token-visibility.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
@@ -51,6 +52,7 @@ jobs:
           node tests/world-map-foundation.test.mjs
           node tests/world-map-grid-editor.test.mjs
           node tests/runtime-map-position.test.mjs
+          node tests/runtime-token-visibility-contract.test.mjs
           node tests/player-map-movement.test.mjs
           node tests/runtime-door-control.test.mjs
           node tests/hostile-combat-movement.test.mjs

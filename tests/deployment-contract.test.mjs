@@ -8,6 +8,7 @@ const releaseDoc = await readFile(new URL('../docs/PRODUCTION_RELEASE_ALPHA.md',
 const adminGateway = await readFile(new URL('../src/admin-gateway.js', import.meta.url), 'utf8');
 const auditCompatGateway = await readFile(new URL('../src/player-monster-audit-compat.js', import.meta.url), 'utf8');
 const worldMap = await readFile(new URL('../src/world-map.js', import.meta.url), 'utf8');
+const runtimeVisibilityGateway = await readFile(new URL('../src/runtime-visibility-gateway.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -52,7 +53,7 @@ assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha w
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
 assert.match(
   wrangler,
-  /^\s*"main"\s*:\s*"\.\/src\/hostile-combat-movement-gateway\.js"\s*,?\s*$/m,
+  /^\s*"main"\s*:\s*"\.\/src\/runtime-visibility-gateway\.js"\s*,?\s*$/m,
   'Deployment contract must validate the actual Wrangler main property, not a historical gateway marker inside a comment.'
 );
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);
@@ -60,6 +61,12 @@ assert.match(wrangler, /"database_name"\s*:\s*"dnd-db"/);
 assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b782"/);
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
+
+assert.match(runtimeVisibilityGateway, /import baseWorker from '\.\/hostile-combat-movement-gateway\.js'/);
+assert.match(runtimeVisibilityGateway, /runtime_entity_visibility_overrides/);
+assert.match(runtimeVisibilityGateway, /runtimeTokenVisible/);
+assert.ok(runtimeVisibilityGateway.includes('visibility\\/([^/]+)$'), 'Visibility gateway must expose the per-viewer route segment.');
+assert.doesNotMatch(runtimeVisibilityGateway, /eval\s*\(/, 'Visibility gateway must not execute arbitrary code.');
 
 assert.match(adminGateway, /from 'node:crypto'/);
 assert.match(adminGateway, /pbkdf2\(/);
