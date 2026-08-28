@@ -3,6 +3,7 @@ import './gm-world-map.js';
 import './gm-map-editor.js';
 import './gm-runtime-map.js';
 import './gm-runtime-doors.js';
+import './gm-story-events.js';
 import './gm-monsters.js';
 import './gm-monster-defence.js';
 import './gm-bosses.js';

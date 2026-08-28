@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/runtime-visibility-gateway.js', import.meta.url), 'utf8');
+const storyGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-map.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-visibility-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-event-gateway\.js"\s*,?\s*$/m);
+assert.match(storyGateway, /import baseWorker from '\.\/runtime-visibility-gateway\.js'/);
 assert.match(gateway, /runtime_entity_visibility_overrides/);
 assert.match(gateway, /PRIMARY KEY \(position_id, viewer_user_id\)/);
 assert.match(gateway, /SELF_VISIBILITY_ALWAYS_VISIBLE/);
@@ -31,4 +33,4 @@ assert.match(ui, /saveViewerVisibility/);
 assert.match(ui, /Own Character token is always visible to its owner/);
 assert.match(ui, /visibility\/\$\{encodeURIComponent\(viewerUserId\)\}/);
 
-console.log('Runtime token visibility integration contract passed.');
+console.log('Runtime token visibility integration contract passed behind the Story Event gateway.');
