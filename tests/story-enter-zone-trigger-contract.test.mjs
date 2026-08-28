@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 const gateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0016_story_event_runtime.sql', import.meta.url), 'utf8');
+const liveRunner = await readFile(new URL('../scripts/production-alpha-story-zone-e2e.mjs', import.meta.url), 'utf8');
+const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-zone-trigger-gateway\.js"\s*,?\s*$/m);
@@ -36,5 +38,19 @@ for (const table of ['story_events', 'runtime_story_flags', 'runtime_story_narra
 }
 assert.doesNotMatch(migration, /DROP TABLE/i);
 assert.doesNotMatch(migration, /DELETE FROM/i);
+
+// Production live coverage must prove the actual automatic Player Move path,
+// including a hidden server-side trigger Zone and the refreshed Player payload.
+assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(liveRunner, /triggerType:\s*'enter_zone'/);
+assert.match(liveRunner, /sourceZoneId:\s*ZONE_ID/);
+assert.match(liveRunner, /playerVisibleDefault:\s*false/);
+assert.match(liveRunner, /zoneType:\s*'trigger'/);
+assert.match(liveRunner, /\/move`/);
+assert.match(liveRunner, /storyEventsTriggered/);
+assert.match(liveRunner, /reveal_zone/);
+assert.match(liveRunner, /triggerType === 'enter_zone'/);
+assert.match(orchestrator, /production-alpha-story-zone-e2e\.mjs/);
+assert.match(orchestrator, /'story-enter-zone'/);
 
 console.log('Story Event enter-zone trigger integration contract passed.');
