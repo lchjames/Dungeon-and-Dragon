@@ -19,11 +19,12 @@ try {
   runComponent('Production Long Rest / Combat Interruption E2E', './production-alpha-rest-extended-e2e.mjs');
   runComponent('Production Per-viewer Visibility E2E', './production-alpha-visibility-e2e.mjs');
   runComponent('Production Story Event E2E', './production-alpha-story-event-e2e.mjs');
+  runComponent('Production Enter-zone Story Event E2E', './production-alpha-story-zone-e2e.mjs');
   runComponent('Production Combat / Focus E2E', './production-alpha-combat-e2e.mjs');
   console.log(JSON.stringify({
     ok: true,
     suite: 'production-alpha-live',
-    components: ['short-rest', 'long-rest-combat-interruption', 'per-viewer-visibility', 'story-event', 'combat-focus']
+    components: ['short-rest', 'long-rest-combat-interruption', 'per-viewer-visibility', 'story-event', 'story-enter-zone', 'combat-focus']
   }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({
