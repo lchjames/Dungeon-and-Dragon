@@ -34,6 +34,7 @@ jobs:
         run: |
           node tests/rules.test.mjs
           node tests/rest-rules.test.mjs
+          node tests/runtime-token-visibility.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
