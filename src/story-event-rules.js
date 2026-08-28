@@ -62,6 +62,16 @@ export function normalizeStoryTriggerType(value = 'manual') {
   return type;
 }
 
+export function normalizeStoryTrigger(type, raw = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Story Event trigger payload must be an object.');
+  if (type === 'enter_zone') {
+    return {
+      sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160)
+    };
+  }
+  return { ...raw };
+}
+
 export function normalizeStoryCondition(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Story Event condition must be an object.');
   const type = String(raw.type || '').trim().toLowerCase();
@@ -107,12 +117,11 @@ export function normalizeStoryEffect(raw) {
 
 export function normalizeStoryEventStructure({ triggerType = 'manual', trigger = {}, conditions = [], effects = [] } = {}) {
   const normalizedTriggerType = normalizeStoryTriggerType(triggerType);
-  if (!trigger || typeof trigger !== 'object' || Array.isArray(trigger)) throw new Error('Story Event trigger payload must be an object.');
   if (!Array.isArray(conditions) || conditions.length > 20) throw new Error('Story Event conditions must be an array of at most 20 items.');
   if (!Array.isArray(effects) || effects.length < 1 || effects.length > 20) throw new Error('Story Event effects must contain 1 to 20 approved effects.');
   return {
     triggerType: normalizedTriggerType,
-    trigger: { ...trigger },
+    trigger: normalizeStoryTrigger(normalizedTriggerType, trigger),
     conditions: conditions.map(normalizeStoryCondition),
     effects: effects.map(normalizeStoryEffect)
   };
