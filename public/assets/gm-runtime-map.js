@@ -85,7 +85,7 @@ function panelMarkup() {
           <h4>Place Entity</h4>
           <div class="form-grid compact-grid">
             <label class="field"><span>Entity</span><select id="runtime-map-entity" class="input"></select></label>
-            <label class="field"><span>Visibility</span><select id="runtime-map-visibility" class="input"><option value="default">default</option><option value="visible">visible</option><option value="hidden">hidden</option></select></label>
+            <label class="field"><span>Global Visibility</span><select id="runtime-map-visibility" class="input"><option value="default">default</option><option value="visible">visible</option><option value="hidden">hidden</option></select></label>
             <label class="check-field"><input id="runtime-map-allow-overlap" type="checkbox"> Allow overlap (GM override)</label>
           </div>
           <p class="muted">Select an Entity, then click a walkable cell.</p>
@@ -102,6 +102,22 @@ function panelMarkup() {
           <div class="form-actions wrap">
             <button id="runtime-map-place-spawn" class="button button-small button-ghost" type="button">Place Selected at Spawn</button>
           </div>
+        </section>
+
+        <section class="panel">
+          <h4>Token Visibility</h4>
+          <p id="runtime-token-visibility-summary" class="muted">Select a positioned Entity.</p>
+          <div class="form-grid compact-grid">
+            <label class="field"><span>Global fallback</span><select id="runtime-token-global" class="input"><option value="default">default</option><option value="visible">visible</option><option value="hidden">hidden</option></select></label>
+            <label class="field"><span>Player viewer</span><select id="runtime-token-viewer" class="input"></select></label>
+            <label class="field"><span>Viewer override</span><select id="runtime-token-viewer-mode" class="input"><option value="inherit">inherit global</option><option value="visible">visible</option><option value="hidden">hidden</option></select></label>
+          </div>
+          <p id="runtime-token-visibility-note" class="muted">Per-viewer override wins over global fallback. A Character owner always sees their own token.</p>
+          <div class="form-actions wrap">
+            <button id="runtime-token-save-global" class="button button-small button-ghost" type="button">Save Global</button>
+            <button id="runtime-token-save-viewer" class="button button-small" type="button">Save Viewer Override</button>
+          </div>
+          <div id="runtime-token-visibility-list" class="stack-list"></div>
         </section>
 
         <section class="panel">
@@ -129,9 +145,13 @@ function ensurePanel() {
     selectedEntityKey = event.target.value || '';
     renderRuntimeGrid();
     renderPositions();
+    renderVisibilityControls();
   });
   $('#runtime-map-place-spawn')?.addEventListener('click', placeAtSpawn);
   $('#runtime-map-unplace')?.addEventListener('click', unplaceSelected);
+  $('#runtime-token-viewer')?.addEventListener('change', syncViewerOverrideControl);
+  $('#runtime-token-save-global')?.addEventListener('click', saveGlobalVisibility);
+  $('#runtime-token-save-viewer')?.addEventListener('click', saveViewerVisibility);
   queueMicrotask(() => loadRuntimeOverview({ quiet: true }));
 }
 
@@ -299,6 +319,16 @@ function renderRuntimeGrid() {
   grid.innerHTML = cells.join('');
 }
 
+function selectedPosition() {
+  const entity = selectedEntity();
+  if (!entity) return null;
+  return (runtimeDetailState?.positions || []).find(position => position.entityType === entity.entityType && position.entityId === entity.entityId) || null;
+}
+
+function visibilityOverrideFor(positionId, viewerUserId) {
+  return (runtimeDetailState?.visibilityOverrides || []).find(item => item.positionId === positionId && item.viewerUserId === viewerUserId) || null;
+}
+
 function renderEntitySelect() {
   const select = $('#runtime-map-entity');
   if (!select || !runtimeDetailState) return;
@@ -315,6 +345,8 @@ function renderEntitySelect() {
     const type = entity.entityType === 'monster_instance' ? 'Monster' : entity.entityType === 'boss_instance' ? 'Boss' : 'Character';
     return `<option value="${escapeHtml(key)}" ${key === selectedEntityKey ? 'selected' : ''}>${escapeHtml(type)} · ${escapeHtml(entity.name)} · ${escapeHtml(entity.status || '')}</option>`;
   }).join('');
+  const position = selectedPosition();
+  if ($('#runtime-map-visibility')) $('#runtime-map-visibility').value = position?.visibilityMode || 'default';
 }
 
 function renderSpawnSelect() {
@@ -347,7 +379,74 @@ function renderPositions() {
     renderEntitySelect();
     renderPositions();
     renderRuntimeGrid();
+    renderVisibilityControls();
   }));
+}
+
+function syncViewerOverrideControl() {
+  const position = selectedPosition();
+  const viewerSelect = $('#runtime-token-viewer');
+  const modeSelect = $('#runtime-token-viewer-mode');
+  const saveButton = $('#runtime-token-save-viewer');
+  const note = $('#runtime-token-visibility-note');
+  if (!position || !viewerSelect || !modeSelect || !saveButton || !note) return;
+  const viewerUserId = viewerSelect.value || '';
+  const ownViewer = Boolean(position.ownerUserId && viewerUserId === position.ownerUserId);
+  const override = visibilityOverrideFor(position.id, viewerUserId);
+  modeSelect.value = override?.visibilityMode || 'inherit';
+  modeSelect.disabled = !viewerUserId || ownViewer || runtimeDetailState?.mapInstance?.status !== 'active';
+  saveButton.disabled = modeSelect.disabled;
+  note.textContent = ownViewer
+    ? 'Own Character token is always visible to its owner; no override is needed or allowed.'
+    : 'Per-viewer override wins over global fallback. Clear it with “inherit global”.';
+}
+
+function renderVisibilityControls() {
+  const position = selectedPosition();
+  const summary = $('#runtime-token-visibility-summary');
+  const globalSelect = $('#runtime-token-global');
+  const viewerSelect = $('#runtime-token-viewer');
+  const globalButton = $('#runtime-token-save-global');
+  const list = $('#runtime-token-visibility-list');
+  if (!summary || !globalSelect || !viewerSelect || !globalButton || !list) return;
+
+  if (!position) {
+    summary.textContent = 'Select a positioned Entity. Per-viewer visibility belongs to the runtime token, not the reusable Map Template.';
+    globalSelect.value = 'default';
+    globalSelect.disabled = true;
+    globalButton.disabled = true;
+    viewerSelect.innerHTML = '<option value="">Position required</option>';
+    viewerSelect.disabled = true;
+    $('#runtime-token-viewer-mode').disabled = true;
+    $('#runtime-token-save-viewer').disabled = true;
+    list.innerHTML = '<p class="muted">No positioned token selected.</p>';
+    return;
+  }
+
+  summary.textContent = `${position.displayName} · ${position.entityType} · (${position.x}, ${position.y})`;
+  globalSelect.value = position.visibilityMode || 'default';
+  const active = runtimeDetailState?.mapInstance?.status === 'active';
+  globalSelect.disabled = !active;
+  globalButton.disabled = !active;
+
+  const viewers = runtimeDetailState?.playerViewers || [];
+  if (!viewers.length) {
+    viewerSelect.innerHTML = '<option value="">No positioned Player viewers</option>';
+    viewerSelect.disabled = true;
+    $('#runtime-token-viewer-mode').disabled = true;
+    $('#runtime-token-save-viewer').disabled = true;
+  } else {
+    const priorViewer = viewerSelect.value || '';
+    viewerSelect.innerHTML = viewers.map(viewer => `<option value="${escapeHtml(viewer.userId)}">${escapeHtml(viewer.displayName)}${position.ownerUserId === viewer.userId ? ' · owner' : ''}</option>`).join('');
+    if (viewers.some(viewer => viewer.userId === priorViewer)) viewerSelect.value = priorViewer;
+    viewerSelect.disabled = !active;
+    syncViewerOverrideControl();
+  }
+
+  const overrides = (runtimeDetailState?.visibilityOverrides || []).filter(item => item.positionId === position.id);
+  list.innerHTML = overrides.length
+    ? overrides.map(item => `<div class="runtime-position-row"><span><strong>${escapeHtml(item.viewerDisplayName)}</strong><small>viewer override</small></span><span>${escapeHtml(item.visibilityMode)}</span></div>`).join('')
+    : '<p class="muted">No per-viewer overrides; global fallback applies.</p>';
 }
 
 function renderDetail() {
@@ -360,6 +459,7 @@ function renderDetail() {
   renderSpawnSelect();
   renderPositions();
   renderRuntimeGrid();
+  renderVisibilityControls();
   $('#runtime-map-close-run').disabled = map.status !== 'active';
   $('#runtime-map-unplace').disabled = map.status !== 'active';
   $('#runtime-map-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -387,6 +487,56 @@ async function placeSelected(payload) {
   });
   await openRuntimeMap(runtimeDetailState.mapInstance.id);
   await loadRuntimeOverview({ quiet: true });
+}
+
+async function saveGlobalVisibility() {
+  const entity = selectedEntity();
+  const position = selectedPosition();
+  if (!entity || !position || !runtimeDetailState?.mapInstance) return toast('Select a positioned Entity first.', 'error');
+  const button = $('#runtime-token-save-global');
+  button.disabled = true;
+  try {
+    await api(`/api/gm/world/runtime/maps/${encodeURIComponent(runtimeDetailState.mapInstance.id)}/entities/${encodeURIComponent(entity.entityType)}/${encodeURIComponent(entity.entityId)}/position`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        x: position.x,
+        y: position.y,
+        visibilityMode: $('#runtime-token-global')?.value || 'default',
+        allowOccupied: false
+      })
+    });
+    await openRuntimeMap(runtimeDetailState.mapInstance.id);
+    toast('Global token visibility updated.', 'success');
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    button.disabled = runtimeDetailState?.mapInstance?.status !== 'active';
+  }
+}
+
+async function saveViewerVisibility() {
+  const entity = selectedEntity();
+  const position = selectedPosition();
+  const viewerUserId = $('#runtime-token-viewer')?.value || '';
+  const mode = $('#runtime-token-viewer-mode')?.value || 'inherit';
+  if (!entity || !position || !viewerUserId || !runtimeDetailState?.mapInstance) return toast('Select a positioned Entity and Player viewer first.', 'error');
+  if (position.ownerUserId && viewerUserId === position.ownerUserId) return toast('Own Character token is always visible to its owner.', 'error');
+  const button = $('#runtime-token-save-viewer');
+  button.disabled = true;
+  try {
+    const path = `/api/gm/world/runtime/maps/${encodeURIComponent(runtimeDetailState.mapInstance.id)}/entities/${encodeURIComponent(entity.entityType)}/${encodeURIComponent(entity.entityId)}/visibility/${encodeURIComponent(viewerUserId)}`;
+    if (mode === 'inherit') {
+      await api(path, { method: 'DELETE' });
+    } else {
+      await api(path, { method: 'PUT', body: JSON.stringify({ visibilityMode: mode }) });
+    }
+    await openRuntimeMap(runtimeDetailState.mapInstance.id);
+    toast(mode === 'inherit' ? 'Viewer override cleared; global visibility applies.' : `Viewer override set to ${mode}.`, 'success');
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    syncViewerOverrideControl();
+  }
 }
 
 async function handleGridClick(event) {
