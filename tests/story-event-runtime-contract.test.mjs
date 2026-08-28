@@ -18,7 +18,10 @@ assert.match(gateway, /STORY_EVENT_TRIGGER_NOT_MANUAL/);
 assert.match(gateway, /STORY_EVENT_ALREADY_FIRED/);
 assert.match(gateway, /STORY_EVENT_CONDITIONS_NOT_MET/);
 assert.match(gateway, /effects_applied_json/);
-assert.match(gateway, /\/story-events\/\(\[\^\/\]\+\)\\\/activate/);
+assert.ok(
+  gateway.includes("pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/story-events\\/([^/]+)\\/activate$/)"),
+  'Story Event gateway must expose the GM manual activation route for a Runtime Map and Event.'
+);
 assert.match(gateway, /\/door-state/);
 assert.match(gateway, /sourceEdgeId/);
 assert.match(gateway, /sourceZoneId/);
