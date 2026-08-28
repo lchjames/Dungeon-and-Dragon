@@ -5,6 +5,7 @@ import {
   normalizeStoryEffect,
   normalizeStoryEventStructure,
   normalizeStoryFlagKey,
+  normalizeStoryTrigger,
   STORY_EVENT_CONDITION_TYPES,
   STORY_EVENT_EFFECT_TYPES,
   STORY_EVENT_TRIGGER_TYPES
@@ -18,6 +19,12 @@ assert.ok(STORY_EVENT_EFFECT_TYPES.includes('close_door'));
 
 assert.equal(normalizeStoryFlagKey('Boss.Defeated'), 'boss.defeated');
 assert.throws(() => normalizeStoryFlagKey('bad key'));
+assert.deepEqual(normalizeStoryTrigger('manual', {}), {});
+assert.deepEqual(normalizeStoryTrigger('enter_zone', { sourceZoneId: 'zone_er', ignored: true }), {
+  sourceZoneId: 'zone_er'
+});
+assert.throws(() => normalizeStoryTrigger('enter_zone', {}));
+assert.throws(() => normalizeStoryTrigger('enter_zone', []));
 assert.deepEqual(normalizeStoryCondition({ type: 'event_not_fired' }), { type: 'event_not_fired' });
 assert.deepEqual(normalizeStoryCondition({ type: 'door_state', sourceEdgeId: 'edge_1', state: 'CLOSED' }), {
   type: 'door_state', sourceEdgeId: 'edge_1', state: 'closed'
@@ -53,6 +60,19 @@ const structure = normalizeStoryEventStructure({
 assert.equal(structure.triggerType, 'manual');
 assert.equal(structure.conditions.length, 4);
 assert.equal(structure.effects.length, 3);
+
+const enterZoneStructure = normalizeStoryEventStructure({
+  triggerType: 'enter_zone',
+  trigger: { sourceZoneId: 'zone_er' },
+  conditions: [{ type: 'event_not_fired' }],
+  effects: [{ type: 'show_narrative', text: 'You entered the emergency room.' }]
+});
+assert.deepEqual(enterZoneStructure.trigger, { sourceZoneId: 'zone_er' });
+assert.throws(() => normalizeStoryEventStructure({
+  triggerType: 'enter_zone',
+  trigger: {},
+  effects: [{ type: 'show_narrative', text: 'Invalid trigger.' }]
+}));
 
 const pass = evaluateStoryConditions(structure.conditions, {
   eventAlreadyFired: false,
