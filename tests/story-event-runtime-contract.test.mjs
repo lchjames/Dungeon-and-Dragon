@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
+const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', import.meta.url), 'utf8');
 const gmRoot = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
@@ -11,7 +12,8 @@ const liveRunner = await readFile(new URL('../scripts/production-alpha-story-eve
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-event-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-zone-trigger-gateway\.js"\s*,?\s*$/m);
+assert.match(zoneGateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/runtime-visibility-gateway\.js'/);
 for (const table of ['story_events', 'runtime_story_flags', 'runtime_story_narratives', 'runtime_story_event_executions']) {
   assert.match(gateway, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
