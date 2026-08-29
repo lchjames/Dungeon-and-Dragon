@@ -72,18 +72,28 @@ Execution requirements:
 ```text
 Runtime Encounter = active
 at least one Character participant
-no unsupported Boss participant
-all Runtime participants positioned on the same Runtime Map
+all Character / Monster / Boss Runtime participants positioned on the same Runtime Map
+all hostile Runtime Instances active and combat-eligible
 no unrelated global active Combat
 ```
 
 On success Combat + Combatants + `runtime_encounter_combats` are created from the Runtime roster.
 
+`start_combat` accepts these already-materialised Runtime participant types:
+
+```text
+character
+monster_instance
+boss_instance
+```
+
+Boss initiative uses the Boss Instance `final_dex` snapshot. This means the existing Story `start_combat` effect can start Combat when a GM has already materialised a Runtime Boss into that Encounter.
+
 ## Sequential execution
 
 Effects execute in definition order.
 
-Recommended ambush event:
+Recommended Monster ambush event:
 
 ```json
 [
@@ -194,7 +204,7 @@ INSERT INTO encounter_combats
 UPDATE encounters SET status = ...
 ```
 
-Expected after an automatic ambush:
+Expected after an automatic Monster ambush:
 
 ```text
 Encounter Definition status = planned        (unchanged)
@@ -207,9 +217,11 @@ Runtime Monster has Runtime Map position
 Runtime Encounter has Runtime Combat link
 ```
 
+The same isolation applies when a Runtime Boss is present: the Boss exists only as a fresh per-playthrough Instance in the Runtime roster and Map position, while the reusable Encounter Definition remains unchanged.
+
 ## Story execution audit
 
-Applied effect records include enough Runtime identifiers to diagnose execution:
+Applied effect records include enough Runtime identifiers to diagnose execution.
 
 `spawn_monster` result:
 
@@ -243,22 +255,28 @@ If a later effect fails, the execution audit stores the successfully-applied pre
 
 ## Current Boss boundary
 
-`start_combat` rejects a Runtime Encounter containing a Boss participant with:
+Runtime-native Boss creation and same-Map Combat are implemented as a GM Runtime action:
 
 ```text
-RUNTIME_BOSS_COMBAT_NOT_READY
+Boss Design Profile
+→ fresh Boss Instance snapshot
+→ Runtime Encounter participant
+→ Runtime Boss/any Spawn Point
+→ Runtime Map position
+→ start_combat may include Boss
 ```
 
-There is no legacy fallback. Runtime-native Boss spawn/position authority is the next migration slice.
+`spawn_boss` is **not yet** an approved Story effect. There is no legacy fallback. Adding Story-driven Boss spawn requires an explicit per-Run provenance/idempotency design equivalent in rigor to `spawn_monster`.
 
 ## Next slice
 
-After this Story automation is production-verified:
+The next gameplay closure is:
 
 ```text
-Runtime-native Boss spawn
-→ Boss Story spawn effect / same-Map Combat
+Runtime Combat ends
 → Runtime Encounter resolution
 → encounter_resolved trigger
 → post-Combat Scene continuation
 ```
+
+Story `spawn_boss` can then be added with its own provenance contract without blocking Encounter resolution.
