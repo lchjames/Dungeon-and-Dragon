@@ -15,7 +15,8 @@ const CONDITION_TYPES = new Set([
   'flag_equals',
   'flag_not_equals',
   'scene_run_status',
-  'door_state'
+  'door_state',
+  'encounter_status'
 ]);
 
 const EFFECT_TYPES = new Set([
@@ -23,11 +24,13 @@ const EFFECT_TYPES = new Set([
   'set_flag',
   'reveal_zone',
   'open_door',
-  'close_door'
+  'close_door',
+  'activate_encounter'
 ]);
 
 const DOOR_STATES = new Set(['open', 'closed', 'locked', 'broken']);
 const SCENE_RUN_STATUSES = new Set(['active', 'completed', 'aborted']);
+const ENCOUNTER_STATUSES = new Set(['planned', 'active', 'resolved', 'skipped']);
 const FLAG_KEY = /^[a-z0-9][a-z0-9._-]{0,79}$/;
 
 function text(value, label, max = 4000) {
@@ -65,9 +68,7 @@ export function normalizeStoryTriggerType(value = 'manual') {
 export function normalizeStoryTrigger(type, raw = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Story Event trigger payload must be an object.');
   if (type === 'enter_zone') {
-    return {
-      sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160)
-    };
+    return { sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   }
   return { ...raw };
 }
@@ -92,6 +93,12 @@ export function normalizeStoryCondition(raw) {
     if (!DOOR_STATES.has(state)) throw new Error('Door state condition is invalid.');
     return { type, sourceEdgeId, state };
   }
+  if (type === 'encounter_status') {
+    const encounterId = text(raw.encounterId, 'Encounter ID', 180);
+    const status = String(raw.status || '').trim().toLowerCase();
+    if (!ENCOUNTER_STATUSES.has(status)) throw new Error('Runtime Encounter status condition is invalid.');
+    return { type, encounterId, status };
+  }
   throw new Error('Unsupported Story Event condition.');
 }
 
@@ -100,18 +107,11 @@ export function normalizeStoryEffect(raw) {
   const type = String(raw.type || '').trim().toLowerCase();
   if (!EFFECT_TYPES.has(type)) throw new Error(`Story Event effect type is not approved: ${type || 'missing'}.`);
 
-  if (type === 'show_narrative') {
-    return { type, text: text(raw.text, 'Narrative text', 4000) };
-  }
-  if (type === 'set_flag') {
-    return { type, key: normalizeStoryFlagKey(raw.key), value: scalar(raw.value, 'Story flag value') };
-  }
-  if (type === 'reveal_zone') {
-    return { type, sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
-  }
-  if (type === 'open_door' || type === 'close_door') {
-    return { type, sourceEdgeId: text(raw.sourceEdgeId, 'Map Template Door sourceEdgeId', 160) };
-  }
+  if (type === 'show_narrative') return { type, text: text(raw.text, 'Narrative text', 4000) };
+  if (type === 'set_flag') return { type, key: normalizeStoryFlagKey(raw.key), value: scalar(raw.value, 'Story flag value') };
+  if (type === 'reveal_zone') return { type, sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
+  if (type === 'open_door' || type === 'close_door') return { type, sourceEdgeId: text(raw.sourceEdgeId, 'Map Template Door sourceEdgeId', 160) };
+  if (type === 'activate_encounter') return { type, encounterId: text(raw.encounterId, 'Encounter ID', 180) };
   throw new Error('Unsupported Story Event effect.');
 }
 
@@ -127,13 +127,12 @@ export function normalizeStoryEventStructure({ triggerType = 'manual', trigger =
   };
 }
 
-function sameScalar(a, b) {
-  return Object.is(a, b);
-}
+function sameScalar(a, b) { return Object.is(a, b); }
 
 export function evaluateStoryConditions(conditions, context = {}) {
   const flags = context.flags instanceof Map ? context.flags : new Map(Object.entries(context.flags || {}));
   const doors = context.doors instanceof Map ? context.doors : new Map(Object.entries(context.doors || {}));
+  const encounters = context.encounters instanceof Map ? context.encounters : new Map(Object.entries(context.encounters || {}));
   const failures = [];
 
   for (const condition of conditions || []) {
@@ -154,14 +153,17 @@ export function evaluateStoryConditions(conditions, context = {}) {
       continue;
     }
     if (condition.type === 'door_state') {
-      if (String(doors.get(condition.sourceEdgeId) || '') !== condition.state) {
-        failures.push({ type: condition.type, sourceEdgeId: condition.sourceEdgeId, reason: 'door_state_mismatch' });
-      }
+      if (String(doors.get(condition.sourceEdgeId) || '') !== condition.state) failures.push({ type: condition.type, sourceEdgeId: condition.sourceEdgeId, reason: 'door_state_mismatch' });
+      continue;
+    }
+    if (condition.type === 'encounter_status') {
+      const value = encounters.get(condition.encounterId);
+      const status = typeof value === 'string' ? value : value?.status;
+      if (String(status || '') !== condition.status) failures.push({ type: condition.type, encounterId: condition.encounterId, reason: 'encounter_status_mismatch' });
       continue;
     }
     failures.push({ type: condition.type || 'unknown', reason: 'unsupported_condition' });
   }
-
   return { ok: failures.length === 0, failures };
 }
 

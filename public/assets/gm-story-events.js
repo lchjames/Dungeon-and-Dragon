@@ -42,7 +42,7 @@ function panelMarkup() {
       <div>
         <p class="eyebrow">STORY RUNTIME</p>
         <h3>Story Events</h3>
-        <p class="muted">Structured Trigger + Conditions + Approved Effects. This Alpha slice executes manual GM triggers only; no arbitrary JavaScript or SQL.</p>
+        <p class="muted">Structured Trigger + Conditions + Approved Effects. Manual GM and automatic enter_zone execution are live; no arbitrary JavaScript or SQL.</p>
       </div>
       <button id="gm-story-event-refresh" class="button button-small button-ghost" type="button">Refresh</button>
     </div>
@@ -68,7 +68,7 @@ function panelMarkup() {
             <label class="field"><span>Conditions JSON</span><textarea id="gm-story-event-conditions" class="textarea" rows="7">[\n  {"type":"event_not_fired"}\n]</textarea></label>
             <label class="field"><span>Approved Effects JSON</span><textarea id="gm-story-event-effects" class="textarea" rows="10">[\n  {"type":"show_narrative","text":"Something changes in the room."}\n]</textarea></label>
           </div>
-          <p class="muted">Map targets use stable Template references: <code>sourceEdgeId</code> / <code>sourceZoneId</code>, never Runtime IDs.</p>
+          <p class="muted">Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code>. Encounter effects use the Encounter Definition <code>encounterId</code>; Runtime state stays isolated per Scene Run.</p>
           <div class="form-actions wrap">
             <button id="gm-story-event-save" class="button" type="button">Create Event</button>
             <button id="gm-story-event-activate" class="button button-ghost" type="button" disabled>Activate Selected</button>
@@ -76,13 +76,13 @@ function panelMarkup() {
         </section>
 
         <section class="panel">
-          <div class="panel-heading"><div><h4>Runtime References</h4><span class="muted">Stable IDs available on this Map snapshot</span></div></div>
+          <div class="panel-heading"><div><h4>Runtime References</h4><span class="muted">Stable authoring IDs and current per-run state</span></div></div>
           <div id="gm-story-event-references" class="stack-list"></div>
         </section>
       </div>
 
       <section class="panel">
-        <div class="panel-heading"><div><h4>Scene Events</h4><span class="muted">Select to edit or manually activate</span></div></div>
+        <div class="panel-heading"><div><h4>Scene Events</h4><span class="muted">Select to edit; only manual Events can use Activate Selected</span></div></div>
         <div id="gm-story-event-list" class="stack-list"></div>
       </section>
 
@@ -295,11 +295,15 @@ function renderReferences() {
   if (!target || !detail) return;
   const doors = (detail.edges || []).filter(edge => edge.edgeType === 'door' && edge.sourceEdgeId);
   const zones = (detail.zones || []).filter(zone => zone.sourceZoneId);
+  const encounters = detail.runtimeEncounters || [];
   const rows = [
     ...doors.map(edge => `<div class="stack-item"><div><strong>Door · ${escapeHtml(edge.sourceEdgeId)}</strong><p>Runtime ${escapeHtml(edge.id)} · (${edge.x}, ${edge.y}) ${escapeHtml(edge.direction)} · ${escapeHtml(edge.doorState || 'closed')}</p></div></div>`),
-    ...zones.map(zone => `<div class="stack-item"><div><strong>Zone · ${escapeHtml(zone.sourceZoneId)}</strong><p>${escapeHtml(zone.name)} · ${escapeHtml(zone.zoneType)} · player visible ${zone.playerVisible ? 'yes' : 'no'}</p></div></div>`)
+    ...zones.map(zone => `<div class="stack-item"><div><strong>Zone · ${escapeHtml(zone.sourceZoneId)}</strong><p>${escapeHtml(zone.name)} · ${escapeHtml(zone.zoneType)} · player visible ${zone.playerVisible ? 'yes' : 'no'}</p></div></div>`),
+    ...encounters.map(encounter => `<div class="stack-item"><div><strong>Encounter · ${escapeHtml(encounter.encounterId)}</strong><p>${escapeHtml(encounter.name || encounter.encounterId)} · runtime ${escapeHtml(encounter.status || 'planned')} · definition snapshot ${escapeHtml(encounter.definitionStatusSnapshot || '')}</p></div></div>`)
   ];
-  target.innerHTML = rows.length ? rows.join('') : emptyState('No stable Door / Zone targets', 'Add a Door or Zone to the reusable Map Template first.');
+  target.innerHTML = rows.length
+    ? rows.join('')
+    : emptyState('No Story Runtime references', 'Add Map targets or an Encounter Definition to this Scene first.');
 }
 
 function syncActivateButton() {
@@ -307,7 +311,9 @@ function syncActivateButton() {
   const event = selectedEvent();
   if (!button) return;
   button.disabled = !event || event.status !== 'active' || event.triggerType !== 'manual' || detail?.mapInstance?.status !== 'active';
-  button.title = event && event.triggerType !== 'manual' ? 'Automatic trigger execution is not enabled in this slice.' : '';
+  button.title = event && event.triggerType !== 'manual'
+    ? 'Automatic triggers are resolved by the server and cannot be invoked with the manual activation button.'
+    : '';
 }
 
 function renderEvents() {

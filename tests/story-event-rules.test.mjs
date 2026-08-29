@@ -14,8 +14,10 @@ import {
 assert.ok(STORY_EVENT_TRIGGER_TYPES.includes('manual'));
 assert.ok(STORY_EVENT_TRIGGER_TYPES.includes('enter_zone'));
 assert.ok(STORY_EVENT_CONDITION_TYPES.includes('flag_equals'));
+assert.ok(STORY_EVENT_CONDITION_TYPES.includes('encounter_status'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('show_narrative'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('close_door'));
+assert.ok(STORY_EVENT_EFFECT_TYPES.includes('activate_encounter'));
 
 assert.equal(normalizeStoryFlagKey('Boss.Defeated'), 'boss.defeated');
 assert.throws(() => normalizeStoryFlagKey('bad key'));
@@ -29,6 +31,9 @@ assert.deepEqual(normalizeStoryCondition({ type: 'event_not_fired' }), { type: '
 assert.deepEqual(normalizeStoryCondition({ type: 'door_state', sourceEdgeId: 'edge_1', state: 'CLOSED' }), {
   type: 'door_state', sourceEdgeId: 'edge_1', state: 'closed'
 });
+assert.deepEqual(normalizeStoryCondition({ type: 'encounter_status', encounterId: 'encounter_1', status: 'PLANNED' }), {
+  type: 'encounter_status', encounterId: 'encounter_1', status: 'planned'
+});
 assert.deepEqual(normalizeStoryEffect({ type: 'set_flag', key: 'door.opened', value: true }), {
   type: 'set_flag', key: 'door.opened', value: true
 });
@@ -38,6 +43,11 @@ assert.deepEqual(normalizeStoryEffect({ type: 'open_door', sourceEdgeId: 'edge_2
 assert.deepEqual(normalizeStoryEffect({ type: 'reveal_zone', sourceZoneId: 'zone_er' }), {
   type: 'reveal_zone', sourceZoneId: 'zone_er'
 });
+assert.deepEqual(normalizeStoryEffect({ type: 'activate_encounter', encounterId: 'encounter_1' }), {
+  type: 'activate_encounter', encounterId: 'encounter_1'
+});
+assert.throws(() => normalizeStoryCondition({ type: 'encounter_status', encounterId: 'encounter_1', status: 'deleted' }));
+assert.throws(() => normalizeStoryEffect({ type: 'activate_encounter' }));
 assert.throws(() => normalizeStoryEffect({ type: 'open_door', edgeId: 'runtime-edge-is-not-stable' }));
 assert.throws(() => normalizeStoryEffect({ type: 'javascript', code: 'alert(1)' }));
 assert.throws(() => normalizeStoryEffect({ type: 'set_flag', key: 'x', value: { arbitrary: 'object' } }));
@@ -49,17 +59,19 @@ const structure = normalizeStoryEventStructure({
     { type: 'event_not_fired' },
     { type: 'flag_not_equals', key: 'ambush.done', value: true },
     { type: 'scene_run_status', status: 'active' },
-    { type: 'door_state', sourceEdgeId: 'edge_er', state: 'open' }
+    { type: 'door_state', sourceEdgeId: 'edge_er', state: 'open' },
+    { type: 'encounter_status', encounterId: 'encounter_er', status: 'planned' }
   ],
   effects: [
     { type: 'show_narrative', text: 'The lights go out.' },
     { type: 'set_flag', key: 'ambush.done', value: true },
-    { type: 'close_door', sourceEdgeId: 'edge_er' }
+    { type: 'close_door', sourceEdgeId: 'edge_er' },
+    { type: 'activate_encounter', encounterId: 'encounter_er' }
   ]
 });
 assert.equal(structure.triggerType, 'manual');
-assert.equal(structure.conditions.length, 4);
-assert.equal(structure.effects.length, 3);
+assert.equal(structure.conditions.length, 5);
+assert.equal(structure.effects.length, 4);
 
 const enterZoneStructure = normalizeStoryEventStructure({
   triggerType: 'enter_zone',
@@ -78,7 +90,8 @@ const pass = evaluateStoryConditions(structure.conditions, {
   eventAlreadyFired: false,
   flags: new Map([['ambush.done', false]]),
   sceneRunStatus: 'active',
-  doors: new Map([['edge_er', 'open']])
+  doors: new Map([['edge_er', 'open']]),
+  encounters: new Map([['encounter_er', { status: 'planned' }]])
 });
 assert.equal(pass.ok, true);
 assert.deepEqual(pass.failures, []);
@@ -87,9 +100,11 @@ const fail = evaluateStoryConditions(structure.conditions, {
   eventAlreadyFired: true,
   flags: new Map([['ambush.done', true]]),
   sceneRunStatus: 'completed',
-  doors: new Map([['edge_er', 'closed']])
+  doors: new Map([['edge_er', 'closed']]),
+  encounters: new Map([['encounter_er', { status: 'active' }]])
 });
 assert.equal(fail.ok, false);
-assert.equal(fail.failures.length, 4);
+assert.equal(fail.failures.length, 5);
+assert.ok(fail.failures.some(item => item.reason === 'encounter_status_mismatch'));
 
 console.log('Structured Story Event rules passed.');

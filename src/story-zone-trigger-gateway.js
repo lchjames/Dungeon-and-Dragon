@@ -1,5 +1,9 @@
 import baseWorker from './story-event-gateway.js';
 import { evaluateStoryConditions, normalizeStoryTrigger } from './story-event-rules.js';
+import {
+  activateRuntimeEncounter,
+  loadRuntimeEncounterMap
+} from './runtime-encounter-state.js';
 
 let autoStorySchemaPromise = null;
 
@@ -113,36 +117,35 @@ async function loadRuntimeTargets(env, mapInstanceId) {
       ORDER BY y, x, direction, id
     `).bind(mapInstanceId).all()
   ]);
-  const zoneBySource = new Map();
-  for (const row of zones.results || []) {
-    zoneBySource.set(row.source_zone_id, {
-      id: row.id,
-      sourceZoneId: row.source_zone_id,
-      name: row.name,
-      playerVisible: Boolean(row.player_visible)
-    });
-  }
-  const doorBySource = new Map();
-  for (const row of doors.results || []) {
-    doorBySource.set(row.source_edge_id, {
-      id: row.id,
-      sourceEdgeId: row.source_edge_id,
-      x: Number(row.x),
-      y: Number(row.y),
-      direction: row.direction,
-      doorState: row.door_state || 'closed',
-      blocksMovement: Boolean(row.blocks_movement)
-    });
-  }
+  const zoneBySource = new Map((zones.results || []).map(row => [row.source_zone_id, {
+    id: row.id,
+    sourceZoneId: row.source_zone_id,
+    name: row.name,
+    playerVisible: Boolean(row.player_visible)
+  }]));
+  const doorBySource = new Map((doors.results || []).map(row => [row.source_edge_id, {
+    id: row.id,
+    sourceEdgeId: row.source_edge_id,
+    x: Number(row.x),
+    y: Number(row.y),
+    direction: row.direction,
+    doorState: row.door_state || 'closed',
+    blocksMovement: Boolean(row.blocks_movement)
+  }]));
   return { zoneBySource, doorBySource };
 }
 
 function doorStates(targets) {
-  return new Map([...targets.doorBySource].map(([sourceEdgeId, edge]) => [sourceEdgeId, edge.doorState || 'closed']));
+  return new Map([...targets.doorBySource].map(([id, edge]) => [id, edge.doorState || 'closed']));
 }
 
-function validateTargets(event, targets) {
+function validateTargets(event, targets, encounters) {
   for (const condition of event.conditions || []) {
+    if (condition.type === 'encounter_status' && !encounters.has(condition.encounterId)) {
+      throw Object.assign(new Error(`Runtime Encounter target not found: ${condition.encounterId}`), {
+        code: 'STORY_CONDITION_ENCOUNTER_NOT_FOUND'
+      });
+    }
     if (condition.type === 'door_state' && !targets.doorBySource.has(condition.sourceEdgeId)) {
       throw Object.assign(new Error(`Runtime Door source target not found: ${condition.sourceEdgeId}`), {
         code: 'STORY_CONDITION_DOOR_NOT_FOUND'
@@ -150,6 +153,11 @@ function validateTargets(event, targets) {
     }
   }
   for (const effect of event.effects || []) {
+    if (effect.type === 'activate_encounter' && !encounters.has(effect.encounterId)) {
+      throw Object.assign(new Error(`Runtime Encounter target not found: ${effect.encounterId}`), {
+        code: 'STORY_EFFECT_ENCOUNTER_NOT_FOUND'
+      });
+    }
     if (effect.type === 'reveal_zone' && !targets.zoneBySource.has(effect.sourceZoneId)) {
       throw Object.assign(new Error(`Runtime Zone source target not found: ${effect.sourceZoneId}`), {
         code: 'STORY_EFFECT_ZONE_NOT_FOUND'
@@ -165,9 +173,7 @@ function validateTargets(event, targets) {
 
 async function loadFlags(env, sceneRunId) {
   const rows = await env.DB.prepare(`
-    SELECT flag_key, value_json
-    FROM runtime_story_flags
-    WHERE scene_run_id = ?
+    SELECT flag_key, value_json FROM runtime_story_flags WHERE scene_run_id = ?
   `).bind(sceneRunId).all();
   return new Map((rows.results || []).map(row => [row.flag_key, parseJson(row.value_json, null)]));
 }
@@ -207,8 +213,7 @@ async function applyDoorEffect(env, context, edge, nextState) {
       WHERE id = ? AND map_instance_id = ? AND edge_type = 'door'
         AND COALESCE(door_state, 'closed') = ?
         AND EXISTS (
-          SELECT 1 FROM runtime_map_instances
-          WHERE id = ? AND status = 'active'
+          SELECT 1 FROM runtime_map_instances WHERE id = ? AND status = 'active'
         )
     `).bind(nextState, blocksMovement, now, edge.id, context.mapInstanceId, previousState, context.mapInstanceId),
     env.DB.prepare(`
@@ -272,8 +277,7 @@ async function applyEffect(env, context, effect) {
       SET player_visible = 1, updated_at = ?
       WHERE id = ? AND map_instance_id = ?
         AND EXISTS (
-          SELECT 1 FROM runtime_map_instances
-          WHERE id = ? AND status = 'active'
+          SELECT 1 FROM runtime_map_instances WHERE id = ? AND status = 'active'
         )
     `).bind(now, zone.id, context.mapInstanceId, context.mapInstanceId).run();
     if (Number(result?.meta?.changes || 0) !== 1) {
@@ -284,13 +288,27 @@ async function applyEffect(env, context, effect) {
     zone.playerVisible = true;
     return { type: effect.type, sourceZoneId: effect.sourceZoneId, runtimeZoneId: zone.id };
   }
-  if (effect.type === 'open_door') {
+  if (effect.type === 'open_door' || effect.type === 'close_door') {
     const edge = context.targets.doorBySource.get(effect.sourceEdgeId);
-    return { type: effect.type, ...(await applyDoorEffect(env, context, edge, 'open')) };
+    const nextState = effect.type === 'open_door' ? 'open' : 'closed';
+    return { type: effect.type, ...(await applyDoorEffect(env, context, edge, nextState)) };
   }
-  if (effect.type === 'close_door') {
-    const edge = context.targets.doorBySource.get(effect.sourceEdgeId);
-    return { type: effect.type, ...(await applyDoorEffect(env, context, edge, 'closed')) };
+  if (effect.type === 'activate_encounter') {
+    const activated = await activateRuntimeEncounter(env, {
+      sceneRunId: context.sceneRunId,
+      sceneId: context.sceneId,
+      encounterId: effect.encounterId,
+      actorUserId: context.actor.id,
+      storyEventId: context.event.id
+    });
+    context.encounters.set(effect.encounterId, activated);
+    return {
+      type: effect.type,
+      encounterId: effect.encounterId,
+      runtimeEncounterId: activated.id,
+      status: activated.status,
+      unchanged: Boolean(activated.unchanged)
+    };
   }
   throw Object.assign(new Error(`Unsupported approved Story Effect: ${effect.type}`), {
     code: 'STORY_EFFECT_UNSUPPORTED'
@@ -324,19 +342,18 @@ async function executeEnteredZoneEvent(env, shared, event, firedCount) {
   if (event.oncePerSceneRun && firedCount > 0) {
     return { eventId: event.id, name: event.name, status: 'skipped', code: 'STORY_EVENT_ALREADY_FIRED' };
   }
-
   try {
-    validateTargets(event, shared.targets);
+    validateTargets(event, shared.targets, shared.encounters);
   } catch (error) {
     const executionId = await recordExecution(env, { ...shared, event }, 'failed', [], error).catch(() => null);
     return { eventId: event.id, name: event.name, status: 'failed', executionId, ...cleanError(error) };
   }
-
   const conditions = evaluateStoryConditions(event.conditions, {
     flags: shared.flags,
     eventAlreadyFired: firedCount > 0,
     sceneRunStatus: shared.sceneRunStatus,
-    doors: shared.doors
+    doors: shared.doors,
+    encounters: shared.encounters
   });
   if (!conditions.ok) {
     return {
@@ -349,15 +366,14 @@ async function executeEnteredZoneEvent(env, shared, event, firedCount) {
   }
 
   const effectsApplied = [];
+  const context = { ...shared, event };
   try {
-    const context = { ...shared, event };
     for (const effect of event.effects || []) {
       effectsApplied.push(await applyEffect(env, context, effect));
     }
     const executionId = await recordExecution(env, context, 'applied', effectsApplied);
     return { eventId: event.id, name: event.name, status: 'applied', executionId, effectsApplied };
   } catch (error) {
-    const context = { ...shared, event };
     const executionId = await recordExecution(env, context, 'failed', effectsApplied, error).catch(() => null);
     return {
       eventId: event.id,
@@ -379,7 +395,7 @@ async function processEnterZoneTriggers(request, env, payload) {
   if (!enteredZones.length) return [];
   const enteredSourceIds = new Set(enteredZones.map(zone => zone.sourceZoneId));
 
-  const [actor, sceneRun, eventRows, targets, flags, counts] = await Promise.all([
+  const [actor, sceneRun, eventRows, targets, flags, counts, encounters] = await Promise.all([
     currentUser(request, env),
     env.DB.prepare('SELECT id, status FROM scene_runs WHERE id = ? LIMIT 1').bind(map.sceneRunId).first(),
     env.DB.prepare(`
@@ -389,19 +405,21 @@ async function processEnterZoneTriggers(request, env, payload) {
     `).bind(map.sceneId).all(),
     loadRuntimeTargets(env, map.id),
     loadFlags(env, map.sceneRunId),
-    appliedCounts(env, map.sceneRunId)
+    appliedCounts(env, map.sceneRunId),
+    loadRuntimeEncounterMap(env, map.sceneRunId, map.sceneId)
   ]);
   if (!actor || !sceneRun || sceneRun.status !== 'active') return [];
 
-  const doors = doorStates(targets);
   const shared = {
     actor,
     sceneRunId: map.sceneRunId,
     sceneRunStatus: sceneRun.status,
+    sceneId: map.sceneId,
     mapInstanceId: map.id,
     targets,
     flags,
-    doors,
+    doors: doorStates(targets),
+    encounters,
     enteredZones,
     movement
   };
@@ -413,7 +431,10 @@ async function processEnterZoneTriggers(request, env, payload) {
     try {
       trigger = normalizeStoryTrigger('enter_zone', event.trigger);
     } catch (error) {
-      console.error('Invalid enter_zone Story Event trigger definition', { eventId: event.id, message: String(error?.message || error) });
+      console.error('Invalid enter_zone Story Event trigger definition', {
+        eventId: event.id,
+        message: String(error?.message || error)
+      });
       continue;
     }
     if (!enteredSourceIds.has(trigger.sourceZoneId)) continue;
