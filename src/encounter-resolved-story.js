@@ -4,6 +4,7 @@ import {
   loadRuntimeEncounterMap
 } from './runtime-encounter-state.js';
 import {
+  spawnRuntimeBoss,
   spawnRuntimeMonster,
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
@@ -162,10 +163,10 @@ function validateTargets(event, targets, encounters) {
     }
   }
   for (const effect of event.effects || []) {
-    if ((effect.type === 'activate_encounter' || effect.type === 'spawn_monster' || effect.type === 'start_combat') && !encounters.has(effect.encounterId)) {
+    if ((effect.type === 'activate_encounter' || effect.type === 'spawn_monster' || effect.type === 'spawn_boss' || effect.type === 'start_combat') && !encounters.has(effect.encounterId)) {
       throw Object.assign(new Error(`Runtime Encounter target not found: ${effect.encounterId}`), { code: 'STORY_EFFECT_ENCOUNTER_NOT_FOUND' });
     }
-    if (effect.type === 'spawn_monster' && !targets.spawnBySource.has(effect.sourceSpawnPointId)) {
+    if ((effect.type === 'spawn_monster' || effect.type === 'spawn_boss') && !targets.spawnBySource.has(effect.sourceSpawnPointId)) {
       throw Object.assign(new Error(`Runtime Spawn Point target not found: ${effect.sourceSpawnPointId}`), { code: 'STORY_EFFECT_SPAWN_POINT_NOT_FOUND' });
     }
     if (effect.type === 'reveal_zone' && !targets.zoneBySource.has(effect.sourceZoneId)) {
@@ -290,6 +291,27 @@ async function applyEffect(env, context, effect, effectIndex) {
     return {
       type: effect.type, encounterId: effect.encounterId, monsterId: spawned.monster.id,
       templateId: spawned.monster.templateId, displayName: spawned.monster.displayName,
+      sourceSpawnPointId: spawned.spawnPoint.sourceSpawnPointId,
+      x: spawned.position.x, y: spawned.position.y, unchanged: Boolean(spawned.unchanged)
+    };
+  }
+  if (effect.type === 'spawn_boss') {
+    const spawned = await spawnRuntimeBoss(env, {
+      mapInstanceId: context.mapInstanceId,
+      sceneRunId: context.sceneRunId,
+      sceneId: context.sceneId,
+      encounterId: effect.encounterId,
+      profileId: effect.profileId,
+      sourceSpawnPointId: effect.sourceSpawnPointId,
+      displayName: effect.displayName || '',
+      actorUserId: context.actor.id,
+      storyEventId: context.event.oncePerSceneRun ? context.event.id : null,
+      storyEffectIndex: context.event.oncePerSceneRun ? effectIndex : null
+    });
+    if (spawned.runtimeEncounter) context.encounters.set(effect.encounterId, spawned.runtimeEncounter);
+    return {
+      type: effect.type, encounterId: effect.encounterId, bossId: spawned.boss.id,
+      profileId: spawned.boss.profileId, displayName: spawned.boss.displayName,
       sourceSpawnPointId: spawned.spawnPoint.sourceSpawnPointId,
       x: spawned.position.x, y: spawned.position.y, unchanged: Boolean(spawned.unchanged)
     };
