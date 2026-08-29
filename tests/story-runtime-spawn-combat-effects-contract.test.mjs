@@ -6,6 +6,8 @@ const service = await readFile(new URL('../src/runtime-encounter-service.js', im
 const manualGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0019_story_runtime_spawn_effects.sql', import.meta.url), 'utf8');
+const liveRunner = await readFile(new URL('../scripts/production-alpha-story-combat-e2e.mjs', import.meta.url), 'utf8');
+const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 
 for (const type of ['spawn_monster', 'start_combat']) {
   assert.match(rules, new RegExp(`'${type}'`), `Approved Story effect vocabulary must contain ${type}.`);
@@ -61,4 +63,20 @@ assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/start-com
 
 assert.match(manualGateway, /actorUserId:\s*context\.gm\.id/);
 
-console.log('Story Runtime spawn_monster + start_combat effect contract passed.');
+assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(liveRunner, /triggerType:\s*'enter_zone'/);
+assert.match(liveRunner, /sourceZoneId:\s*ZONE_ID/);
+assert.match(liveRunner, /type:\s*'activate_encounter'/);
+assert.match(liveRunner, /type:\s*'spawn_monster'/);
+assert.match(liveRunner, /type:\s*'start_combat'/);
+assert.match(liveRunner, /sourceSpawnPointId:\s*MONSTER_SPAWN_ID/);
+assert.match(liveRunner, /\/move`/);
+assert.match(liveRunner, /storyEventsTriggered/);
+assert.match(liveRunner, /Definition Encounter roster/);
+assert.match(liveRunner, /Definition encounter_combats/);
+assert.match(liveRunner, /Encounter Definition status/);
+assert.match(liveRunner, /bestEffortFailureCleanup/);
+assert.match(orchestrator, /production-alpha-story-combat-e2e\.mjs/);
+assert.match(orchestrator, /'story-runtime-spawn-combat'/);
+
+console.log('Story Runtime spawn_monster + start_combat effect and production vertical contract passed.');
