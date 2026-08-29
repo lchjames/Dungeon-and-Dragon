@@ -1,5 +1,10 @@
 import baseWorker from './runtime-visibility-gateway.js';
 import { evaluateStoryConditions, normalizeStoryEventStructure } from './story-event-rules.js';
+import {
+  activateRuntimeEncounter,
+  loadRuntimeEncounterMap,
+  loadRuntimeEncounterRows
+} from './runtime-encounter-state.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const EVENT_STATUSES = new Set(['active', 'archived']);
@@ -50,7 +55,7 @@ async function currentUser(request, env) {
     headers: { Accept: 'application/json', Cookie: request.headers.get('Cookie') || '' }
   }), env);
   if (!response.ok) return null;
-  const payload = await response.json();
+  const payload = await response.json().catch(() => null);
   return payload?.user || null;
 }
 
@@ -148,15 +153,13 @@ function eventPayload(row) {
   };
 }
 
-async function sceneExists(env, sceneId) {
-  return env.DB.prepare('SELECT id, scenario_id, name, status FROM scenes WHERE id = ? LIMIT 1').bind(sceneId).first();
-}
-
-function normalizedDefinitionBody(body) {
+function normalizeDefinition(body) {
   const name = cleanText(body?.name, 120);
   if (!name) throw Object.assign(new Error('Story Event name is required.'), { status: 400, code: 'VALIDATION_ERROR' });
   const status = String(body?.status || 'active').trim().toLowerCase();
-  if (!EVENT_STATUSES.has(status)) throw Object.assign(new Error('Story Event status is invalid.'), { status: 400, code: 'VALIDATION_ERROR' });
+  if (!EVENT_STATUSES.has(status)) {
+    throw Object.assign(new Error('Story Event status is invalid.'), { status: 400, code: 'VALIDATION_ERROR' });
+  }
   let structure;
   try {
     structure = normalizeStoryEventStructure({
@@ -169,12 +172,7 @@ function normalizedDefinitionBody(body) {
   } catch (error) {
     throw Object.assign(error, { status: 400, code: 'STORY_EVENT_STRUCTURE_INVALID' });
   }
-  return {
-    name,
-    status,
-    ...structure,
-    oncePerSceneRun: body?.oncePerSceneRun !== false
-  };
+  return { name, status, ...structure, oncePerSceneRun: body?.oncePerSceneRun !== false };
 }
 
 async function listStoryEvents(request, env) {
@@ -183,7 +181,7 @@ async function listStoryEvents(request, env) {
   await ensureStorySchema(env);
   const sceneId = cleanText(new URL(request.url).searchParams.get('sceneId'), 160);
   if (!sceneId) return apiError('sceneId is required.', 400, 'VALIDATION_ERROR');
-  const scene = await sceneExists(env, sceneId);
+  const scene = await env.DB.prepare('SELECT id, scenario_id, name, status FROM scenes WHERE id = ? LIMIT 1').bind(sceneId).first();
   if (!scene) return apiError('Scene 不存在。', 404, 'SCENE_NOT_FOUND');
   const rows = await env.DB.prepare(`
     SELECT * FROM story_events
@@ -202,11 +200,11 @@ async function createStoryEvent(request, env, sceneId) {
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
   const gm = await requireGM(request, env);
   await ensureStorySchema(env);
-  const scene = await sceneExists(env, sceneId);
+  const scene = await env.DB.prepare('SELECT id FROM scenes WHERE id = ? LIMIT 1').bind(sceneId).first();
   if (!scene) return apiError('Scene 不存在。', 404, 'SCENE_NOT_FOUND');
-  const definition = normalizedDefinitionBody(await readBody(request));
-  const now = Date.now();
+  const definition = normalizeDefinition(await readBody(request));
   const id = `story_event_${crypto.randomUUID()}`;
+  const now = Date.now();
   await env.DB.prepare(`
     INSERT INTO story_events (
       id, scene_id, name, status, trigger_type, trigger_json, conditions_json, effects_json,
@@ -217,8 +215,7 @@ async function createStoryEvent(request, env, sceneId) {
     JSON.stringify(definition.trigger), JSON.stringify(definition.conditions), JSON.stringify(definition.effects),
     definition.oncePerSceneRun ? 1 : 0, gm.id, now, now
   ).run();
-  const row = await env.DB.prepare('SELECT * FROM story_events WHERE id = ?').bind(id).first();
-  return json({ ok: true, event: eventPayload(row) }, 201);
+  return json({ ok: true, event: eventPayload(await env.DB.prepare('SELECT * FROM story_events WHERE id = ?').bind(id).first()) }, 201);
 }
 
 async function updateStoryEvent(request, env, eventId) {
@@ -229,7 +226,7 @@ async function updateStoryEvent(request, env, eventId) {
   const existing = await env.DB.prepare('SELECT * FROM story_events WHERE id = ? LIMIT 1').bind(eventId).first();
   if (!existing) return apiError('Story Event 不存在。', 404, 'STORY_EVENT_NOT_FOUND');
   const body = await readBody(request);
-  const definition = normalizedDefinitionBody({
+  const definition = normalizeDefinition({
     name: body?.name ?? existing.name,
     status: body?.status ?? existing.status,
     triggerType: body?.triggerType ?? existing.trigger_type,
@@ -238,19 +235,17 @@ async function updateStoryEvent(request, env, eventId) {
     effects: body?.effects ?? parseJson(existing.effects_json, []),
     oncePerSceneRun: body?.oncePerSceneRun ?? Boolean(existing.once_per_scene_run)
   });
-  const now = Date.now();
   await env.DB.prepare(`
-    UPDATE story_events
-    SET name = ?, status = ?, trigger_type = ?, trigger_json = ?, conditions_json = ?, effects_json = ?,
-        once_per_scene_run = ?, updated_at = ?
+    UPDATE story_events SET
+      name = ?, status = ?, trigger_type = ?, trigger_json = ?, conditions_json = ?, effects_json = ?,
+      once_per_scene_run = ?, updated_at = ?
     WHERE id = ?
   `).bind(
     definition.name, definition.status, definition.triggerType,
     JSON.stringify(definition.trigger), JSON.stringify(definition.conditions), JSON.stringify(definition.effects),
-    definition.oncePerSceneRun ? 1 : 0, now, eventId
+    definition.oncePerSceneRun ? 1 : 0, Date.now(), eventId
   ).run();
-  const row = await env.DB.prepare('SELECT * FROM story_events WHERE id = ?').bind(eventId).first();
-  return json({ ok: true, event: eventPayload(row) });
+  return json({ ok: true, event: eventPayload(await env.DB.prepare('SELECT * FROM story_events WHERE id = ?').bind(eventId).first()) });
 }
 
 async function runtimeDetail(request, env, mapInstanceId) {
@@ -269,16 +264,18 @@ async function runtimeDetail(request, env, mapInstanceId) {
 }
 
 async function runtimeStoryState(env, sceneRunId, sceneId, mapInstanceId) {
-  const [events, flags, narratives, executions] = await Promise.all([
+  const [events, flags, narratives, executions, runtimeEncounters] = await Promise.all([
     env.DB.prepare(`SELECT * FROM story_events WHERE scene_id = ? ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, created_at, id`).bind(sceneId).all(),
     env.DB.prepare(`SELECT flag_key, value_json, updated_at FROM runtime_story_flags WHERE scene_run_id = ? ORDER BY flag_key`).bind(sceneRunId).all(),
     env.DB.prepare(`SELECT id, story_event_id, narrative_text, created_at FROM runtime_story_narratives WHERE scene_run_id = ? ORDER BY created_at DESC, id DESC LIMIT 50`).bind(sceneRunId).all(),
-    env.DB.prepare(`SELECT id, story_event_id, status, trigger_type, effects_applied_json, error_code, error_message, created_at FROM runtime_story_event_executions WHERE scene_run_id = ? AND map_instance_id = ? ORDER BY created_at DESC, id DESC LIMIT 100`).bind(sceneRunId, mapInstanceId).all()
+    env.DB.prepare(`SELECT id, story_event_id, status, trigger_type, effects_applied_json, error_code, error_message, created_at FROM runtime_story_event_executions WHERE scene_run_id = ? AND map_instance_id = ? ORDER BY created_at DESC, id DESC LIMIT 100`).bind(sceneRunId, mapInstanceId).all(),
+    loadRuntimeEncounterRows(env, sceneRunId, sceneId)
   ]);
   return {
     storyEvents: (events.results || []).map(eventPayload),
     storyFlags: (flags.results || []).map(row => ({ key: row.flag_key, value: parseJson(row.value_json, null), updatedAt: row.updated_at })),
     storyNarratives: (narratives.results || []).map(row => ({ id: row.id, storyEventId: row.story_event_id, text: row.narrative_text, createdAt: row.created_at })),
+    runtimeEncounters,
     storyExecutions: (executions.results || []).map(row => ({
       id: row.id,
       storyEventId: row.story_event_id,
@@ -292,7 +289,7 @@ async function runtimeStoryState(env, sceneRunId, sceneId, mapInstanceId) {
   };
 }
 
-async function enrichGmRuntimeDetail(request, env, response) {
+async function enrichGmRuntimeDetail(env, response) {
   if (!response.ok) return response;
   const payload = await response.json();
   if (!payload?.mapInstance?.sceneRunId || !payload?.mapInstance?.sceneId) return json(payload, response.status);
@@ -341,45 +338,50 @@ async function loadFlags(env, sceneRunId) {
   return new Map((rows.results || []).map(row => [row.flag_key, parseJson(row.value_json, null)]));
 }
 
-function runtimeTargetMaps(detail) {
+function runtimeTargets(detail) {
   const zoneBySource = new Map();
   const doorBySource = new Map();
-  for (const zone of detail?.zones || []) {
-    if (zone.sourceZoneId) zoneBySource.set(zone.sourceZoneId, zone);
-  }
+  for (const zone of detail?.zones || []) if (zone.sourceZoneId) zoneBySource.set(zone.sourceZoneId, zone);
   for (const edge of detail?.edges || []) {
     if (edge.edgeType === 'door' && edge.sourceEdgeId) doorBySource.set(edge.sourceEdgeId, edge);
   }
   return { zoneBySource, doorBySource };
 }
 
-function doorStateMap(detail) {
+function doorStates(detail) {
   return new Map((detail?.edges || [])
     .filter(edge => edge.edgeType === 'door' && edge.sourceEdgeId)
     .map(edge => [edge.sourceEdgeId, edge.doorState || 'closed']));
 }
 
-function validateStoryTargets(event, detail) {
-  const targets = runtimeTargetMaps(detail);
+function validateTargets(event, detail, encounters) {
+  const targets = runtimeTargets(detail);
   for (const condition of event.conditions || []) {
+    if (condition.type === 'encounter_status' && !encounters.has(condition.encounterId)) {
+      throw Object.assign(new Error(`Runtime Encounter target not found: ${condition.encounterId}`), {
+        status: 409, code: 'STORY_CONDITION_ENCOUNTER_NOT_FOUND'
+      });
+    }
     if (condition.type === 'door_state' && !targets.doorBySource.has(condition.sourceEdgeId)) {
       throw Object.assign(new Error(`Runtime Door source target not found: ${condition.sourceEdgeId}`), {
-        status: 409,
-        code: 'STORY_CONDITION_DOOR_NOT_FOUND'
+        status: 409, code: 'STORY_CONDITION_DOOR_NOT_FOUND'
       });
     }
   }
-  for (const effect of event.effects) {
+  for (const effect of event.effects || []) {
+    if (effect.type === 'activate_encounter' && !encounters.has(effect.encounterId)) {
+      throw Object.assign(new Error(`Runtime Encounter target not found: ${effect.encounterId}`), {
+        status: 409, code: 'STORY_EFFECT_ENCOUNTER_NOT_FOUND'
+      });
+    }
     if (effect.type === 'reveal_zone' && !targets.zoneBySource.has(effect.sourceZoneId)) {
       throw Object.assign(new Error(`Runtime Zone source target not found: ${effect.sourceZoneId}`), {
-        status: 409,
-        code: 'STORY_EFFECT_ZONE_NOT_FOUND'
+        status: 409, code: 'STORY_EFFECT_ZONE_NOT_FOUND'
       });
     }
     if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
       throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
-        status: 409,
-        code: 'STORY_EFFECT_DOOR_NOT_FOUND'
+        status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
       });
     }
   }
@@ -387,7 +389,10 @@ function validateStoryTargets(event, detail) {
 }
 
 async function applyDoorEffect(request, env, mapInstanceId, edge, state) {
-  const response = await baseWorker.fetch(new Request(new URL(`/api/gm/world/runtime/maps/${encodeURIComponent(mapInstanceId)}/edges/${encodeURIComponent(edge.id)}/door-state`, request.url), {
+  const response = await baseWorker.fetch(new Request(new URL(
+    `/api/gm/world/runtime/maps/${encodeURIComponent(mapInstanceId)}/edges/${encodeURIComponent(edge.id)}/door-state`,
+    request.url
+  ), {
     method: 'PATCH',
     headers: {
       Accept: 'application/json',
@@ -430,6 +435,7 @@ async function applyEffect(request, env, context, effect) {
         updated_by_user_id = excluded.updated_by_user_id,
         updated_at = excluded.updated_at
     `).bind(context.sceneRunId, effect.key, JSON.stringify(effect.value), context.gm.id, now, now).run();
+    context.flags.set(effect.key, effect.value);
     return { type: effect.type, key: effect.key, value: effect.value };
   }
   if (effect.type === 'reveal_zone') {
@@ -441,27 +447,42 @@ async function applyEffect(request, env, context, effect) {
     `).bind(now, zone.id, context.mapInstanceId).run();
     if (Number(result?.meta?.changes || 0) !== 1) {
       throw Object.assign(new Error('Runtime Zone reveal target changed before effect execution.'), {
-        status: 409,
-        code: 'STORY_EFFECT_ZONE_CHANGED'
+        status: 409, code: 'STORY_EFFECT_ZONE_CHANGED'
       });
     }
     return { type: effect.type, sourceZoneId: effect.sourceZoneId, runtimeZoneId: zone.id };
   }
-  if (effect.type === 'open_door') {
+  if (effect.type === 'open_door' || effect.type === 'close_door') {
     const edge = context.targets.doorBySource.get(effect.sourceEdgeId);
-    return { type: effect.type, ...(await applyDoorEffect(request, env, context.mapInstanceId, edge, 'open')) };
+    const state = effect.type === 'open_door' ? 'open' : 'closed';
+    return { type: effect.type, ...(await applyDoorEffect(request, env, context.mapInstanceId, edge, state)) };
   }
-  if (effect.type === 'close_door') {
-    const edge = context.targets.doorBySource.get(effect.sourceEdgeId);
-    return { type: effect.type, ...(await applyDoorEffect(request, env, context.mapInstanceId, edge, 'closed')) };
+  if (effect.type === 'activate_encounter') {
+    const activated = await activateRuntimeEncounter(env, {
+      sceneRunId: context.sceneRunId,
+      sceneId: context.event.sceneId,
+      encounterId: effect.encounterId,
+      actorUserId: context.gm.id,
+      storyEventId: context.event.id
+    });
+    context.encounters.set(effect.encounterId, activated);
+    return {
+      type: effect.type,
+      encounterId: effect.encounterId,
+      runtimeEncounterId: activated.id,
+      status: activated.status,
+      unchanged: Boolean(activated.unchanged)
+    };
   }
   throw Object.assign(new Error(`Unsupported approved Story Effect: ${effect.type}`), {
-    status: 500,
-    code: 'STORY_EFFECT_UNSUPPORTED'
+    status: 500, code: 'STORY_EFFECT_UNSUPPORTED'
   });
 }
 
-async function recordExecution(env, { event, sceneRunId, mapInstanceId, gm, status, effectsApplied, errorCode = null, errorMessage = null }) {
+async function recordExecution(env, {
+  event, sceneRunId, mapInstanceId, gm, status, effectsApplied,
+  errorCode = null, errorMessage = null
+}) {
   const id = `story_exec_${crypto.randomUUID()}`;
   await env.DB.prepare(`
     INSERT INTO runtime_story_event_executions (
@@ -488,22 +509,26 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
   const row = await env.DB.prepare('SELECT * FROM story_events WHERE id = ? LIMIT 1').bind(eventId).first();
   if (!row) return apiError('Story Event 不存在。', 404, 'STORY_EVENT_NOT_FOUND');
   const event = eventPayload(row);
-  if (event.sceneId !== detail.mapInstance.sceneId) return apiError('Story Event 唔屬於目前 Scene。', 409, 'STORY_EVENT_SCENE_MISMATCH');
+  if (event.sceneId !== detail.mapInstance.sceneId) {
+    return apiError('Story Event 唔屬於目前 Scene。', 409, 'STORY_EVENT_SCENE_MISMATCH');
+  }
   if (event.status !== 'active') return apiError('Archived Story Event 不可執行。', 409, 'STORY_EVENT_ARCHIVED');
   if (event.triggerType !== 'manual') {
-    return apiError('呢個 Story Event 唔係 manual trigger；自動 trigger resolver 尚未執行呢個event。', 409, 'STORY_EVENT_TRIGGER_NOT_MANUAL');
+    return apiError('呢個 Story Event 唔係 manual trigger。', 409, 'STORY_EVENT_TRIGGER_NOT_MANUAL');
   }
 
-  const sceneRun = await env.DB.prepare('SELECT id, status FROM scene_runs WHERE id = ? LIMIT 1').bind(detail.mapInstance.sceneRunId).first();
+  const sceneRun = await env.DB.prepare('SELECT id, status FROM scene_runs WHERE id = ? LIMIT 1')
+    .bind(detail.mapInstance.sceneRunId).first();
   if (!sceneRun) return apiError('Scene Run 不存在。', 409, 'SCENE_RUN_NOT_FOUND');
   const firedCount = await appliedCount(env, sceneRun.id, event.id);
   if (event.oncePerSceneRun && firedCount > 0) {
     return apiError('Story Event 已經喺呢個 Scene Run 成功執行過。', 409, 'STORY_EVENT_ALREADY_FIRED');
   }
 
+  const encounters = await loadRuntimeEncounterMap(env, sceneRun.id, event.sceneId);
   let targets;
   try {
-    targets = validateStoryTargets(event, detail);
+    targets = validateTargets(event, detail, encounters);
   } catch (error) {
     return apiError(error.message, error.status || 409, error.code || 'STORY_EVENT_TARGET_INVALID');
   }
@@ -513,7 +538,8 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
     flags,
     eventAlreadyFired: firedCount > 0,
     sceneRunStatus: sceneRun.status,
-    doors: doorStateMap(detail)
+    doors: doorStates(detail),
+    encounters
   });
   if (!conditions.ok) {
     return apiError('Story Event conditions 未滿足。', 409, 'STORY_EVENT_CONDITIONS_NOT_MET', {
@@ -523,20 +549,28 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
 
   const effectsApplied = [];
   try {
+    const context = {
+      event,
+      sceneRunId: sceneRun.id,
+      mapInstanceId,
+      gm,
+      targets,
+      flags,
+      encounters
+    };
     for (const effect of event.effects) {
-      effectsApplied.push(await applyEffect(request, env, {
-        event,
-        sceneRunId: sceneRun.id,
-        mapInstanceId,
-        gm,
-        targets
-      }, effect));
+      effectsApplied.push(await applyEffect(request, env, context, effect));
     }
     const executionId = await recordExecution(env, {
       event, sceneRunId: sceneRun.id, mapInstanceId, gm, status: 'applied', effectsApplied
     });
-    const state = await runtimeStoryState(env, sceneRun.id, event.sceneId, mapInstanceId);
-    return json({ ok: true, executionId, event, effectsApplied, ...state });
+    return json({
+      ok: true,
+      executionId,
+      event,
+      effectsApplied,
+      ...(await runtimeStoryState(env, sceneRun.id, event.sceneId, mapInstanceId))
+    });
   } catch (error) {
     let executionId = null;
     try {
@@ -566,33 +600,26 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
+    const pathname = new URL(request.url).pathname;
     try {
       if (pathname === '/api/gm/story-events') return await listStoryEvents(request, env);
 
-      const createMatch = pathname.match(/^\/api\/gm\/scenes\/([^/]+)\/story-events$/);
-      if (createMatch) return await createStoryEvent(request, env, decodeURIComponent(createMatch[1]));
+      let match = pathname.match(/^\/api\/gm\/scenes\/([^/]+)\/story-events$/);
+      if (match) return await createStoryEvent(request, env, decodeURIComponent(match[1]));
 
-      const updateMatch = pathname.match(/^\/api\/gm\/story-events\/([^/]+)$/);
-      if (updateMatch) return await updateStoryEvent(request, env, decodeURIComponent(updateMatch[1]));
+      match = pathname.match(/^\/api\/gm\/story-events\/([^/]+)$/);
+      if (match) return await updateStoryEvent(request, env, decodeURIComponent(match[1]));
 
-      const activateMatch = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/story-events\/([^/]+)\/activate$/);
-      if (activateMatch) {
-        return await activateStoryEvent(request, env, decodeURIComponent(activateMatch[1]), decodeURIComponent(activateMatch[2]));
+      match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/story-events\/([^/]+)\/activate$/);
+      if (match) return await activateStoryEvent(request, env, decodeURIComponent(match[1]), decodeURIComponent(match[2]));
+
+      match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)$/);
+      if (match && request.method === 'GET') {
+        return enrichGmRuntimeDetail(env, await baseWorker.fetch(request, env));
       }
 
-      const gmDetail = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)$/);
-      if (gmDetail && request.method === 'GET') {
-        const response = await baseWorker.fetch(request, env);
-        return await enrichGmRuntimeDetail(request, env, response);
-      }
-
-      const playerWorld = pathname.match(/^\/api\/player\/world\/characters\/([^/]+)(?:\/.*)?$/);
-      if (playerWorld) {
-        const response = await baseWorker.fetch(request, env);
-        return await enrichPlayerWorld(env, response);
-      }
+      match = pathname.match(/^\/api\/player\/world\/characters\/([^/]+)(?:\/.*)?$/);
+      if (match) return enrichPlayerWorld(env, await baseWorker.fetch(request, env));
 
       return baseWorker.fetch(request, env);
     } catch (error) {
