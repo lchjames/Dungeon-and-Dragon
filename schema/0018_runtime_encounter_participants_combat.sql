@@ -1,5 +1,13 @@
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS runtime_encounter_snapshot_meta (
+  scene_run_id TEXT PRIMARY KEY,
+  scene_id TEXT NOT NULL,
+  materialized_at INTEGER NOT NULL,
+  FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
+  FOREIGN KEY (scene_id) REFERENCES scenes(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS runtime_encounter_participants (
   id TEXT PRIMARY KEY,
   scene_run_id TEXT NOT NULL,
@@ -34,6 +42,8 @@ CREATE TABLE IF NOT EXISTS runtime_encounter_combats (
   FOREIGN KEY (linked_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
 
+CREATE INDEX IF NOT EXISTS idx_runtime_encounter_snapshot_scene
+  ON runtime_encounter_snapshot_meta(scene_id, materialized_at);
 CREATE INDEX IF NOT EXISTS idx_runtime_encounter_participants_scene_encounter
   ON runtime_encounter_participants(scene_run_id, encounter_id, entity_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_runtime_encounter_participants_entity
