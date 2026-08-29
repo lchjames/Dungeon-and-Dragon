@@ -13,6 +13,9 @@ const storyEventGateway = await readFile(new URL('../src/story-event-gateway.js'
 const storyZoneTriggerGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const runtimeEncounterService = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
+const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
+const resolutionService = await readFile(new URL('../src/runtime-encounter-resolution.js', import.meta.url), 'utf8');
+const resolvedStory = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -38,8 +41,6 @@ assert.match(workflow, /request_worker "\/api\/auth\/me"/);
 assert.match(workflow, /request_worker "\/api\/admin\/auth\/me"/);
 assert.match(workflow, /--retry 8/);
 
-// Automatic main deployment must remain read-only with respect to gameplay data.
-// Production-writing Alpha execution is operator-triggered only.
 assert.doesNotMatch(workflow, /DND_ALPHA_GM_PASSWORD/);
 assert.doesNotMatch(workflow, /DND_ALPHA_EXECUTE:\s*'1'/);
 assert.doesNotMatch(workflow, /cleanup-stale-alpha-combat\.mjs/);
@@ -57,7 +58,7 @@ assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha w
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
 assert.match(
   wrangler,
-  /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m,
+  /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m,
   'Deployment contract must validate the actual Wrangler main property, not a historical gateway marker inside a comment.'
 );
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);
@@ -66,8 +67,36 @@ assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b78
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
 
-// Top-level Runtime Encounter gateway is deliberately thin. Runtime gameplay writes
-// live in the shared service so GM HTTP and Player-triggered Story effects cannot drift.
+assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
+assert.match(resolutionGateway, /findRuntimeEncounterByCombat/);
+assert.match(resolutionGateway, /resolveRuntimeEncounter/);
+assert.match(resolutionGateway, /processEncounterResolvedStoryEvents/);
+assert.match(resolutionGateway, /runtimeEncounterResolutionWarning/);
+assert.match(resolutionGateway, /\/resolve\$\/);
+assert.match(resolutionGateway, /\/api\\\/gm\\\/combat\\\/\(\[\^\/\]\+\)\\\/end/);
+assert.doesNotMatch(resolutionGateway, /UPDATE\s+encounters\s+SET\s+status/i);
+assert.doesNotMatch(resolutionGateway, /INSERT INTO encounter_combats/);
+assert.doesNotMatch(resolutionGateway, /eval\s*\(/);
+assert.doesNotMatch(resolutionGateway, /new Function\s*\(/);
+
+assert.match(resolutionService, /runtime_encounter_resolution_log/);
+assert.match(resolutionService, /combat_hostiles_cleared/);
+assert.match(resolutionService, /gm_manual/);
+assert.match(resolutionService, /TERMINAL_HOSTILE_STATUSES/);
+assert.match(resolutionService, /hostiles\.length > 0 && blockers\.length === 0/);
+assert.match(resolutionService, /RUNTIME_ENCOUNTER_COMBAT_ACTIVE/);
+assert.match(resolutionService, /SET status = 'resolved'/);
+assert.doesNotMatch(resolutionService, /UPDATE\s+encounters\s+SET\s+status/i);
+assert.doesNotMatch(resolutionService, /INSERT INTO encounter_combats/);
+
+assert.match(resolvedStory, /trigger_type = 'encounter_resolved'/);
+assert.match(resolvedStory, /normalizeStoryTrigger\('encounter_resolved'/);
+assert.match(resolvedStory, /trigger\.encounterId !== encounterId/);
+assert.match(resolvedStory, /runtime_story_event_executions/);
+assert.match(resolvedStory, /from '\.\/runtime-encounter-service\.js'/);
+assert.doesNotMatch(resolvedStory, /eval\s*\(/);
+assert.doesNotMatch(resolvedStory, /new Function\s*\(/);
+
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.match(runtimeEncounterGateway, /spawnRuntimeMonster\(/);
@@ -127,8 +156,6 @@ assert.match(adminGateway, /pathname !== '\/api\/admin\/auth\/login'/);
 assert.match(adminGateway, /adminGateway\.fetch\(request, env\)/);
 assert.match(adminGateway, /ADMIN_AUTH_RUNTIME_ERROR/);
 
-// The verified Alpha credential now lives only in production D1. Runtime source
-// must never recreate or overwrite that Admin row with deterministic seed material.
 for (const forbidden of [
   /ensureAlphaGmOperatorSeed/,
   /ALPHA_GM_INTERNAL_USERNAME/,
@@ -141,9 +168,6 @@ for (const forbidden of [
   assert.doesNotMatch(adminGateway, forbidden, `Temporary Alpha GM runtime seed material must stay removed: ${forbidden}`);
 }
 
-// Production D1 is long-lived: CREATE TABLE IF NOT EXISTS cannot upgrade an older
-// player_monster_action_log definition. The permanent compatibility boundary must
-// inspect the existing columns and add only missing audit fields before Player attacks.
 assert.match(auditCompatGateway, /ensurePlayerMonsterAuditCompatibility/);
 assert.match(auditCompatGateway, /PRAGMA table_info\(\$\{table\}\)/);
 assert.match(auditCompatGateway, /ALTER TABLE player_monster_action_log ADD COLUMN \$\{column\} \$\{definition\}/);
