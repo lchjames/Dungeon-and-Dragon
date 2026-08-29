@@ -19,6 +19,7 @@ try {
   runComponent('Production Long Rest / Combat Interruption E2E', './production-alpha-rest-extended-e2e.mjs');
   runComponent('Production Per-viewer Visibility E2E', './production-alpha-visibility-e2e.mjs');
   runComponent('Production Story Event E2E', './production-alpha-story-event-e2e.mjs');
+  runComponent('Production Scene Run Start Story E2E', './production-alpha-story-scene-run-start-e2e.mjs');
   runComponent('Production Enter-zone Story Event E2E', './production-alpha-story-zone-e2e.mjs');
   runComponent('Production Runtime Encounter Spawn / Combat E2E', './production-alpha-runtime-encounter-e2e.mjs');
   runComponent('Production Player Zone → Story Spawn → Combat E2E', './production-alpha-story-combat-e2e.mjs');
@@ -34,6 +35,7 @@ try {
       'long-rest-combat-interruption',
       'per-viewer-visibility',
       'story-event',
+      'story-scene-run-start',
       'story-enter-zone',
       'runtime-encounter-spawn-combat',
       'story-runtime-spawn-combat',
