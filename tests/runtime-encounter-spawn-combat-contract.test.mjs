@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const encounterState = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
+const ui = await readFile(new URL('../public/assets/gm-runtime-encounters.js', import.meta.url), 'utf8');
+const loader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
@@ -47,4 +49,17 @@ assert.match(encounterState, /INSERT INTO runtime_encounter_combats/);
 assert.match(encounterState, /RUNTIME_ENCOUNTER_MAP_MISMATCH/);
 assert.match(encounterState, /FOREIGN KEY \(scene_run_id, encounter_id\) REFERENCES runtime_encounter_states/);
 
-console.log('Runtime Encounter Monster spawn and same-Map Combat contract passed.');
+assert.match(loader, /import '\.\/gm-runtime-encounters\.js'/);
+assert.match(ui, /<h3>Encounter Spawn & Combat<\/h3>/);
+assert.match(ui, /id="runtime-encounter-map"/);
+assert.match(ui, /id="runtime-encounter-select"/);
+assert.match(ui, /id="runtime-encounter-template"/);
+assert.match(ui, /id="runtime-encounter-spawn"/);
+assert.match(ui, /id="runtime-encounter-level"/);
+assert.match(ui, /id="runtime-encounter-spawn-monster"/);
+assert.match(ui, /id="runtime-encounter-start-combat"/);
+assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/monsters/);
+assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/start-combat/);
+assert.match(ui, /NOT ON MAP/);
+
+console.log('Runtime Encounter Monster spawn, same-Map Combat and GM control contract passed.');
