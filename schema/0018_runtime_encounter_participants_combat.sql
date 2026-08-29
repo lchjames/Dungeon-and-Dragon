@@ -21,8 +21,7 @@ CREATE TABLE IF NOT EXISTS runtime_encounter_participants (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   UNIQUE (scene_run_id, encounter_id, entity_type, entity_id),
-  FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
-  FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
+  FOREIGN KEY (scene_run_id, encounter_id) REFERENCES runtime_encounter_states(scene_run_id, encounter_id) ON DELETE CASCADE,
   FOREIGN KEY (source_encounter_participant_id) REFERENCES encounter_participants(id) ON DELETE SET NULL,
   FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
@@ -35,8 +34,7 @@ CREATE TABLE IF NOT EXISTS runtime_encounter_combats (
   linked_by_user_id TEXT NOT NULL,
   linked_at INTEGER NOT NULL,
   PRIMARY KEY (scene_run_id, encounter_id),
-  FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
-  FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
+  FOREIGN KEY (scene_run_id, encounter_id) REFERENCES runtime_encounter_states(scene_run_id, encounter_id) ON DELETE CASCADE,
   FOREIGN KEY (map_instance_id) REFERENCES runtime_map_instances(id) ON DELETE CASCADE,
   FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
   FOREIGN KEY (linked_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
