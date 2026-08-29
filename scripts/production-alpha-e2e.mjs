@@ -23,6 +23,7 @@ try {
   runComponent('Production Runtime Encounter Spawn / Combat E2E', './production-alpha-runtime-encounter-e2e.mjs');
   runComponent('Production Player Zone → Story Spawn → Combat E2E', './production-alpha-story-combat-e2e.mjs');
   runComponent('Production Runtime Boss Spawn / Combat E2E', './production-alpha-runtime-boss-e2e.mjs');
+  runComponent('Production Runtime Encounter Resolution E2E', './production-alpha-runtime-resolution-e2e.mjs');
   runComponent('Production Combat / Focus E2E', './production-alpha-combat-e2e.mjs');
   console.log(JSON.stringify({
     ok: true,
@@ -36,6 +37,7 @@ try {
       'runtime-encounter-spawn-combat',
       'story-runtime-spawn-combat',
       'runtime-boss-spawn-combat',
+      'runtime-encounter-resolution',
       'combat-focus'
     ]
   }, null, 2));

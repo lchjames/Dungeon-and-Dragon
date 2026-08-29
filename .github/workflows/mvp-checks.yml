@@ -59,6 +59,7 @@ jobs:
           node tests/story-runtime-spawn-combat-effects-contract.test.mjs
           node tests/runtime-encounter-state-contract.test.mjs
           node tests/runtime-encounter-spawn-combat-contract.test.mjs
+          node tests/runtime-encounter-resolution-contract.test.mjs
           node tests/player-map-movement.test.mjs
           node tests/runtime-door-control.test.mjs
           node tests/hostile-combat-movement.test.mjs

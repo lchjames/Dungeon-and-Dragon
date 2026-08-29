@@ -1,5 +1,6 @@
 import './gm-combat-map-context.js';
 import './gm-runtime-encounters.js';
+import './gm-runtime-resolution.js';
 import './gm-story-runtime-action-help.js';
 import { $, escapeHtml, toast, emptyState } from './common.js';
 
