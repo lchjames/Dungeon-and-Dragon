@@ -74,10 +74,27 @@ export async function ensureRuntimeEncounterActionSchema(env) {
         FOREIGN KEY (map_instance_id) REFERENCES runtime_map_instances(id) ON DELETE CASCADE,
         FOREIGN KEY (monster_instance_id) REFERENCES monster_instances(id) ON DELETE CASCADE
       )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_story_boss_spawn_effects (
+        scene_run_id TEXT NOT NULL,
+        story_event_id TEXT NOT NULL,
+        effect_index INTEGER NOT NULL CHECK (effect_index >= 0),
+        map_instance_id TEXT NOT NULL,
+        encounter_id TEXT NOT NULL,
+        boss_instance_id TEXT NOT NULL UNIQUE,
+        profile_id TEXT NOT NULL,
+        source_spawn_point_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (scene_run_id, story_event_id, effect_index),
+        FOREIGN KEY (scene_run_id, encounter_id) REFERENCES runtime_encounter_states(scene_run_id, encounter_id) ON DELETE CASCADE,
+        FOREIGN KEY (map_instance_id) REFERENCES runtime_map_instances(id) ON DELETE CASCADE,
+        FOREIGN KEY (boss_instance_id) REFERENCES boss_instances(id) ON DELETE CASCADE
+      )`),
       env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_single_active_combat ON combats(status) WHERE status = 'active'"),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_combatants_combat_order ON combatants(combat_id, initiative_order)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_story_spawn_monster ON runtime_story_spawn_effects(monster_instance_id)'),
-      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_story_spawn_map ON runtime_story_spawn_effects(map_instance_id, created_at)')
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_story_spawn_map ON runtime_story_spawn_effects(map_instance_id, created_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_story_spawn_boss ON runtime_story_boss_spawn_effects(boss_instance_id)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_story_boss_spawn_map ON runtime_story_boss_spawn_effects(map_instance_id, created_at)')
     ]).catch(error => {
       runtimeActionSchemaPromise = null;
       throw error;
@@ -175,6 +192,62 @@ async function spawnReplay(env, { sceneRunId, sceneId, storyEventId, storyEffect
       id: row.position_id,
       entityType: 'monster_instance',
       entityId: row.monster_instance_id,
+      x: Number(row.x),
+      y: Number(row.y)
+    },
+    runtimeEncounter: encounters.get(row.encounter_id) || null,
+    unchanged: true,
+    storyEffectReplay: true
+  };
+}
+
+async function bossSpawnReplay(env, { sceneRunId, sceneId, storyEventId, storyEffectIndex }) {
+  if (!storyEventId || !Number.isInteger(storyEffectIndex) || storyEffectIndex < 0) return null;
+  const row = await env.DB.prepare(`
+    SELECT rbse.map_instance_id, rbse.encounter_id, rbse.boss_instance_id,
+           rbse.profile_id, rbse.source_spawn_point_id,
+           bi.boss_profile_id, bi.display_name, bi.level, bi.status,
+           rep.id AS position_id, rep.x, rep.y,
+           rsp.id AS runtime_spawn_point_id
+    FROM runtime_story_boss_spawn_effects rbse
+    LEFT JOIN boss_instances bi ON bi.id = rbse.boss_instance_id
+    LEFT JOIN runtime_entity_positions rep
+      ON rep.map_instance_id = rbse.map_instance_id
+     AND rep.entity_type = 'boss_instance'
+     AND rep.entity_id = rbse.boss_instance_id
+    LEFT JOIN runtime_map_spawn_points rsp
+      ON rsp.map_instance_id = rbse.map_instance_id
+     AND rsp.source_spawn_point_id = rbse.source_spawn_point_id
+    WHERE rbse.scene_run_id = ? AND rbse.story_event_id = ? AND rbse.effect_index = ?
+    LIMIT 1
+  `).bind(sceneRunId, storyEventId, storyEffectIndex).first();
+  if (!row) return null;
+  if (!row.boss_instance_id || !row.boss_profile_id || !row.position_id) {
+    throw problem('Story Boss spawn provenance exists but its Runtime Boss or position is missing.', 409, 'STORY_BOSS_SPAWN_PROVENANCE_BROKEN');
+  }
+  if (row.profile_id !== row.boss_profile_id) {
+    throw problem('Story Boss spawn provenance profile does not match the Runtime Boss snapshot.', 409, 'STORY_BOSS_SPAWN_PROVENANCE_MISMATCH');
+  }
+  const encounters = await loadRuntimeEncounterMap(env, sceneRunId, sceneId);
+  return {
+    boss: {
+      id: row.boss_instance_id,
+      profileId: row.boss_profile_id,
+      encounterId: row.encounter_id,
+      displayName: row.display_name,
+      level: Number(row.level),
+      status: row.status
+    },
+    spawnPoint: {
+      sourceSpawnPointId: row.source_spawn_point_id,
+      runtimeSpawnPointId: row.runtime_spawn_point_id || null,
+      x: Number(row.x),
+      y: Number(row.y)
+    },
+    position: {
+      id: row.position_id,
+      entityType: 'boss_instance',
+      entityId: row.boss_instance_id,
       x: Number(row.x),
       y: Number(row.y)
     },
@@ -394,7 +467,9 @@ export async function spawnRuntimeBoss(env, {
   profileId,
   sourceSpawnPointId,
   displayName = '',
-  actorUserId
+  actorUserId,
+  storyEventId = null,
+  storyEffectIndex = null
 }) {
   await ensureRuntimeEncounterActionSchema(env);
   const map = await mapContext(env, cleanText(mapInstanceId, 180), cleanText(sceneRunId, 180), cleanText(sceneId, 180));
@@ -402,9 +477,18 @@ export async function spawnRuntimeBoss(env, {
   const normalizedProfileId = cleanText(profileId, 180);
   const normalizedSpawnId = cleanText(sourceSpawnPointId, 180);
   const normalizedActor = cleanText(actorUserId, 180);
+  const normalizedStoryEventId = cleanText(storyEventId, 180);
   if (!normalizedEncounterId || !normalizedProfileId || !normalizedSpawnId || !normalizedActor) {
     throw problem('Runtime Boss spawn 缺少必要 reference。', 400, 'VALIDATION_ERROR');
   }
+
+  const replay = await bossSpawnReplay(env, {
+    sceneRunId: map.sceneRunId,
+    sceneId: map.sceneId,
+    storyEventId: normalizedStoryEventId,
+    storyEffectIndex
+  });
+  if (replay) return replay;
 
   const encounters = await loadRuntimeEncounterMap(env, map.sceneRunId, map.sceneId);
   const encounter = encounters.get(normalizedEncounterId);
@@ -555,7 +639,33 @@ export async function spawnRuntimeBoss(env, {
     ));
   }
 
-  await env.DB.batch(statements);
+  if (normalizedStoryEventId && Number.isInteger(storyEffectIndex) && storyEffectIndex >= 0) {
+    statements.push(env.DB.prepare(`
+      INSERT INTO runtime_story_boss_spawn_effects (
+        scene_run_id, story_event_id, effect_index, map_instance_id,
+        encounter_id, boss_instance_id, profile_id, source_spawn_point_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      map.sceneRunId, normalizedStoryEventId, storyEffectIndex, map.id,
+      normalizedEncounterId, bossId, normalizedProfileId, normalizedSpawnId, now
+    ));
+  }
+
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    if (normalizedStoryEventId && Number.isInteger(storyEffectIndex)) {
+      const concurrentReplay = await bossSpawnReplay(env, {
+        sceneRunId: map.sceneRunId,
+        sceneId: map.sceneId,
+        storyEventId: normalizedStoryEventId,
+        storyEffectIndex
+      }).catch(() => null);
+      if (concurrentReplay) return concurrentReplay;
+    }
+    throw error;
+  }
+
   const refreshed = await loadRuntimeEncounterMap(env, map.sceneRunId, map.sceneId);
   return {
     boss: {
@@ -580,7 +690,8 @@ export async function spawnRuntimeBoss(env, {
       x: Number(spawn.x),
       y: Number(spawn.y)
     },
-    unchanged: false
+    unchanged: false,
+    storyEffectReplay: false
   };
 }
 
