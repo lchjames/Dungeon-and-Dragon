@@ -5,6 +5,10 @@ import {
   loadRuntimeEncounterMap,
   loadRuntimeEncounterRows
 } from './runtime-encounter-state.js';
+import {
+  spawnRuntimeMonster,
+  startRuntimeEncounterCombat
+} from './runtime-encounter-service.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const EVENT_STATUSES = new Set(['active', 'archived']);
@@ -364,11 +368,15 @@ async function loadFlags(env, sceneRunId) {
 function runtimeTargets(detail) {
   const zoneBySource = new Map();
   const doorBySource = new Map();
+  const spawnBySource = new Map();
   for (const zone of detail?.zones || []) if (zone.sourceZoneId) zoneBySource.set(zone.sourceZoneId, zone);
   for (const edge of detail?.edges || []) {
     if (edge.edgeType === 'door' && edge.sourceEdgeId) doorBySource.set(edge.sourceEdgeId, edge);
   }
-  return { zoneBySource, doorBySource };
+  for (const spawn of detail?.spawnPoints || []) {
+    if (spawn.sourceSpawnPointId) spawnBySource.set(spawn.sourceSpawnPointId, spawn);
+  }
+  return { zoneBySource, doorBySource, spawnBySource };
 }
 
 function doorStates(detail) {
@@ -392,9 +400,14 @@ function validateTargets(event, detail, encounters) {
     }
   }
   for (const effect of event.effects || []) {
-    if (effect.type === 'activate_encounter' && !encounters.has(effect.encounterId)) {
+    if ((effect.type === 'activate_encounter' || effect.type === 'spawn_monster' || effect.type === 'start_combat') && !encounters.has(effect.encounterId)) {
       throw Object.assign(new Error(`Runtime Encounter target not found: ${effect.encounterId}`), {
         status: 409, code: 'STORY_EFFECT_ENCOUNTER_NOT_FOUND'
+      });
+    }
+    if (effect.type === 'spawn_monster' && !targets.spawnBySource.has(effect.sourceSpawnPointId)) {
+      throw Object.assign(new Error(`Runtime Spawn Point source target not found: ${effect.sourceSpawnPointId}`), {
+        status: 409, code: 'STORY_EFFECT_SPAWN_POINT_NOT_FOUND'
       });
     }
     if (effect.type === 'reveal_zone' && !targets.zoneBySource.has(effect.sourceZoneId)) {
@@ -439,7 +452,7 @@ async function applyDoorEffect(request, env, mapInstanceId, edge, state) {
   };
 }
 
-async function applyEffect(request, env, context, effect) {
+async function applyEffect(request, env, context, effect, effectIndex) {
   const now = Date.now();
   if (effect.type === 'show_narrative') {
     const id = `story_narrative_${crypto.randomUUID()}`;
@@ -495,6 +508,50 @@ async function applyEffect(request, env, context, effect) {
       runtimeEncounterId: activated.id,
       status: activated.status,
       unchanged: Boolean(activated.unchanged)
+    };
+  }
+  if (effect.type === 'spawn_monster') {
+    const spawned = await spawnRuntimeMonster(env, {
+      mapInstanceId: context.mapInstanceId,
+      sceneRunId: context.sceneRunId,
+      sceneId: context.event.sceneId,
+      encounterId: effect.encounterId,
+      templateId: effect.templateId,
+      level: effect.level,
+      sourceSpawnPointId: effect.sourceSpawnPointId,
+      displayName: effect.displayName || '',
+      actorUserId: context.gm.id,
+      storyEventId: context.event.oncePerSceneRun ? context.event.id : null,
+      storyEffectIndex: context.event.oncePerSceneRun ? effectIndex : null
+    });
+    if (spawned.runtimeEncounter) context.encounters.set(effect.encounterId, spawned.runtimeEncounter);
+    return {
+      type: effect.type,
+      encounterId: effect.encounterId,
+      monsterId: spawned.monster.id,
+      templateId: spawned.monster.templateId,
+      displayName: spawned.monster.displayName,
+      sourceSpawnPointId: spawned.spawnPoint.sourceSpawnPointId,
+      x: spawned.position.x,
+      y: spawned.position.y,
+      unchanged: Boolean(spawned.unchanged)
+    };
+  }
+  if (effect.type === 'start_combat') {
+    const started = await startRuntimeEncounterCombat(env, {
+      mapInstanceId: context.mapInstanceId,
+      sceneRunId: context.sceneRunId,
+      sceneId: context.event.sceneId,
+      encounterId: effect.encounterId,
+      actorUserId: context.gm.id
+    });
+    if (started.runtimeEncounter) context.encounters.set(effect.encounterId, started.runtimeEncounter);
+    return {
+      type: effect.type,
+      encounterId: effect.encounterId,
+      combatId: started.combat?.id || started.runtimeEncounter?.combat?.combatId || null,
+      mapInstanceId: started.mapInstanceId,
+      unchanged: Boolean(started.unchanged)
     };
   }
   throw Object.assign(new Error(`Unsupported approved Story Effect: ${effect.type}`), {
@@ -581,8 +638,8 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
       flags,
       encounters
     };
-    for (const effect of event.effects) {
-      effectsApplied.push(await applyEffect(request, env, context, effect));
+    for (const [effectIndex, effect] of event.effects.entries()) {
+      effectsApplied.push(await applyEffect(request, env, context, effect, effectIndex));
     }
     const executionId = await recordExecution(env, {
       event, sceneRunId: sceneRun.id, mapInstanceId, gm, status: 'applied', effectsApplied
@@ -616,7 +673,12 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
       error?.message || 'Story Event effect execution failed.',
       error?.status || 500,
       error?.code || 'STORY_EFFECT_EXECUTION_FAILED',
-      { executionId, effectsApplied }
+      {
+        executionId,
+        effectsApplied,
+        ...(error?.missingPositions ? { missingPositions: error.missingPositions } : {}),
+        ...(error?.activeCombatId ? { activeCombatId: error.activeCombatId } : {})
+      }
     );
   }
 }
