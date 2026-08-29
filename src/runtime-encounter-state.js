@@ -62,13 +62,45 @@ export async function ensureRuntimeEncounterSchema(env) {
         FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
         FOREIGN KEY (linked_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
       )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_story_lifecycle_occurrences (
+        id TEXT PRIMARY KEY,
+        scene_run_id TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        subject_type TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        source_at INTEGER NOT NULL,
+        actor_user_id TEXT NOT NULL,
+        lease_token TEXT,
+        lease_at INTEGER,
+        completed_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (scene_run_id, trigger_type, subject_id),
+        FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
+        FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE RESTRICT
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_story_lifecycle_dispatches (
+        id TEXT PRIMARY KEY,
+        occurrence_id TEXT NOT NULL,
+        story_event_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('applied', 'failed', 'skipped')),
+        execution_id TEXT,
+        result_code TEXT,
+        result_message TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (occurrence_id, story_event_id),
+        FOREIGN KEY (occurrence_id) REFERENCES runtime_story_lifecycle_occurrences(id) ON DELETE CASCADE
+      )`),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_scene_status ON runtime_encounter_states(scene_run_id, status, updated_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_definition ON runtime_encounter_states(encounter_id, updated_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_snapshot_scene ON runtime_encounter_snapshot_meta(scene_id, materialized_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_participants_scene_encounter ON runtime_encounter_participants(scene_run_id, encounter_id, entity_type, created_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_participants_entity ON runtime_encounter_participants(entity_type, entity_id, scene_run_id)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_combats_map ON runtime_encounter_combats(map_instance_id, linked_at)'),
-      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_combats_combat ON runtime_encounter_combats(combat_id)')
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_combats_combat ON runtime_encounter_combats(combat_id)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_story_lifecycle_pending ON runtime_story_lifecycle_occurrences(scene_run_id, trigger_type, completed_at, source_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_story_lifecycle_dispatch_occurrence ON runtime_story_lifecycle_dispatches(occurrence_id, status, created_at)')
     ]).catch(error => {
       encounterSchemaPromise = null;
       throw error;
@@ -310,13 +342,26 @@ export async function activateRuntimeEncounter(env, {
     });
   }
   const now = Date.now();
-  const result = await env.DB.prepare(`
-    UPDATE runtime_encounter_states
-    SET status = 'active', activated_by_story_event_id = ?, activated_by_user_id = ?,
-        activated_at = COALESCE(activated_at, ?), updated_at = ?
-    WHERE scene_run_id = ? AND encounter_id = ? AND status = 'planned'
-  `).bind(storyEventId, actorUserId, now, now, sceneRunId, encounterId).run();
-  if (Number(result?.meta?.changes || 0) !== 1) {
+  const results = await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE runtime_encounter_states
+      SET status = 'active', activated_by_story_event_id = ?, activated_by_user_id = ?,
+          activated_at = COALESCE(activated_at, ?), updated_at = ?
+      WHERE scene_run_id = ? AND encounter_id = ? AND status = 'planned'
+    `).bind(storyEventId, actorUserId, now, now, sceneRunId, encounterId),
+    env.DB.prepare(`
+      INSERT OR IGNORE INTO runtime_story_lifecycle_occurrences (
+        id, scene_run_id, trigger_type, subject_type, subject_id, source_at, actor_user_id,
+        lease_token, lease_at, completed_at, created_at, updated_at
+      )
+      SELECT 'story_lifecycle_' || lower(hex(randomblob(16))), scene_run_id, 'encounter_activated',
+             'encounter', encounter_id, activated_at, COALESCE(activated_by_user_id, ?),
+             NULL, NULL, NULL, ?, ?
+      FROM runtime_encounter_states
+      WHERE scene_run_id = ? AND encounter_id = ? AND status = 'active' AND activated_at IS NOT NULL
+    `).bind(actorUserId, now, now, sceneRunId, encounterId)
+  ]);
+  if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
     throw Object.assign(new Error('Runtime Encounter changed before activation.'), {
       status: 409,
       code: 'STORY_EFFECT_ENCOUNTER_CHANGED'
