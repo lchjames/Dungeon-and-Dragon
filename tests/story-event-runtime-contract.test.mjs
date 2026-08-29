@@ -173,7 +173,10 @@ assert.match(resolutionGateway, /player_move_enter_zone/);
 assert.match(resolutionGateway, /encounter_resolved_manual/);
 assert.match(resolutionGateway, /encounter_resolved_combat/);
 assert.match(resolutionGateway, /source: 'scene_run_start'/);
-assert.match(resolutionGateway, /\/story-events\/\(\[\^\/\]\+\)\/activate/);
+assert.ok(
+  resolutionGateway.includes('story-events\\/([^/]+)\\/activate'),
+  'Top-level Runtime gateway must drain encounter_activated occurrences after manual Story activation.'
+);
 assert.match(resolutionGateway, /\/api\/player\/world\/characters/);
 
 assert.match(encounterActivatedRunner, /DND_ALPHA_EXECUTE === '1'/);
@@ -183,7 +186,7 @@ assert.match(encounterActivatedRunner, /activate_encounter/);
 assert.match(encounterActivatedRunner, /encounterActivatedStoryEvents/);
 assert.match(encounterActivatedRunner, /Cascade encounter_activated\(B\) did not apply/);
 assert.match(encounterActivatedRunner, /Retry activation of already-active Encounter A was not idempotent/);
-assert.match(encounterActivatedRunner, /created zero duplicate lifecycle dispatches|zero duplicate lifecycle dispatches/);
+assert.match(encounterActivatedRunner, /zero duplicate lifecycle dispatches/);
 assert.match(encounterActivatedRunner, /Definition status/);
 assert.match(orchestrator, /production-alpha-story-encounter-activated-e2e\.mjs/);
 assert.match(orchestrator, /'story-encounter-activated'/);
