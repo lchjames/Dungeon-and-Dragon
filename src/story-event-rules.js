@@ -181,7 +181,15 @@ export function evaluateStoryConditions(conditions, context = {}) {
     if (condition.type === 'encounter_status') {
       const value = encounters.get(condition.encounterId);
       const status = typeof value === 'string' ? value : value?.status;
-      if (String(status || '') !== condition.status) failures.push({ type: condition.type, encounterId: condition.encounterId, reason: 'encounter_status_mismatch' });
+      const sameEventActivationRetry = (
+        condition.status === 'planned'
+        && String(status || '') === 'active'
+        && Boolean(context.storyEventId)
+        && value?.activatedByStoryEventId === context.storyEventId
+      );
+      if (String(status || '') !== condition.status && !sameEventActivationRetry) {
+        failures.push({ type: condition.type, encounterId: condition.encounterId, reason: 'encounter_status_mismatch' });
+      }
       continue;
     }
     failures.push({ type: condition.type || 'unknown', reason: 'unsupported_condition' });
