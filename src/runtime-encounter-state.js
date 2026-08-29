@@ -45,8 +45,7 @@ export async function ensureRuntimeEncounterSchema(env) {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         UNIQUE (scene_run_id, encounter_id, entity_type, entity_id),
-        FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
-        FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
+        FOREIGN KEY (scene_run_id, encounter_id) REFERENCES runtime_encounter_states(scene_run_id, encounter_id) ON DELETE CASCADE,
         FOREIGN KEY (source_encounter_participant_id) REFERENCES encounter_participants(id) ON DELETE SET NULL,
         FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
       )`),
@@ -58,8 +57,7 @@ export async function ensureRuntimeEncounterSchema(env) {
         linked_by_user_id TEXT NOT NULL,
         linked_at INTEGER NOT NULL,
         PRIMARY KEY (scene_run_id, encounter_id),
-        FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
-        FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
+        FOREIGN KEY (scene_run_id, encounter_id) REFERENCES runtime_encounter_states(scene_run_id, encounter_id) ON DELETE CASCADE,
         FOREIGN KEY (map_instance_id) REFERENCES runtime_map_instances(id) ON DELETE CASCADE,
         FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
         FOREIGN KEY (linked_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
@@ -87,7 +85,25 @@ export async function ensureRuntimeEncounterRows(env, sceneRunId, sceneId) {
     WHERE scene_run_id = ?
     LIMIT 1
   `).bind(sceneRunId).first();
-  if (materialized) return materialized;
+  if (materialized) {
+    if (materialized.scene_id !== sceneId) {
+      throw Object.assign(new Error('Runtime Encounter snapshot Scene does not match the Scene Run.'), {
+        status: 409,
+        code: 'RUNTIME_ENCOUNTER_SNAPSHOT_SCENE_MISMATCH'
+      });
+    }
+    return materialized;
+  }
+
+  const sceneRun = await env.DB.prepare(`
+    SELECT id, scene_id FROM scene_runs WHERE id = ? LIMIT 1
+  `).bind(sceneRunId).first();
+  if (!sceneRun || sceneRun.scene_id !== sceneId) {
+    throw Object.assign(new Error('Scene Run does not match Runtime Encounter snapshot Scene.'), {
+      status: 409,
+      code: 'RUNTIME_ENCOUNTER_SCENE_RUN_MISMATCH'
+    });
+  }
 
   const now = Date.now();
   await env.DB.batch([
@@ -232,6 +248,12 @@ export async function addRuntimeEncounterParticipant(env, {
   if (!PARTICIPANT_TYPES.has(normalizedType)) throw new Error('Runtime Encounter participant type is invalid.');
   if (!normalizedEntityId) throw new Error('Runtime Encounter participant entityId is required.');
   if (!PARTICIPANT_SOURCE_KINDS.has(normalizedSourceKind)) throw new Error('Runtime Encounter participant source kind is invalid.');
+  if (normalizedSourceKind === 'definition_character' && normalizedType !== 'character') {
+    throw new Error('Only Character participants may be snapshotted from Encounter Definition state.');
+  }
+  if (normalizedSourceKind === 'runtime_spawn' && normalizedType === 'character') {
+    throw new Error('Characters must use definition_character or runtime_manual participant source kind.');
+  }
   const encounterMap = await loadRuntimeEncounterMap(env, sceneRunId, sceneId);
   if (!encounterMap.has(encounterId)) {
     throw Object.assign(new Error(`Encounter does not belong to this Scene Run: ${encounterId}`), {
@@ -312,6 +334,7 @@ export async function linkRuntimeEncounterCombat(env, {
   combatId,
   actorUserId
 }) {
+  if (!actorUserId) throw new Error('Runtime Encounter Combat link actorUserId is required.');
   const encounterMap = await loadRuntimeEncounterMap(env, sceneRunId, sceneId);
   const encounter = encounterMap.get(encounterId);
   if (!encounter) {
