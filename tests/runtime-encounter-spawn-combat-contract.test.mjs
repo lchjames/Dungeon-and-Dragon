@@ -5,6 +5,8 @@ const gateway = await readFile(new URL('../src/runtime-encounter-gateway.js', im
 const encounterState = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-encounters.js', import.meta.url), 'utf8');
 const loader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
+const liveRunner = await readFile(new URL('../scripts/production-alpha-runtime-encounter-e2e.mjs', import.meta.url), 'utf8');
+const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
 assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
@@ -62,4 +64,14 @@ assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)
 assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/start-combat/);
 assert.match(ui, /NOT ON MAP/);
 
-console.log('Runtime Encounter Monster spawn, same-Map Combat and GM control contract passed.');
+assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(liveRunner, /sourceSpawnPointId:\s*MONSTER_SPAWN_ID/);
+assert.match(liveRunner, /sourceKind === 'runtime_spawn'/);
+assert.match(liveRunner, /Definition Encounter roster/);
+assert.match(liveRunner, /Definition encounter_combats/);
+assert.match(liveRunner, /Encounter Definition status/);
+assert.match(liveRunner, /runtimeEncounter\.combat\.mapInstanceId === mapId/);
+assert.match(orchestrator, /production-alpha-runtime-encounter-e2e\.mjs/);
+assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
+
+console.log('Runtime Encounter Monster spawn, same-Map Combat, GM control and production runner contract passed.');
