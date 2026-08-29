@@ -1,4 +1,5 @@
 import './gm-combat-map-context.js';
+import './gm-runtime-encounters.js';
 import { $, escapeHtml, toast, emptyState } from './common.js';
 
 let movementState = null;
