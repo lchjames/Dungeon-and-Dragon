@@ -76,6 +76,7 @@ export function normalizeStoryTriggerType(value = 'manual') {
 
 export function normalizeStoryTrigger(type, raw = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Story Event trigger payload must be an object.');
+  if (type === 'scene_run_start') return {};
   if (type === 'enter_zone') {
     return { sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   }
