@@ -86,8 +86,15 @@ assert.match(ui, /id="runtime-encounter-template"/);
 assert.match(ui, /id="runtime-encounter-spawn"/);
 assert.match(ui, /id="runtime-encounter-level"/);
 assert.match(ui, /id="runtime-encounter-spawn-monster"/);
-assert.match(ui, /id="runtime-encounter-start-combat"/);
+assert.match(ui, /id="runtime-encounter-boss-profile"/);
+assert.match(ui, /id="runtime-encounter-boss-spawn"/);
+assert.match(ui, /id="runtime-encounter-boss-name"/);
+assert.match(ui, /id="runtime-encounter-spawn-boss"/);
+assert.match(ui, /Boss Design Profile/);
+assert.match(ui, /api\('\/api\/gm\/bosses'\)/);
+assert.match(ui, /item\.spawnType === 'any' \|\| item\.spawnType === 'boss'/);
 assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/monsters/);
+assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/bosses/);
 assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/start-combat/);
 assert.match(ui, /NOT ON MAP/);
 
