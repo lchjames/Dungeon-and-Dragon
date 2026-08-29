@@ -7,6 +7,7 @@ const encounterState = await readFile(new URL('../src/runtime-encounter-state.js
 const ui = await readFile(new URL('../public/assets/gm-runtime-encounters.js', import.meta.url), 'utf8');
 const loader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-runtime-encounter-e2e.mjs', import.meta.url), 'utf8');
+const liveBossRunner = await readFile(new URL('../scripts/production-alpha-runtime-boss-e2e.mjs', import.meta.url), 'utf8');
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
@@ -105,7 +106,24 @@ assert.match(liveRunner, /Definition Encounter roster/);
 assert.match(liveRunner, /Definition encounter_combats/);
 assert.match(liveRunner, /Encounter Definition status/);
 assert.match(liveRunner, /runtimeEncounter\.combat\.mapInstanceId === mapId/);
-assert.match(orchestrator, /production-alpha-runtime-encounter-e2e\.mjs/);
-assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
 
-console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runner contract passed.');
+assert.match(liveBossRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(liveBossRunner, /spawnType:\s*'boss'/);
+assert.match(liveBossRunner, /sourceSpawnPointId:\s*BOSS_SPAWN_ID/);
+assert.match(liveBossRunner, /\/bosses`/);
+assert.match(liveBossRunner, /sourceKind === 'runtime_spawn'/);
+assert.match(liveBossRunner, /storedBoss\.skills/);
+assert.match(liveBossRunner, /storedBoss\.phases/);
+assert.match(liveBossRunner, /Number\(combatBoss\.dex\) === 18/);
+assert.match(liveBossRunner, /Definition Encounter roster/);
+assert.match(liveBossRunner, /Definition encounter_combats/);
+assert.match(liveBossRunner, /Encounter Definition status/);
+assert.match(liveBossRunner, /bestEffortFailureCleanup/);
+assert.doesNotMatch(liveBossRunner, /\/api\/gm\/boss-instances/);
+
+assert.match(orchestrator, /production-alpha-runtime-encounter-e2e\.mjs/);
+assert.match(orchestrator, /production-alpha-runtime-boss-e2e\.mjs/);
+assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
+assert.match(orchestrator, /'runtime-boss-spawn-combat'/);
+
+console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runners contract passed.');
