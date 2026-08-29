@@ -20,7 +20,7 @@ function panelMarkup() {
       <div>
         <p class="eyebrow">STORY ACTION REFERENCES</p>
         <h4>Runtime Spawn & Combat</h4>
-        <p class="muted">Use stable authoring IDs in approved <code>spawn_monster</code> / <code>start_combat</code> effects.</p>
+        <p class="muted">Use stable authoring IDs in approved <code>spawn_monster</code> / <code>spawn_boss</code> / <code>start_combat</code> effects.</p>
       </div>
       <button id="gm-story-runtime-action-help-refresh" class="button button-small button-ghost" type="button">Refresh Refs</button>
     </div>
@@ -35,6 +35,10 @@ function panelMarkup() {
         <div id="gm-story-runtime-template-refs" class="stack-list"></div>
       </div>
     </div>
+    <div style="margin-top:12px">
+      <h4>Boss Design Profiles</h4>
+      <div id="gm-story-runtime-boss-refs" class="stack-list"></div>
+    </div>
     <div class="panel" style="margin-top:12px">
       <h4>Approved effect shapes</h4>
       <pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code>{
@@ -45,10 +49,16 @@ function panelMarkup() {
   "sourceSpawnPointId": "spawn_..."
 }
 {
+  "type": "spawn_boss",
+  "encounterId": "encounter_...",
+  "profileId": "boss_profile_...",
+  "sourceSpawnPointId": "spawn_..."
+}
+{
   "type": "start_combat",
   "encounterId": "encounter_..."
 }</code></pre>
-      <p class="muted"><code>encounterId</code> comes from Runtime Encounter references. <code>sourceSpawnPointId</code> is the stable Map Template Spawn Point ID. Monster Level must be 1–100. Automatic Player-triggered Events execute server-side; no arbitrary JavaScript or SQL.</p>
+      <p class="muted"><code>encounterId</code> comes from Runtime Encounter references. <code>sourceSpawnPointId</code> is the stable Map Template Spawn Point ID. Monster Level must be 1–100; Boss Level and combat snapshot values come from the selected active Boss Design Profile. Automatic Player-triggered Events execute server-side; no arbitrary JavaScript or SQL.</p>
     </div>
   </section>`;
 }
@@ -91,6 +101,15 @@ function renderTemplates(monsters) {
     : emptyState('No active Monster Templates', 'Create and activate a Monster Template in the Monsters workspace.');
 }
 
+function renderBosses(bosses) {
+  const target = $('#gm-story-runtime-boss-refs');
+  if (!target) return;
+  const profiles = (bosses?.profiles || []).filter(item => item.status === 'active');
+  target.innerHTML = profiles.length
+    ? profiles.map(item => `<div class="stack-item"><div><strong>${escapeHtml(item.id)}</strong><p>${escapeHtml(item.name || item.id)} · Lv ${escapeHtml(item.level)} · active</p></div></div>`).join('')
+    : emptyState('No active Boss Profiles', 'Create and activate a Boss Design Profile in the Bosses workspace.');
+}
+
 async function refresh({ force = false } = {}) {
   if (!ensurePanel()) return;
   const runtimeId = selectedRuntimeId();
@@ -98,6 +117,7 @@ async function refresh({ force = false } = {}) {
     currentRuntimeId = '';
     renderSpawnPoints(null);
     renderTemplates(null);
+    renderBosses(null);
     setStatus('Select an active Runtime Map to load Story action references.');
     return;
   }
@@ -105,12 +125,14 @@ async function refresh({ force = false } = {}) {
   currentRuntimeId = runtimeId;
   setStatus('Loading Story action references…');
   try {
-    const [detail, monsters] = await Promise.all([
+    const [detail, monsters, bosses] = await Promise.all([
       api(`/api/gm/world/runtime/maps/${encodeURIComponent(runtimeId)}`),
-      api('/api/gm/monsters')
+      api('/api/gm/monsters'),
+      api('/api/gm/bosses')
     ]);
     renderSpawnPoints(detail);
     renderTemplates(monsters);
+    renderBosses(bosses);
     setStatus('');
   } catch (error) {
     currentRuntimeId = '';
