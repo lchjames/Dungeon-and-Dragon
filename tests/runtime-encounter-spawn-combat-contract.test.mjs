@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
+const service = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
 const encounterState = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-encounters.js', import.meta.url), 'utf8');
 const loader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
@@ -11,10 +12,9 @@ const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), '
 
 assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
 assert.match(gateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
-assert.match(gateway, /buildMonsterAttributes/);
-assert.match(gateway, /monsterCalculatedResources/);
-assert.match(gateway, /snapshotMonsterSkill/);
-assert.match(gateway, /validateMonsterLevel/);
+assert.match(gateway, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(gateway, /spawnRuntimeMonster\(/);
+assert.match(gateway, /startRuntimeEncounterCombat\(/);
 
 assert.ok(
   gateway.includes("pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/encounters\\/([^/]+)\\/monsters$/)"),
@@ -25,27 +25,33 @@ assert.ok(
   'Runtime Encounter gateway must expose the Runtime Map scoped Combat start route.'
 );
 
-assert.match(gateway, /sourceSpawnPointId/);
-assert.match(gateway, /spawn\.spawnType !== 'any' && spawn\.spawnType !== 'monster'/);
-assert.match(gateway, /runtime_map_cells/);
-assert.match(gateway, /runtime_entity_positions/);
-assert.match(gateway, /POSITION_OCCUPIED/);
-assert.match(gateway, /INSERT INTO monster_instances/);
-assert.match(gateway, /INSERT INTO monster_instance_skills/);
-assert.match(gateway, /INSERT INTO runtime_encounter_participants/);
-assert.match(gateway, /'runtime_spawn'/);
-assert.match(gateway, /INSERT INTO runtime_entity_positions/);
-assert.doesNotMatch(gateway, /INSERT INTO encounter_participants/);
+assert.match(service, /buildMonsterAttributes/);
+assert.match(service, /monsterCalculatedResources/);
+assert.match(service, /snapshotMonsterSkill/);
+assert.match(service, /validateMonsterLevel/);
+assert.match(service, /source_spawn_point_id/);
+assert.match(service, /spawn\.spawn_type !== 'any' && spawn\.spawn_type !== 'monster'/);
+assert.match(service, /runtime_map_cells/);
+assert.match(service, /runtime_entity_positions/);
+assert.match(service, /POSITION_OCCUPIED/);
+assert.match(service, /INSERT INTO monster_instances/);
+assert.match(service, /INSERT INTO monster_instance_skills/);
+assert.match(service, /INSERT INTO runtime_encounter_participants/);
+assert.match(service, /'runtime_spawn'/);
+assert.match(service, /INSERT INTO runtime_entity_positions/);
+assert.doesNotMatch(service, /INSERT INTO encounter_participants/);
 
-assert.match(gateway, /RUNTIME_ENCOUNTER_POSITION_REQUIRED/);
-assert.match(gateway, /\/api\/gm\/combat\/start/);
-assert.match(gateway, /buildCombatInitiative/);
-assert.match(gateway, /linkRuntimeEncounterCombat/);
-assert.match(gateway, /RUNTIME_BOSS_COMBAT_NOT_READY/);
-assert.doesNotMatch(gateway, /INSERT INTO encounter_combats/);
-assert.doesNotMatch(gateway, /UPDATE\s+encounters\s+SET\s+status/i);
-assert.doesNotMatch(gateway, /eval\s*\(/);
-assert.doesNotMatch(gateway, /new Function\s*\(/);
+assert.match(service, /RUNTIME_ENCOUNTER_POSITION_REQUIRED/);
+assert.match(service, /buildCombatInitiative/);
+assert.match(service, /INSERT INTO runtime_encounter_combats/);
+assert.match(service, /RUNTIME_BOSS_COMBAT_NOT_READY/);
+assert.match(service, /ACTIVE_COMBAT_EXISTS/);
+assert.doesNotMatch(service, /\/api\/gm\/combat\/start/);
+assert.doesNotMatch(service, /Cookie/);
+assert.doesNotMatch(service, /INSERT INTO encounter_combats/);
+assert.doesNotMatch(service, /UPDATE\s+encounters\s+SET\s+status/i);
+assert.doesNotMatch(service, /eval\s*\(/);
+assert.doesNotMatch(service, /new Function\s*\(/);
 
 assert.match(encounterState, /INSERT INTO runtime_encounter_combats/);
 assert.match(encounterState, /RUNTIME_ENCOUNTER_MAP_MISMATCH/);
@@ -74,4 +80,4 @@ assert.match(liveRunner, /runtimeEncounter\.combat\.mapInstanceId === mapId/);
 assert.match(orchestrator, /production-alpha-runtime-encounter-e2e\.mjs/);
 assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
 
-console.log('Runtime Encounter Monster spawn, same-Map Combat, GM control and production runner contract passed.');
+console.log('Runtime Encounter shared spawn/Combat service, GM control and production runner contract passed.');

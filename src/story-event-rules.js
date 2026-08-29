@@ -25,7 +25,9 @@ const EFFECT_TYPES = new Set([
   'reveal_zone',
   'open_door',
   'close_door',
-  'activate_encounter'
+  'activate_encounter',
+  'spawn_monster',
+  'start_combat'
 ]);
 
 const DOOR_STATES = new Set(['open', 'closed', 'locked', 'broken']);
@@ -36,6 +38,12 @@ const FLAG_KEY = /^[a-z0-9][a-z0-9._-]{0,79}$/;
 function text(value, label, max = 4000) {
   const output = String(value ?? '').trim();
   if (!output) throw new Error(`${label} is required.`);
+  if (output.length > max) throw new Error(`${label} is too long.`);
+  return output;
+}
+
+function optionalText(value, label, max = 4000) {
+  const output = String(value ?? '').trim();
   if (output.length > max) throw new Error(`${label} is too long.`);
   return output;
 }
@@ -112,6 +120,20 @@ export function normalizeStoryEffect(raw) {
   if (type === 'reveal_zone') return { type, sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   if (type === 'open_door' || type === 'close_door') return { type, sourceEdgeId: text(raw.sourceEdgeId, 'Map Template Door sourceEdgeId', 160) };
   if (type === 'activate_encounter') return { type, encounterId: text(raw.encounterId, 'Encounter ID', 180) };
+  if (type === 'spawn_monster') {
+    const level = Number(raw.level);
+    if (!Number.isInteger(level) || level < 1 || level > 100) throw new Error('Story Monster Level must be an integer from 1 to 100.');
+    const displayName = optionalText(raw.displayName, 'Monster displayName', 120);
+    return {
+      type,
+      encounterId: text(raw.encounterId, 'Encounter ID', 180),
+      templateId: text(raw.templateId, 'Monster Template ID', 180),
+      level,
+      sourceSpawnPointId: text(raw.sourceSpawnPointId, 'Map Template Spawn Point sourceSpawnPointId', 180),
+      ...(displayName ? { displayName } : {})
+    };
+  }
+  if (type === 'start_combat') return { type, encounterId: text(raw.encounterId, 'Encounter ID', 180) };
   throw new Error('Unsupported Story Event effect.');
 }
 
@@ -159,7 +181,15 @@ export function evaluateStoryConditions(conditions, context = {}) {
     if (condition.type === 'encounter_status') {
       const value = encounters.get(condition.encounterId);
       const status = typeof value === 'string' ? value : value?.status;
-      if (String(status || '') !== condition.status) failures.push({ type: condition.type, encounterId: condition.encounterId, reason: 'encounter_status_mismatch' });
+      const sameEventActivationRetry = (
+        condition.status === 'planned'
+        && String(status || '') === 'active'
+        && Boolean(context.storyEventId)
+        && value?.activatedByStoryEventId === context.storyEventId
+      );
+      if (String(status || '') !== condition.status && !sameEventActivationRetry) {
+        failures.push({ type: condition.type, encounterId: condition.encounterId, reason: 'encounter_status_mismatch' });
+      }
       continue;
     }
     failures.push({ type: condition.type || 'unknown', reason: 'unsupported_condition' });

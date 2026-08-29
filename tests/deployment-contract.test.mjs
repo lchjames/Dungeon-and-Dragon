@@ -12,6 +12,7 @@ const runtimeVisibilityGateway = await readFile(new URL('../src/runtime-visibili
 const storyEventGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const storyZoneTriggerGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
+const runtimeEncounterService = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
 assert.match(workflow, /needs:\s*node-checks/);
@@ -65,19 +66,36 @@ assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b78
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
 
+// Top-level Runtime Encounter gateway is deliberately thin. Runtime gameplay writes
+// live in the shared service so GM HTTP and Player-triggered Story effects cannot drift.
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
-assert.match(runtimeEncounterGateway, /runtime_encounter_participants/);
-assert.match(runtimeEncounterGateway, /runtime_entity_positions/);
-assert.match(runtimeEncounterGateway, /linkRuntimeEncounterCombat/);
+assert.match(runtimeEncounterGateway, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(runtimeEncounterGateway, /spawnRuntimeMonster\(/);
+assert.match(runtimeEncounterGateway, /startRuntimeEncounterCombat\(/);
+assert.doesNotMatch(runtimeEncounterGateway, /INSERT INTO runtime_encounter_participants/);
+assert.doesNotMatch(runtimeEncounterGateway, /INSERT INTO runtime_encounter_combats/);
 assert.doesNotMatch(runtimeEncounterGateway, /INSERT INTO encounter_combats/);
 assert.doesNotMatch(runtimeEncounterGateway, /UPDATE\s+encounters\s+SET\s+status/i);
 assert.doesNotMatch(runtimeEncounterGateway, /eval\s*\(/, 'Runtime Encounter gateway must not execute arbitrary code.');
 assert.doesNotMatch(runtimeEncounterGateway, /new Function\s*\(/, 'Runtime Encounter gateway must not execute arbitrary functions.');
 
+assert.match(runtimeEncounterService, /runtime_encounter_participants/);
+assert.match(runtimeEncounterService, /runtime_entity_positions/);
+assert.match(runtimeEncounterService, /runtime_encounter_combats/);
+assert.match(runtimeEncounterService, /runtime_story_spawn_effects/);
+assert.match(runtimeEncounterService, /buildCombatInitiative/);
+assert.doesNotMatch(runtimeEncounterService, /\/api\/gm\//, 'Shared Runtime service must not depend on privileged browser HTTP routes.');
+assert.doesNotMatch(runtimeEncounterService, /Cookie/);
+assert.doesNotMatch(runtimeEncounterService, /INSERT INTO encounter_combats/);
+assert.doesNotMatch(runtimeEncounterService, /UPDATE\s+encounters\s+SET\s+status/i);
+assert.doesNotMatch(runtimeEncounterService, /eval\s*\(/);
+assert.doesNotMatch(runtimeEncounterService, /new Function\s*\(/);
+
 assert.match(storyZoneTriggerGateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
 assert.match(storyZoneTriggerGateway, /trigger_type = 'enter_zone'/);
 assert.match(storyZoneTriggerGateway, /runtime_map_zone_cells/);
 assert.match(storyZoneTriggerGateway, /storyEventsTriggered/);
+assert.match(storyZoneTriggerGateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.doesNotMatch(storyZoneTriggerGateway, /eval\s*\(/, 'Story zone trigger gateway must not execute arbitrary code.');
 assert.doesNotMatch(storyZoneTriggerGateway, /new Function\s*\(/, 'Story zone trigger gateway must not execute arbitrary functions.');
 
@@ -87,6 +105,7 @@ assert.match(storyEventGateway, /activateStoryEvent/);
 assert.match(storyEventGateway, /STORY_EVENT_TRIGGER_NOT_MANUAL/);
 assert.match(storyEventGateway, /sourceEdgeId/);
 assert.match(storyEventGateway, /sourceZoneId/);
+assert.match(storyEventGateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.doesNotMatch(storyEventGateway, /eval\s*\(/, 'Story Event gateway must not execute arbitrary code.');
 assert.doesNotMatch(storyEventGateway, /new Function\s*\(/, 'Story Event gateway must not execute arbitrary functions.');
 

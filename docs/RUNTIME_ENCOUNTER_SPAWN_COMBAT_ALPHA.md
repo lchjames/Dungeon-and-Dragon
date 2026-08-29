@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This slice is the first Runtime-native replacement for the legacy Definition-level Encounter play path.
+This slice is the Runtime-native replacement for the legacy Definition-level Encounter play path.
 
 Canonical flow:
 
@@ -23,6 +23,25 @@ Active Runtime Encounter
 
 The reusable Encounter Definition remains authoring data. Runtime spawning and Combat linking do not write `encounter_participants`, `encounter_combats`, or `encounters.status`.
 
+## Shared server-internal authority
+
+The gameplay resolver lives in:
+
+```text
+src/runtime-encounter-service.js
+```
+
+Both the GM HTTP routes and Story Event resolvers call this service directly.
+
+This is a deliberate authority boundary:
+
+```text
+GM HTTP → auth / input parsing → shared service
+Story Event → validated Runtime context → shared service
+```
+
+A Player-triggered Story Event never fabricates a GM browser request, never forwards a Player Cookie to a GM route, and never maintains a second Monster/Combat implementation.
+
 ## GM routes
 
 ```text
@@ -30,7 +49,7 @@ POST /api/gm/world/runtime/maps/:mapId/encounters/:encounterId/monsters
 POST /api/gm/world/runtime/maps/:mapId/encounters/:encounterId/start-combat
 ```
 
-Both routes are GM-authoritative, same-origin protected, and scoped by Runtime Map + Runtime Encounter.
+Both routes are GM-authoritative, same-origin protected, scoped by Runtime Map + Runtime Encounter, and delegate their gameplay writes to the shared service.
 
 ## Runtime Monster spawn
 
@@ -55,7 +74,7 @@ Runtime Encounter has no Combat link yet
 Monster Template = active
 Runtime Spawn Point exists + enabled
 Spawn type = monster or any
-Spawn Cell = walkable
+Spawn Cell exists + walkable
 Spawn Cell = unoccupied
 ```
 
@@ -74,7 +93,7 @@ A runtime-spawned Monster is **not** inserted into legacy `encounter_participant
 
 ## Same-Map Combat start
 
-Combat start uses `runtimeEncounters[].participants`, not the reusable Encounter Definition roster.
+Combat start uses the Runtime Encounter participant roster, not the reusable Encounter Definition roster.
 
 Before Combat starts, every Runtime participant must already have a position on the selected Runtime Map.
 
@@ -83,18 +102,20 @@ Character participant not positioned → reject
 Monster participant not positioned → reject
 wrong Runtime Map → reject
 inactive Runtime Encounter → reject
-existing Runtime Combat link → reject
+unrelated active global Combat → reject
 ```
 
-The existing Combat engine is reused to create the base Character Combat. The Runtime resolver then rebuilds initiative from the authoritative Runtime participant roster, including active Runtime Monster Instances, and links the Combat through `runtime_encounter_combats`.
+The shared Runtime resolver loads authoritative Character DEX/owner state and Monster effective DEX/status, builds one combined initiative list, then creates the Combat, Combatants and `runtime_encounter_combats` link in one D1 batch.
 
-The link stores the exact Runtime Map ID, so the Combat continues to use the same exploration positions.
+It does **not** create a temporary Character-only Combat and does not rebuild through a privileged GM HTTP call.
 
-Failure during the rebuild/link stage attempts to end the newly-created Combat rather than leaving an unlinked active Combat behind.
+If the Runtime Encounter already has a valid Combat link, the resolver returns that Combat idempotently rather than creating another Combat.
+
+The link stores the exact Runtime Map ID, so Combat continues to use the same exploration positions.
 
 ## GM GUI
 
-The World Map workspace now includes:
+The World Map workspace includes:
 
 ```text
 Encounter Spawn & Combat
@@ -118,11 +139,30 @@ Spawn Monster
 Start Combat on This Map
 ```
 
-The panel also displays the per-Run participant roster, whether each participant is positioned, and any linked Runtime Combat.
+The panel displays the per-Run participant roster, whether each participant is positioned, and any linked Runtime Combat.
+
+## Story Event integration
+
+The approved Story vocabulary now includes Runtime-native Monster spawn and Combat start. The detailed contract is documented in:
+
+```text
+docs/STORY_RUNTIME_SPAWN_COMBAT_EFFECTS_ALPHA.md
+```
+
+Canonical automatic flow:
+
+```text
+Player Move enters hidden trigger Zone
+→ activate_encounter
+→ spawn_monster
+→ Monster appears at the stable Runtime Spawn Point
+→ start_combat
+→ Combat begins on the same Runtime Map
+```
 
 ## Explicit non-fallback rule
 
-This Runtime route must never silently fall back to the legacy Definition path.
+This Runtime path must never silently fall back to the legacy Definition path.
 
 Forbidden Runtime writes:
 
@@ -132,11 +172,11 @@ INSERT INTO encounter_combats
 UPDATE encounters SET status = ...
 ```
 
-Legacy `/api/gm/encounters/:id/start-combat` remains available only as compatibility infrastructure until migration is complete.
+Legacy `/api/gm/encounters/:id/start-combat` remains compatibility infrastructure only until migration is complete.
 
 ## Current Boss boundary
 
-Runtime Boss participants are intentionally rejected by this Combat-start slice with:
+Runtime Boss participants are intentionally rejected by Runtime Combat start with:
 
 ```text
 RUNTIME_BOSS_COMBAT_NOT_READY
@@ -144,14 +184,12 @@ RUNTIME_BOSS_COMBAT_NOT_READY
 
 This is deliberate. A Boss must receive the same fresh per-Run spawn + position authority before Runtime Combat is allowed; falling back to a Definition Boss Instance would violate replay isolation.
 
-## Next Canonical slice
+## Next Canonical slice after Story automation
 
 ```text
-Story Event activate_encounter
-→ Story Effect spawn_monster
-→ Runtime Spawn Point placement
-→ Story Effect start_combat
-→ same Runtime Map Combat
+Runtime-native Boss spawn
+→ same participant/position authority
+→ Encounter resolution
+→ encounter_resolved propagation
+→ continue Scene after Combat
 ```
-
-Then migrate Boss spawn through the same Runtime-native path and add Encounter resolution / `encounter_resolved` propagation.

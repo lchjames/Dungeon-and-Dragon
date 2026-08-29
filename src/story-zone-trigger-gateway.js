@@ -4,6 +4,10 @@ import {
   activateRuntimeEncounter,
   loadRuntimeEncounterMap
 } from './runtime-encounter-state.js';
+import {
+  spawnRuntimeMonster,
+  startRuntimeEncounterCombat
+} from './runtime-encounter-service.js';
 
 let autoStorySchemaPromise = null;
 
@@ -103,7 +107,7 @@ async function enteredRuntimeZones(env, mapInstanceId, from, to) {
 }
 
 async function loadRuntimeTargets(env, mapInstanceId) {
-  const [zones, doors] = await Promise.all([
+  const [zones, doors, spawns] = await Promise.all([
     env.DB.prepare(`
       SELECT id, source_zone_id, name, player_visible
       FROM runtime_map_zones
@@ -115,6 +119,12 @@ async function loadRuntimeTargets(env, mapInstanceId) {
       FROM runtime_map_edges
       WHERE map_instance_id = ? AND edge_type = 'door' AND source_edge_id IS NOT NULL
       ORDER BY y, x, direction, id
+    `).bind(mapInstanceId).all(),
+    env.DB.prepare(`
+      SELECT id, source_spawn_point_id, name, x, y, spawn_type, enabled
+      FROM runtime_map_spawn_points
+      WHERE map_instance_id = ? AND source_spawn_point_id IS NOT NULL
+      ORDER BY created_at, id
     `).bind(mapInstanceId).all()
   ]);
   const zoneBySource = new Map((zones.results || []).map(row => [row.source_zone_id, {
@@ -132,7 +142,16 @@ async function loadRuntimeTargets(env, mapInstanceId) {
     doorState: row.door_state || 'closed',
     blocksMovement: Boolean(row.blocks_movement)
   }]));
-  return { zoneBySource, doorBySource };
+  const spawnBySource = new Map((spawns.results || []).map(row => [row.source_spawn_point_id, {
+    id: row.id,
+    sourceSpawnPointId: row.source_spawn_point_id,
+    name: row.name,
+    x: Number(row.x),
+    y: Number(row.y),
+    spawnType: row.spawn_type,
+    enabled: Boolean(row.enabled)
+  }]));
+  return { zoneBySource, doorBySource, spawnBySource };
 }
 
 function doorStates(targets) {
@@ -153,9 +172,14 @@ function validateTargets(event, targets, encounters) {
     }
   }
   for (const effect of event.effects || []) {
-    if (effect.type === 'activate_encounter' && !encounters.has(effect.encounterId)) {
+    if ((effect.type === 'activate_encounter' || effect.type === 'spawn_monster' || effect.type === 'start_combat') && !encounters.has(effect.encounterId)) {
       throw Object.assign(new Error(`Runtime Encounter target not found: ${effect.encounterId}`), {
         code: 'STORY_EFFECT_ENCOUNTER_NOT_FOUND'
+      });
+    }
+    if (effect.type === 'spawn_monster' && !targets.spawnBySource.has(effect.sourceSpawnPointId)) {
+      throw Object.assign(new Error(`Runtime Spawn Point source target not found: ${effect.sourceSpawnPointId}`), {
+        code: 'STORY_EFFECT_SPAWN_POINT_NOT_FOUND'
       });
     }
     if (effect.type === 'reveal_zone' && !targets.zoneBySource.has(effect.sourceZoneId)) {
@@ -248,7 +272,7 @@ async function applyDoorEffect(env, context, edge, nextState) {
   };
 }
 
-async function applyEffect(env, context, effect) {
+async function applyEffect(env, context, effect, effectIndex) {
   const now = Date.now();
   if (effect.type === 'show_narrative') {
     const id = `story_narrative_${crypto.randomUUID()}`;
@@ -310,6 +334,50 @@ async function applyEffect(env, context, effect) {
       unchanged: Boolean(activated.unchanged)
     };
   }
+  if (effect.type === 'spawn_monster') {
+    const spawned = await spawnRuntimeMonster(env, {
+      mapInstanceId: context.mapInstanceId,
+      sceneRunId: context.sceneRunId,
+      sceneId: context.sceneId,
+      encounterId: effect.encounterId,
+      templateId: effect.templateId,
+      level: effect.level,
+      sourceSpawnPointId: effect.sourceSpawnPointId,
+      displayName: effect.displayName || '',
+      actorUserId: context.actor.id,
+      storyEventId: context.event.oncePerSceneRun ? context.event.id : null,
+      storyEffectIndex: context.event.oncePerSceneRun ? effectIndex : null
+    });
+    if (spawned.runtimeEncounter) context.encounters.set(effect.encounterId, spawned.runtimeEncounter);
+    return {
+      type: effect.type,
+      encounterId: effect.encounterId,
+      monsterId: spawned.monster.id,
+      templateId: spawned.monster.templateId,
+      displayName: spawned.monster.displayName,
+      sourceSpawnPointId: spawned.spawnPoint.sourceSpawnPointId,
+      x: spawned.position.x,
+      y: spawned.position.y,
+      unchanged: Boolean(spawned.unchanged)
+    };
+  }
+  if (effect.type === 'start_combat') {
+    const started = await startRuntimeEncounterCombat(env, {
+      mapInstanceId: context.mapInstanceId,
+      sceneRunId: context.sceneRunId,
+      sceneId: context.sceneId,
+      encounterId: effect.encounterId,
+      actorUserId: context.actor.id
+    });
+    if (started.runtimeEncounter) context.encounters.set(effect.encounterId, started.runtimeEncounter);
+    return {
+      type: effect.type,
+      encounterId: effect.encounterId,
+      combatId: started.combat?.id || started.runtimeEncounter?.combat?.combatId || null,
+      mapInstanceId: started.mapInstanceId,
+      unchanged: Boolean(started.unchanged)
+    };
+  }
   throw Object.assign(new Error(`Unsupported approved Story Effect: ${effect.type}`), {
     code: 'STORY_EFFECT_UNSUPPORTED'
   });
@@ -351,6 +419,7 @@ async function executeEnteredZoneEvent(env, shared, event, firedCount) {
   const conditions = evaluateStoryConditions(event.conditions, {
     flags: shared.flags,
     eventAlreadyFired: firedCount > 0,
+    storyEventId: event.id,
     sceneRunStatus: shared.sceneRunStatus,
     doors: shared.doors,
     encounters: shared.encounters
@@ -368,8 +437,8 @@ async function executeEnteredZoneEvent(env, shared, event, firedCount) {
   const effectsApplied = [];
   const context = { ...shared, event };
   try {
-    for (const effect of event.effects || []) {
-      effectsApplied.push(await applyEffect(env, context, effect));
+    for (const [effectIndex, effect] of (event.effects || []).entries()) {
+      effectsApplied.push(await applyEffect(env, context, effect, effectIndex));
     }
     const executionId = await recordExecution(env, context, 'applied', effectsApplied);
     return { eventId: event.id, name: event.name, status: 'applied', executionId, effectsApplied };
