@@ -22,7 +22,9 @@ assert.doesNotMatch(migration, /DROP TABLE/i);
 assert.doesNotMatch(migration, /DELETE FROM/i);
 
 assert.match(service, /TERMINAL_HOSTILE_STATUSES = new Set\(\['defeated', 'removed'\]\)/);
-assert.match(service, /participant\.entityType === 'monster_instance' \|\| participant\.entityType === 'boss_instance'/);
+assert.match(service, /entity_type IN \('monster_instance', 'boss_instance'\)/);
+assert.match(service, /participants\.filter\(row => row\.entity_type === 'monster_instance'\)/);
+assert.match(service, /participants\.filter\(row => row\.entity_type === 'boss_instance'\)/);
 assert.match(service, /hostiles\.length > 0 && blockers\.length === 0/);
 assert.match(service, /reason:\s*readiness\.hostileCount === 0 \? 'NO_HOSTILE_PARTICIPANTS' : 'HOSTILES_REMAIN'/);
 assert.match(service, /source = 'gm_manual'/);
