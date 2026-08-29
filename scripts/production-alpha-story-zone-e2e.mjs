@@ -17,6 +17,7 @@ const PLAYER_KEY = String(randomInt(1000, 10000));
 const CHARACTER_NAME = `${RUN_ID}-char`.slice(0, 120);
 const SCENARIO_NAME = `${RUN_ID}-scenario`.slice(0, 120);
 const SCENE_NAME = `${RUN_ID}-scene`.slice(0, 120);
+const ENCOUNTER_NAME = `${RUN_ID}-encounter`.slice(0, 120);
 const LOCATION_NAME = `${RUN_ID}-location`.slice(0, 120);
 const MAP_NAME = `${RUN_ID}-map`.slice(0, 120);
 const EVENT_NAME = `${RUN_ID}-event`.slice(0, 120);
@@ -181,7 +182,16 @@ async function createScenarioScene(gm) {
   story = await gm.json('/api/gm/story');
   const refreshed = findNamed(story?.scenarios, SCENARIO_NAME, 'Scenario');
   const scene = findNamed(refreshed?.scenes, SCENE_NAME, 'Scene');
-  return { scenario: refreshed, scene };
+  await gm.json(`/api/gm/scenes/${encodeURIComponent(scene.id)}/encounters`, {
+    method: 'POST',
+    body: { name: ENCOUNTER_NAME, status: 'planned', triggerNotes: 'Activated only in Runtime by enter_zone Story Event.' }
+  });
+  story = await gm.json('/api/gm/story');
+  const finalScenario = findNamed(story?.scenarios, SCENARIO_NAME, 'Scenario');
+  const finalScene = findNamed(finalScenario?.scenes, SCENE_NAME, 'Scene');
+  const encounter = findNamed(finalScene?.encounters, ENCOUNTER_NAME, 'Encounter');
+  assert(encounter?.status === 'planned', 'Encounter Definition did not start planned.');
+  return { scenario: finalScenario, scene: finalScene, encounter };
 }
 
 async function createMapAndZone(gm, sceneId) {
@@ -222,7 +232,7 @@ async function createMapAndZone(gm, sceneId) {
   return { location, mapTemplate };
 }
 
-async function createEnterZoneEvent(gm, sceneId) {
+async function createEnterZoneEvent(gm, sceneId, encounterId) {
   const payload = await gm.json(`/api/gm/scenes/${encodeURIComponent(sceneId)}/story-events`, {
     method: 'POST',
     body: {
@@ -233,12 +243,14 @@ async function createEnterZoneEvent(gm, sceneId) {
       conditions: [
         { type: 'event_not_fired' },
         { type: 'scene_run_status', status: 'active' },
-        { type: 'flag_not_equals', key: FLAG_KEY, value: true }
+        { type: 'flag_not_equals', key: FLAG_KEY, value: true },
+        { type: 'encounter_status', encounterId, status: 'planned' }
       ],
       effects: [
         { type: 'set_flag', key: FLAG_KEY, value: true },
         { type: 'show_narrative', text: NARRATIVE },
-        { type: 'reveal_zone', sourceZoneId: ZONE_ID }
+        { type: 'reveal_zone', sourceZoneId: ZONE_ID },
+        { type: 'activate_encounter', encounterId }
       ],
       oncePerSceneRun: true
     }
@@ -249,12 +261,14 @@ async function createEnterZoneEvent(gm, sceneId) {
   return payload.event;
 }
 
-async function createRuntime(gm, sceneId, characterId) {
+async function createRuntime(gm, sceneId, encounterId, characterId) {
   const runtime = await gm.json('/api/gm/world/runtime/scene-runs', {
     method: 'POST', body: { sceneId, label: `${RUN_ID} Enter-zone Runtime` }
   });
   const mapInstanceId = runtime?.mapInstance?.id;
   assert(mapInstanceId, 'Scene Runtime did not return a Runtime Map ID.');
+  const runtimeEncounter = (runtime?.runtimeEncounters || []).find(item => item?.encounterId === encounterId);
+  assert(runtimeEncounter?.status === 'planned', 'Scene Runtime did not immediately snapshot the planned Encounter.');
   const placed = await gm.json(`/api/gm/world/runtime/maps/${encodeURIComponent(mapInstanceId)}/entities/character/${encodeURIComponent(characterId)}/position`, {
     method: 'PUT', body: { x: 0, y: 0, visibilityMode: 'default', allowOccupied: false }
   });
@@ -262,7 +276,7 @@ async function createRuntime(gm, sceneId, characterId) {
   return mapInstanceId;
 }
 
-async function exerciseEnterZone({ gm, player, characterId, mapInstanceId, event }) {
+async function exerciseEnterZone({ gm, player, characterId, mapInstanceId, event, encounterId }) {
   const before = await player.json(`/api/player/world/characters/${encodeURIComponent(characterId)}`);
   assert(before?.map?.id === mapInstanceId, 'Player world context did not expose the Runtime Map.');
   assert(before?.position?.x === 0 && before?.position?.y === 0, 'Player did not start outside the trigger Zone.');
@@ -278,7 +292,9 @@ async function exerciseEnterZone({ gm, player, characterId, mapInstanceId, event
   assert(triggerResult?.status === 'applied', `Enter-zone Event was not applied; status=${triggerResult?.status || 'missing'}.`);
   assert(triggerResult?.sourceZoneId === ZONE_ID, 'Enter-zone Event fired for the wrong source Zone.');
   assert(triggerResult?.executionId, 'Enter-zone Event did not return an execution audit ID.');
-  assert(Array.isArray(triggerResult?.effectsApplied) && triggerResult.effectsApplied.length === 3, 'Enter-zone Event did not apply exactly three effects.');
+  assert(Array.isArray(triggerResult?.effectsApplied) && triggerResult.effectsApplied.length === 4, 'Enter-zone Event did not apply exactly four effects.');
+  const encounterEffect = triggerResult.effectsApplied.find(effect => effect?.type === 'activate_encounter');
+  assert(encounterEffect?.encounterId === encounterId && encounterEffect?.status === 'active', 'activate_encounter effect did not report active Runtime Encounter state.');
 
   const narrative = (moved?.storyNarratives || []).find(item => item?.storyEventId === event.id && item?.text === NARRATIVE);
   assert(narrative?.id, 'Automatic Event narrative was not present in the post-Move Player payload.');
@@ -287,14 +303,25 @@ async function exerciseEnterZone({ gm, player, characterId, mapInstanceId, event
   const gmState = await gm.json(`/api/gm/world/runtime/maps/${encodeURIComponent(mapInstanceId)}`);
   const flag = (gmState?.storyFlags || []).find(item => item?.key === FLAG_KEY);
   assert(flag?.value === true, 'Automatic Event set_flag effect did not persist.');
+  const runtimeEncounter = (gmState?.runtimeEncounters || []).find(item => item?.encounterId === encounterId);
+  assert(runtimeEncounter?.status === 'active', 'Runtime Encounter did not persist active after Story Event activation.');
+  assert(runtimeEncounter?.activatedByStoryEventId === event.id, 'Runtime Encounter did not preserve activating Story Event provenance.');
   const execution = (gmState?.storyExecutions || []).find(item => item?.id === triggerResult.executionId);
   assert(execution?.status === 'applied' && execution?.triggerType === 'enter_zone', 'Automatic Event execution audit was not recorded as enter_zone/applied.');
+
+  const definitionStory = await gm.json('/api/gm/story');
+  const definitionScenario = findNamed(definitionStory?.scenarios, SCENARIO_NAME, 'Scenario');
+  const definitionScene = findNamed(definitionScenario?.scenes, SCENE_NAME, 'Scene');
+  const definitionEncounter = findNamed(definitionScene?.encounters, ENCOUNTER_NAME, 'Encounter Definition');
+  assert(definitionEncounter?.status === 'planned', `Encounter Definition status was polluted by Runtime activation: ${definitionEncounter?.status}.`);
 
   return {
     executionId: triggerResult.executionId,
     flagValue: flag.value,
     narrativeId: narrative.id,
     revealedZone: true,
+    runtimeEncounterStatus: runtimeEncounter.status,
+    definitionEncounterStatus: definitionEncounter.status,
     effectTypes: triggerResult.effectsApplied.map(effect => effect.type)
   };
 }
@@ -312,7 +339,7 @@ async function closeAndArchive(gm, mapInstanceId) {
       name: scenario.name,
       status: 'archived',
       summary: scenario.summary || '',
-      gmNotes: `${scenario.gmNotes || ''}\nProduction enter-zone Story Event E2E passed: ${RUN_ID}`.trim()
+      gmNotes: `${scenario.gmNotes || ''}\nProduction enter-zone + Runtime Encounter E2E passed: ${RUN_ID}`.trim()
     }
   });
   return scenario.id;
@@ -328,10 +355,11 @@ async function main() {
       runId: RUN_ID,
       writes: [
         'test Player and active Character',
-        'Scenario / Scene and enter_zone Story Event definition',
+        'Scenario / Scene / planned Encounter Definition and enter_zone Story Event definition',
         'World Location / 2x1 Map Template with hidden trigger Zone / Scene binding',
-        'Runtime Map / Character position and one Player Move',
-        'Runtime Story flag, Player narrative, revealed Zone and Story execution audit',
+        'Runtime Map / immediate Runtime Encounter snapshot / Character position and one Player Move',
+        'Runtime Story flag, Player narrative, revealed Zone, active Runtime Encounter and Story execution audit',
+        'verification that Encounter Definition remains planned',
         'closed Runtime and archived Scenario audit entities'
       ]
     }, null, 2));
@@ -352,9 +380,16 @@ async function main() {
   const character = await createCharacter(player);
   const story = await createScenarioScene(gm);
   const world = await createMapAndZone(gm, story.scene.id);
-  const event = await createEnterZoneEvent(gm, story.scene.id);
-  const mapInstanceId = await createRuntime(gm, story.scene.id, character.id);
-  const result = await exerciseEnterZone({ gm, player, characterId: character.id, mapInstanceId, event });
+  const event = await createEnterZoneEvent(gm, story.scene.id, story.encounter.id);
+  const mapInstanceId = await createRuntime(gm, story.scene.id, story.encounter.id, character.id);
+  const result = await exerciseEnterZone({
+    gm,
+    player,
+    characterId: character.id,
+    mapInstanceId,
+    event,
+    encounterId: story.encounter.id
+  });
   const scenarioId = await closeAndArchive(gm, mapInstanceId);
 
   console.log(JSON.stringify({
@@ -366,7 +401,7 @@ async function main() {
     gmRole: gmMe.user.role,
     player: { userId: playerUser.id, displayName: playerUser.displayName || PLAYER_NAME },
     character: { id: character.id, name: character.name, status: character.status },
-    scenario: { id: scenarioId, sceneId: story.scene.id },
+    scenario: { id: scenarioId, sceneId: story.scene.id, encounterId: story.encounter.id },
     storyEvent: { id: event.id, name: event.name, triggerType: event.triggerType, sourceZoneId: ZONE_ID },
     world: { locationId: world.location.id, mapTemplateId: world.mapTemplate.id, mapInstanceId },
     result,
@@ -374,9 +409,12 @@ async function main() {
       hiddenServerTriggerZone: true,
       playerMoveTrigger: true,
       structuredConditions: true,
+      encounterStatusCondition: true,
       setFlagEffect: result.flagValue === true,
       playerNarrativeEffect: Boolean(result.narrativeId),
       revealZoneEffect: result.revealedZone,
+      activateEncounterEffect: result.runtimeEncounterStatus === 'active',
+      definitionRuntimeIsolation: result.definitionEncounterStatus === 'planned',
       executionAudit: Boolean(result.executionId),
       runtimeClosed: true,
       scenarioArchived: true
