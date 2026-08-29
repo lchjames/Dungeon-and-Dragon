@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const gateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
+const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', import.meta.url), 'utf8');
 const gmRoot = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
@@ -13,7 +14,8 @@ const liveRunner = await readFile(new URL('../scripts/production-alpha-story-eve
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m);
+assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(zoneGateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/runtime-visibility-gateway\.js'/);
@@ -35,7 +37,7 @@ assert.match(gateway, /runtime_story_narratives/);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
 
-for (const value of ['manual', 'enter_zone', 'event_not_fired', 'flag_equals', 'door_state', 'show_narrative', 'set_flag', 'reveal_zone', 'open_door', 'close_door']) {
+for (const value of ['manual', 'enter_zone', 'encounter_resolved', 'event_not_fired', 'flag_equals', 'door_state', 'show_narrative', 'set_flag', 'reveal_zone', 'open_door', 'close_door']) {
   assert.match(rules, new RegExp(`'${value}'`));
 }
 assert.match(rules, /sourceEdgeId/);
@@ -56,7 +58,6 @@ assert.match(playerUi, /storyNarratives/);
 assert.match(playerUi, /GM-revealed narrative/);
 assert.match(playerMapUi, /player-story-narratives\.js/);
 
-// Production live coverage must keep proving the full manual Event vertical slice.
 assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(liveRunner, /flag_not_equals/);
 assert.match(liveRunner, /set_flag/);
@@ -67,9 +68,8 @@ assert.match(liveRunner, /storyNarratives/);
 assert.match(orchestrator, /production-alpha-story-event-e2e\.mjs/);
 assert.match(orchestrator, /'story-event'/);
 
-// Loading the Story UI must not replace the existing Attack Profile workspace logic.
 assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual runtime integration contract passed behind Runtime Encounter routing.');
+console.log('Story Event manual runtime integration contract passed behind Runtime Encounter resolution routing.');
