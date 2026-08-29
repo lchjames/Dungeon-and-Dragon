@@ -25,6 +25,13 @@ export async function ensureRuntimeEncounterSchema(env) {
         FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
         FOREIGN KEY (activated_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
       )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_encounter_snapshot_meta (
+        scene_run_id TEXT PRIMARY KEY,
+        scene_id TEXT NOT NULL,
+        materialized_at INTEGER NOT NULL,
+        FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
+        FOREIGN KEY (scene_id) REFERENCES scenes(id) ON DELETE RESTRICT
+      )`),
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_encounter_participants (
         id TEXT PRIMARY KEY,
         scene_run_id TEXT NOT NULL,
@@ -59,6 +66,7 @@ export async function ensureRuntimeEncounterSchema(env) {
       )`),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_scene_status ON runtime_encounter_states(scene_run_id, status, updated_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_definition ON runtime_encounter_states(encounter_id, updated_at)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_snapshot_scene ON runtime_encounter_snapshot_meta(scene_id, materialized_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_participants_scene_encounter ON runtime_encounter_participants(scene_run_id, encounter_id, entity_type, created_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_participants_entity ON runtime_encounter_participants(entity_type, entity_id, scene_run_id)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_combats_map ON runtime_encounter_combats(map_instance_id, linked_at)'),
@@ -73,6 +81,14 @@ export async function ensureRuntimeEncounterSchema(env) {
 
 export async function ensureRuntimeEncounterRows(env, sceneRunId, sceneId) {
   await ensureRuntimeEncounterSchema(env);
+  const materialized = await env.DB.prepare(`
+    SELECT scene_run_id, scene_id, materialized_at
+    FROM runtime_encounter_snapshot_meta
+    WHERE scene_run_id = ?
+    LIMIT 1
+  `).bind(sceneRunId).first();
+  if (materialized) return materialized;
+
   const now = Date.now();
   await env.DB.batch([
     env.DB.prepare(`
@@ -96,8 +112,13 @@ export async function ensureRuntimeEncounterRows(env, sceneRunId, sceneId) {
       JOIN encounters e ON e.id = ep.encounter_id
       LEFT JOIN characters c ON c.id = ep.entity_id
       WHERE e.scene_id = ? AND ep.entity_type = 'character'
-    `).bind(sceneRunId, now, now, sceneId)
+    `).bind(sceneRunId, now, now, sceneId),
+    env.DB.prepare(`
+      INSERT OR IGNORE INTO runtime_encounter_snapshot_meta (scene_run_id, scene_id, materialized_at)
+      VALUES (?, ?, ?)
+    `).bind(sceneRunId, sceneId, now)
   ]);
+  return { scene_run_id: sceneRunId, scene_id: sceneId, materialized_at: now };
 }
 
 export async function loadRuntimeEncounterParticipantRows(env, sceneRunId, encounterId = null) {
@@ -152,7 +173,7 @@ async function loadRuntimeEncounterCombatRows(env, sceneRunId) {
 }
 
 export async function loadRuntimeEncounterRows(env, sceneRunId, sceneId) {
-  await ensureRuntimeEncounterRows(env, sceneRunId, sceneId);
+  const snapshot = await ensureRuntimeEncounterRows(env, sceneRunId, sceneId);
   const [rows, participants, combats] = await Promise.all([
     env.DB.prepare(`
       SELECT res.*, e.name, e.scene_id
@@ -177,6 +198,7 @@ export async function loadRuntimeEncounterRows(env, sceneRunId, sceneId) {
     sceneId: row.scene_id,
     definitionStatusSnapshot: row.definition_status_snapshot,
     status: row.status,
+    snapshotMaterializedAt: snapshot?.materialized_at || null,
     activatedByStoryEventId: row.activated_by_story_event_id || null,
     activatedByUserId: row.activated_by_user_id || null,
     activatedAt: row.activated_at,
