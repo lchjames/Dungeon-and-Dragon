@@ -617,6 +617,7 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
   const conditions = evaluateStoryConditions(event.conditions, {
     flags,
     eventAlreadyFired: firedCount > 0,
+    storyEventId: event.id,
     sceneRunStatus: sceneRun.status,
     doors: doorStates(detail),
     encounters
