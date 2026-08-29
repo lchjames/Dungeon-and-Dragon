@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0016_story_event_runtime.sql', import.meta.url), 'utf8');
@@ -8,7 +9,8 @@ const liveRunner = await readFile(new URL('../scripts/production-alpha-story-zon
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-zone-trigger-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
+assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
 assert.match(gateway, /import \{ evaluateStoryConditions, normalizeStoryTrigger \} from '\.\/story-event-rules\.js'/);
 assert.match(gateway, /\/api\\\/player\\\/world\\\/characters\\\/\(\[\^\/\]\+\)\\\/move/);
@@ -53,4 +55,4 @@ assert.match(liveRunner, /triggerType === 'enter_zone'/);
 assert.match(orchestrator, /production-alpha-story-zone-e2e\.mjs/);
 assert.match(orchestrator, /'story-enter-zone'/);
 
-console.log('Story Event enter-zone trigger integration contract passed.');
+console.log('Story Event enter-zone trigger integration contract passed behind Runtime Encounter routing.');
