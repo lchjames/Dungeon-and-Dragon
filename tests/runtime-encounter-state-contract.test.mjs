@@ -6,6 +6,7 @@ const helper = await readFile(new URL('../src/runtime-encounter-state.js', impor
 const manualGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
+const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-story-zone-e2e.mjs', import.meta.url), 'utf8');
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS runtime_encounter_states/);
@@ -48,6 +49,12 @@ assert.match(zoneGateway, /activateRuntimeEncounter/);
 assert.match(zoneGateway, /encounters: shared\.encounters/);
 assert.match(zoneGateway, /activate_encounter/);
 assert.doesNotMatch(zoneGateway, /UPDATE\s+encounters\s+SET\s+status/i);
+
+assert.match(gmUi, /Manual GM and automatic enter_zone execution are live/);
+assert.match(gmUi, /detail\.runtimeEncounters/);
+assert.match(gmUi, /Encounter · \$\{escapeHtml\(encounter\.encounterId\)\}/);
+assert.match(gmUi, /definition snapshot/);
+assert.match(gmUi, /Encounter Definition <code>encounterId<\/code>/);
 
 assert.match(liveRunner, /status:\s*'planned'/);
 assert.match(liveRunner, /encounter_status/);
