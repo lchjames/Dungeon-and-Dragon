@@ -1,5 +1,6 @@
 import baseWorker from './story-zone-trigger-gateway.js';
 import {
+  spawnRuntimeBoss,
   spawnRuntimeMonster,
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
@@ -81,6 +82,22 @@ async function spawnRuntimeMonsterRoute(request, env, mapInstanceId, encounterId
   return json({ ok: true, ...result }, result.unchanged ? 200 : 201);
 }
 
+async function spawnRuntimeBossRoute(request, env, mapInstanceId, encounterId) {
+  if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+  if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+  const gm = await requireGM(request, env);
+  const body = await readBody(request);
+  const result = await spawnRuntimeBoss(env, {
+    mapInstanceId,
+    encounterId,
+    profileId: body?.profileId,
+    sourceSpawnPointId: body?.sourceSpawnPointId,
+    displayName: body?.displayName,
+    actorUserId: gm.id
+  });
+  return json({ ok: true, ...result }, 201);
+}
+
 async function startRuntimeCombatRoute(request, env, mapInstanceId, encounterId) {
   if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
@@ -100,6 +117,11 @@ export default {
       const spawnMatch = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/encounters\/([^/]+)\/monsters$/);
       if (spawnMatch) {
         return await spawnRuntimeMonsterRoute(request, env, decodeURIComponent(spawnMatch[1]), decodeURIComponent(spawnMatch[2]));
+      }
+
+      const bossSpawnMatch = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/encounters\/([^/]+)\/bosses$/);
+      if (bossSpawnMatch) {
+        return await spawnRuntimeBossRoute(request, env, decodeURIComponent(bossSpawnMatch[1]), decodeURIComponent(bossSpawnMatch[2]));
       }
 
       const combatMatch = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/encounters\/([^/]+)\/start-combat$/);

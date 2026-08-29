@@ -7,6 +7,7 @@ const encounterState = await readFile(new URL('../src/runtime-encounter-state.js
 const ui = await readFile(new URL('../public/assets/gm-runtime-encounters.js', import.meta.url), 'utf8');
 const loader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-runtime-encounter-e2e.mjs', import.meta.url), 'utf8');
+const liveBossRunner = await readFile(new URL('../scripts/production-alpha-runtime-boss-e2e.mjs', import.meta.url), 'utf8');
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
@@ -14,11 +15,16 @@ assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js
 assert.match(gateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(gateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.match(gateway, /spawnRuntimeMonster\(/);
+assert.match(gateway, /spawnRuntimeBoss\(/);
 assert.match(gateway, /startRuntimeEncounterCombat\(/);
 
 assert.ok(
   gateway.includes("pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/encounters\\/([^/]+)\\/monsters$/)"),
   'Runtime Encounter gateway must expose the Runtime Map scoped Monster spawn route.'
+);
+assert.ok(
+  gateway.includes("pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/encounters\\/([^/]+)\\/bosses$/)"),
+  'Runtime Encounter gateway must expose the Runtime Map scoped Boss spawn route.'
 );
 assert.ok(
   gateway.includes("pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/encounters\\/([^/]+)\\/start-combat$/)"),
@@ -41,10 +47,26 @@ assert.match(service, /'runtime_spawn'/);
 assert.match(service, /INSERT INTO runtime_entity_positions/);
 assert.doesNotMatch(service, /INSERT INTO encounter_participants/);
 
+assert.match(service, /export async function spawnRuntimeBoss/);
+assert.match(service, /boss_design_profiles/);
+assert.match(service, /boss_profile_skills/);
+assert.match(service, /boss_profile_phases/);
+assert.match(service, /spawn\.spawn_type !== 'any' && spawn\.spawn_type !== 'boss'/);
+assert.match(service, /INSERT INTO boss_instances/);
+assert.match(service, /INSERT INTO boss_instance_skills/);
+assert.match(service, /INSERT INTO boss_instance_phases/);
+assert.match(service, /'boss_instance'/);
+assert.match(service, /BOSS_SKILL_SNAPSHOT_FAILED/);
+assert.match(service, /BOSS_PROFILE_INACTIVE/);
+
 assert.match(service, /RUNTIME_ENCOUNTER_POSITION_REQUIRED/);
 assert.match(service, /buildCombatInitiative/);
 assert.match(service, /INSERT INTO runtime_encounter_combats/);
-assert.match(service, /RUNTIME_BOSS_COMBAT_NOT_READY/);
+assert.match(service, /final_dex/);
+assert.match(service, /BOSS_INSTANCE_NOT_FOUND/);
+assert.match(service, /BOSS_INSTANCE_NOT_ACTIVE/);
+assert.match(service, /BOSS_INSTANCE_DEX_REQUIRED/);
+assert.doesNotMatch(service, /RUNTIME_BOSS_COMBAT_NOT_READY/);
 assert.match(service, /ACTIVE_COMBAT_EXISTS/);
 assert.doesNotMatch(service, /\/api\/gm\/combat\/start/);
 assert.doesNotMatch(service, /Cookie/);
@@ -65,8 +87,15 @@ assert.match(ui, /id="runtime-encounter-template"/);
 assert.match(ui, /id="runtime-encounter-spawn"/);
 assert.match(ui, /id="runtime-encounter-level"/);
 assert.match(ui, /id="runtime-encounter-spawn-monster"/);
-assert.match(ui, /id="runtime-encounter-start-combat"/);
+assert.match(ui, /id="runtime-encounter-boss-profile"/);
+assert.match(ui, /id="runtime-encounter-boss-spawn"/);
+assert.match(ui, /id="runtime-encounter-boss-name"/);
+assert.match(ui, /id="runtime-encounter-spawn-boss"/);
+assert.match(ui, /Boss Design Profile/);
+assert.match(ui, /api\('\/api\/gm\/bosses'\)/);
+assert.match(ui, /item\.spawnType === 'any' \|\| item\.spawnType === 'boss'/);
 assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/monsters/);
+assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/bosses/);
 assert.match(ui, /\/encounters\/\$\{encodeURIComponent\(encounter\.encounterId\)\}\/start-combat/);
 assert.match(ui, /NOT ON MAP/);
 
@@ -77,7 +106,24 @@ assert.match(liveRunner, /Definition Encounter roster/);
 assert.match(liveRunner, /Definition encounter_combats/);
 assert.match(liveRunner, /Encounter Definition status/);
 assert.match(liveRunner, /runtimeEncounter\.combat\.mapInstanceId === mapId/);
-assert.match(orchestrator, /production-alpha-runtime-encounter-e2e\.mjs/);
-assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
 
-console.log('Runtime Encounter shared spawn/Combat service, GM control and production runner contract passed.');
+assert.match(liveBossRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(liveBossRunner, /spawnType:\s*'boss'/);
+assert.match(liveBossRunner, /sourceSpawnPointId:\s*BOSS_SPAWN_ID/);
+assert.match(liveBossRunner, /\/bosses`/);
+assert.match(liveBossRunner, /sourceKind === 'runtime_spawn'/);
+assert.match(liveBossRunner, /storedBoss\.skills/);
+assert.match(liveBossRunner, /storedBoss\.phases/);
+assert.match(liveBossRunner, /Number\(combatBoss\.dex\) === 18/);
+assert.match(liveBossRunner, /Definition Encounter roster/);
+assert.match(liveBossRunner, /Definition encounter_combats/);
+assert.match(liveBossRunner, /Encounter Definition status/);
+assert.match(liveBossRunner, /bestEffortFailureCleanup/);
+assert.doesNotMatch(liveBossRunner, /\/api\/gm\/boss-instances/);
+
+assert.match(orchestrator, /production-alpha-runtime-encounter-e2e\.mjs/);
+assert.match(orchestrator, /production-alpha-runtime-boss-e2e\.mjs/);
+assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
+assert.match(orchestrator, /'runtime-boss-spawn-combat'/);
+
+console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runners contract passed.');

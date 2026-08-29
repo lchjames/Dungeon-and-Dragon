@@ -3,6 +3,7 @@ import { $, escapeHtml, toast, emptyState } from './common.js';
 let maps = [];
 let detail = null;
 let monsters = null;
+let bosses = null;
 let selectedMapId = '';
 let selectedEncounterId = '';
 
@@ -38,7 +39,7 @@ function markup() {
       <div>
         <p class="eyebrow">RUNTIME ENCOUNTER AUTHORITY</p>
         <h3>Encounter Spawn & Combat</h3>
-        <p class="muted">Per-Scene-Run roster. Spawn creates a fresh Monster Instance, adds it to this Runtime Encounter, and places it on this Runtime Map.</p>
+        <p class="muted">Per-Scene-Run roster. Monster and Boss spawns create fresh Runtime instances, add them to this Runtime Encounter, and place them on this Runtime Map.</p>
       </div>
       <button id="runtime-encounter-refresh" class="button button-small button-ghost" type="button">Refresh</button>
     </div>
@@ -64,17 +65,30 @@ function markup() {
       </section>
 
       <section class="panel">
-        <div class="panel-heading"><div><h4>Start Combat</h4><span class="muted">Uses Runtime participants + existing positions</span></div></div>
-        <div id="runtime-encounter-summary" class="stack-list"></div>
-        <div class="form-actions wrap">
-          <button id="runtime-encounter-start-combat" class="button" type="button">Start Combat on This Map</button>
+        <div class="panel-heading"><div><h4>Spawn Boss</h4><span class="muted">Profile snapshot · same Runtime Map</span></div></div>
+        <div class="form-grid compact-grid">
+          <label class="field"><span>Boss Design Profile</span><select id="runtime-encounter-boss-profile" class="input"></select></label>
+          <label class="field"><span>Boss Spawn Point</span><select id="runtime-encounter-boss-spawn" class="input"></select></label>
+          <label class="field"><span>Display Name (optional)</span><input id="runtime-encounter-boss-name" class="input" maxlength="120" placeholder="Use Profile name"></label>
         </div>
-        <p class="muted">Every participant must already have a position on this Runtime Map. This route does not write legacy Definition-level Encounter Combat state.</p>
+        <div class="form-actions wrap">
+          <button id="runtime-encounter-spawn-boss" class="button" type="button">Spawn Boss</button>
+        </div>
+        <p class="muted">Boss Level, attributes, HP/MP, defence, armor, skills and phases are snapshotted from the selected active Profile. Spawn Point must be <code>boss</code> or <code>any</code>.</p>
       </section>
     </div>
 
     <section class="panel">
-      <div class="panel-heading"><div><h4>Runtime Participants</h4><span class="muted">Frozen Character roster + fresh runtime spawns</span></div></div>
+      <div class="panel-heading"><div><h4>Start Combat</h4><span class="muted">Uses Runtime participants + existing positions</span></div></div>
+      <div id="runtime-encounter-summary" class="stack-list"></div>
+      <div class="form-actions wrap">
+        <button id="runtime-encounter-start-combat" class="button" type="button">Start Combat on This Map</button>
+      </div>
+      <p class="muted">Every Character / Monster / Boss participant must already have a position on this Runtime Map. This route does not write legacy Definition-level Encounter Combat state.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading"><div><h4>Runtime Participants</h4><span class="muted">Frozen Character roster + fresh Runtime spawns</span></div></div>
       <div id="runtime-encounter-participants" class="stack-list"></div>
     </section>
   </section>`;
@@ -98,6 +112,7 @@ function ensurePanel() {
     renderEncounter();
   });
   $('#runtime-encounter-spawn-monster')?.addEventListener('click', spawnMonster);
+  $('#runtime-encounter-spawn-boss')?.addEventListener('click', spawnBoss);
   $('#runtime-encounter-start-combat')?.addEventListener('click', startCombat);
   queueMicrotask(() => loadAll({ quiet: true }));
 }
@@ -142,9 +157,12 @@ function renderEncounterSelect() {
   select.disabled = !encounters.length;
 }
 
-function renderMonsterInputs() {
+function renderSpawnInputs() {
   const templateSelect = $('#runtime-encounter-template');
-  const spawnSelect = $('#runtime-encounter-spawn');
+  const monsterSpawnSelect = $('#runtime-encounter-spawn');
+  const bossProfileSelect = $('#runtime-encounter-boss-profile');
+  const bossSpawnSelect = $('#runtime-encounter-boss-spawn');
+
   if (templateSelect) {
     const templates = (monsters?.templates || []).filter(item => item.isActive !== false);
     templateSelect.innerHTML = templates.length
@@ -152,27 +170,43 @@ function renderMonsterInputs() {
       : '<option value="">No active Monster Templates</option>';
     templateSelect.disabled = !templates.length;
   }
-  if (spawnSelect) {
+  if (monsterSpawnSelect) {
     const spawns = (detail?.spawnPoints || []).filter(item => item.enabled && (item.spawnType === 'any' || item.spawnType === 'monster'));
-    spawnSelect.innerHTML = spawns.length
+    monsterSpawnSelect.innerHTML = spawns.length
       ? spawns.map(item => `<option value="${escapeHtml(item.sourceSpawnPointId || '')}">${escapeHtml(item.name)} · (${item.x},${item.y}) · ${escapeHtml(item.spawnType)}</option>`).join('')
       : '<option value="">No enabled Monster Spawn Points</option>';
-    spawnSelect.disabled = !spawns.length;
+    monsterSpawnSelect.disabled = !spawns.length;
+  }
+  if (bossProfileSelect) {
+    const profiles = (bosses?.profiles || []).filter(item => item.status === 'active');
+    bossProfileSelect.innerHTML = profiles.length
+      ? profiles.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · Lv ${escapeHtml(item.level)}</option>`).join('')
+      : '<option value="">No active Boss Profiles</option>';
+    bossProfileSelect.disabled = !profiles.length;
+  }
+  if (bossSpawnSelect) {
+    const spawns = (detail?.spawnPoints || []).filter(item => item.enabled && (item.spawnType === 'any' || item.spawnType === 'boss'));
+    bossSpawnSelect.innerHTML = spawns.length
+      ? spawns.map(item => `<option value="${escapeHtml(item.sourceSpawnPointId || '')}">${escapeHtml(item.name)} · (${item.x},${item.y}) · ${escapeHtml(item.spawnType)}</option>`).join('')
+      : '<option value="">No enabled Boss Spawn Points</option>';
+    bossSpawnSelect.disabled = !spawns.length;
   }
 }
 
 function renderEncounter() {
-  renderMonsterInputs();
+  renderSpawnInputs();
   const encounter = currentEncounter();
   const summary = $('#runtime-encounter-summary');
   const participants = $('#runtime-encounter-participants');
-  const spawnButton = $('#runtime-encounter-spawn-monster');
+  const monsterButton = $('#runtime-encounter-spawn-monster');
+  const bossButton = $('#runtime-encounter-spawn-boss');
   const combatButton = $('#runtime-encounter-start-combat');
 
   if (!encounter) {
     if (summary) summary.innerHTML = emptyState('No Runtime Encounter', 'Create an Encounter in this Scene before starting the Runtime.');
     if (participants) participants.innerHTML = '<p class="muted">No Runtime participants.</p>';
-    if (spawnButton) spawnButton.disabled = true;
+    if (monsterButton) monsterButton.disabled = true;
+    if (bossButton) bossButton.disabled = true;
     if (combatButton) combatButton.disabled = true;
     return;
   }
@@ -191,9 +225,12 @@ function renderEncounter() {
       : '<p class="muted">No Runtime participants.</p>';
   }
 
-  const validTemplate = Boolean($('#runtime-encounter-template')?.value);
-  const validSpawn = Boolean($('#runtime-encounter-spawn')?.value);
-  if (spawnButton) spawnButton.disabled = encounter.status !== 'active' || Boolean(encounter.combat) || !validTemplate || !validSpawn;
+  const validMonsterTemplate = Boolean($('#runtime-encounter-template')?.value);
+  const validMonsterSpawn = Boolean($('#runtime-encounter-spawn')?.value);
+  const validBossProfile = Boolean($('#runtime-encounter-boss-profile')?.value);
+  const validBossSpawn = Boolean($('#runtime-encounter-boss-spawn')?.value);
+  if (monsterButton) monsterButton.disabled = encounter.status !== 'active' || Boolean(encounter.combat) || !validMonsterTemplate || !validMonsterSpawn;
+  if (bossButton) bossButton.disabled = encounter.status !== 'active' || Boolean(encounter.combat) || !validBossProfile || !validBossSpawn;
   if (combatButton) combatButton.disabled = encounter.status !== 'active' || Boolean(encounter.combat) || !roster.some(item => item.entityType === 'character');
 }
 
@@ -219,12 +256,14 @@ async function loadDetail({ quiet = false } = {}) {
 async function loadAll({ quiet = false } = {}) {
   if (!quiet) setStatus('Loading Runtime Encounter workspace…');
   try {
-    const [runtime, monsterOverview] = await Promise.all([
+    const [runtime, monsterOverview, bossOverview] = await Promise.all([
       api('/api/gm/world/runtime'),
-      api('/api/gm/monsters')
+      api('/api/gm/monsters'),
+      api('/api/gm/bosses')
     ]);
     maps = runtime.mapInstances || [];
     monsters = monsterOverview;
+    bosses = bossOverview;
     renderMapSelect();
     await loadDetail({ quiet: true });
     setStatus('');
@@ -250,6 +289,31 @@ async function spawnMonster() {
     await loadDetail({ quiet: true });
     $('#runtime-encounter-monster-name').value = '';
     toast(`${payload.monster?.displayName || 'Monster'} spawned on Runtime Map.`, 'success');
+    $('#runtime-map-detail-reload')?.click();
+  } catch (error) {
+    toast(error.message, 'error');
+    await loadDetail({ quiet: true });
+  } finally {
+    renderEncounter();
+  }
+}
+
+async function spawnBoss() {
+  const encounter = currentEncounter();
+  if (!encounter || !selectedMapId) return;
+  const profileId = $('#runtime-encounter-boss-profile')?.value || '';
+  const sourceSpawnPointId = $('#runtime-encounter-boss-spawn')?.value || '';
+  const displayName = $('#runtime-encounter-boss-name')?.value?.trim() || '';
+  const button = $('#runtime-encounter-spawn-boss');
+  button.disabled = true;
+  try {
+    const payload = await api(`/api/gm/world/runtime/maps/${encodeURIComponent(selectedMapId)}/encounters/${encodeURIComponent(encounter.encounterId)}/bosses`, {
+      method: 'POST',
+      body: JSON.stringify({ profileId, sourceSpawnPointId, displayName })
+    });
+    await loadDetail({ quiet: true });
+    $('#runtime-encounter-boss-name').value = '';
+    toast(`${payload.boss?.displayName || 'Boss'} spawned on Runtime Map.`, 'success');
     $('#runtime-map-detail-reload')?.click();
   } catch (error) {
     toast(error.message, 'error');
