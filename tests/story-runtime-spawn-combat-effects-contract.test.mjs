@@ -18,6 +18,9 @@ assert.match(rules, /Story Monster Level must be an integer from 1 to 100/);
 assert.match(rules, /sourceSpawnPointId/);
 assert.match(rules, /templateId/);
 assert.match(rules, /encounterId/);
+assert.match(rules, /sameEventActivationRetry/);
+assert.match(rules, /activatedByStoryEventId/);
+assert.match(rules, /context\.storyEventId/);
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS runtime_story_spawn_effects/);
 assert.match(migration, /PRIMARY KEY \(scene_run_id, story_event_id, effect_index\)/);
@@ -51,6 +54,7 @@ for (const gateway of [manualGateway, zoneGateway]) {
   assert.match(gateway, /\.entries\(\)/, 'Story effect execution must preserve a stable effect index for spawn provenance.');
   assert.match(gateway, /context\.event\.oncePerSceneRun \? context\.event\.id : null/);
   assert.match(gateway, /context\.event\.oncePerSceneRun \? effectIndex : null/);
+  assert.match(gateway, /storyEventId:\s*event\.id/, 'Retry-aware condition evaluation must receive the current Story Event identity.');
   assert.doesNotMatch(gateway, /INSERT INTO encounter_participants/);
   assert.doesNotMatch(gateway, /INSERT INTO encounter_combats/);
   assert.doesNotMatch(gateway, /UPDATE\s+encounters\s+SET\s+status/i);
@@ -94,4 +98,4 @@ assert.match(liveRunner, /bestEffortFailureCleanup/);
 assert.match(orchestrator, /production-alpha-story-combat-e2e\.mjs/);
 assert.match(orchestrator, /'story-runtime-spawn-combat'/);
 
-console.log('Story Runtime spawn_monster + start_combat effect, GM authoring and production vertical contract passed.');
+console.log('Story Runtime spawn_monster + start_combat effect, retry identity, GM authoring and production vertical contract passed.');
