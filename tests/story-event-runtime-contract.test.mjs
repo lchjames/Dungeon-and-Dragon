@@ -177,7 +177,10 @@ assert.ok(
   resolutionGateway.includes('story-events\\/([^/]+)\\/activate'),
   'Top-level Runtime gateway must drain encounter_activated occurrences after manual Story activation.'
 );
-assert.match(resolutionGateway, /\/api\/player\/world\/characters/);
+assert.ok(
+  resolutionGateway.includes('api\\/player\\/world\\/characters'),
+  'Top-level Runtime gateway must drain encounter_activated occurrences after Player Move / enter_zone Story.'
+);
 
 assert.match(encounterActivatedRunner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(encounterActivatedRunner, /triggerType:\s*'encounter_activated'/);
