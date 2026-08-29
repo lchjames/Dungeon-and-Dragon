@@ -21,11 +21,21 @@ try {
   runComponent('Production Story Event E2E', './production-alpha-story-event-e2e.mjs');
   runComponent('Production Enter-zone Story Event E2E', './production-alpha-story-zone-e2e.mjs');
   runComponent('Production Runtime Encounter Spawn / Combat E2E', './production-alpha-runtime-encounter-e2e.mjs');
+  runComponent('Production Player Zone → Story Spawn → Combat E2E', './production-alpha-story-combat-e2e.mjs');
   runComponent('Production Combat / Focus E2E', './production-alpha-combat-e2e.mjs');
   console.log(JSON.stringify({
     ok: true,
     suite: 'production-alpha-live',
-    components: ['short-rest', 'long-rest-combat-interruption', 'per-viewer-visibility', 'story-event', 'story-enter-zone', 'runtime-encounter-spawn-combat', 'combat-focus']
+    components: [
+      'short-rest',
+      'long-rest-combat-interruption',
+      'per-viewer-visibility',
+      'story-event',
+      'story-enter-zone',
+      'runtime-encounter-spawn-combat',
+      'story-runtime-spawn-combat',
+      'combat-focus'
+    ]
   }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({
