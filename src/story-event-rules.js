@@ -80,7 +80,7 @@ export function normalizeStoryTrigger(type, raw = {}) {
   if (type === 'enter_zone') {
     return { sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   }
-  if (type === 'encounter_resolved') {
+  if (type === 'encounter_activated' || type === 'encounter_resolved') {
     return { encounterId: text(raw.encounterId, 'Encounter ID', 180) };
   }
   return { ...raw };
