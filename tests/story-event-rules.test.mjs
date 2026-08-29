@@ -142,4 +142,32 @@ assert.equal(fail.ok, false);
 assert.equal(fail.failures.length, 5);
 assert.ok(fail.failures.some(item => item.reason === 'encounter_status_mismatch'));
 
+const retryCondition = [{ type: 'encounter_status', encounterId: 'encounter_retry', status: 'planned' }];
+const sameEventRetry = evaluateStoryConditions(retryCondition, {
+  storyEventId: 'story_event_retry',
+  encounters: new Map([['encounter_retry', {
+    status: 'active',
+    activatedByStoryEventId: 'story_event_retry'
+  }]])
+});
+assert.equal(sameEventRetry.ok, true, 'The same Story Event must be able to resume after its own activate_encounter effect succeeded.');
+
+const otherEventRetry = evaluateStoryConditions(retryCondition, {
+  storyEventId: 'story_event_retry',
+  encounters: new Map([['encounter_retry', {
+    status: 'active',
+    activatedByStoryEventId: 'story_event_other'
+  }]])
+});
+assert.equal(otherEventRetry.ok, false, 'An Encounter activated by another Story Event must not satisfy a planned condition.');
+assert.equal(otherEventRetry.failures[0]?.reason, 'encounter_status_mismatch');
+
+const noEventIdentityRetry = evaluateStoryConditions(retryCondition, {
+  encounters: new Map([['encounter_retry', {
+    status: 'active',
+    activatedByStoryEventId: 'story_event_retry'
+  }]])
+});
+assert.equal(noEventIdentityRetry.ok, false, 'Retry relaxation must require the currently executing Story Event identity.');
+
 console.log('Structured Story Event rules passed.');
