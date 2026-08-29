@@ -8,6 +8,8 @@ const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js
 const migration = await readFile(new URL('../schema/0019_story_runtime_spawn_effects.sql', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-story-combat-e2e.mjs', import.meta.url), 'utf8');
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
+const authoringHelp = await readFile(new URL('../public/assets/gm-story-runtime-action-help.js', import.meta.url), 'utf8');
+const hostileLoader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
 
 for (const type of ['spawn_monster', 'start_combat']) {
   assert.match(rules, new RegExp(`'${type}'`), `Approved Story effect vocabulary must contain ${type}.`);
@@ -63,6 +65,19 @@ assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/start-com
 
 assert.match(manualGateway, /actorUserId:\s*context\.gm\.id/);
 
+assert.match(hostileLoader, /import '\.\/gm-story-runtime-action-help\.js'/);
+assert.match(authoringHelp, /<h4>Runtime Spawn & Combat<\/h4>/);
+assert.match(authoringHelp, /sourceSpawnPointId/);
+assert.match(authoringHelp, /templateId/);
+assert.match(authoringHelp, /encounterId/);
+assert.match(authoringHelp, /"type": "spawn_monster"/);
+assert.match(authoringHelp, /"type": "start_combat"/);
+assert.match(authoringHelp, /\/api\/gm\/monsters/);
+assert.match(authoringHelp, /spawnPoints/);
+assert.match(authoringHelp, /Monster Level must be 1–100/);
+assert.doesNotMatch(authoringHelp, /eval\s*\(/);
+assert.doesNotMatch(authoringHelp, /new Function\s*\(/);
+
 assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(liveRunner, /triggerType:\s*'enter_zone'/);
 assert.match(liveRunner, /sourceZoneId:\s*ZONE_ID/);
@@ -79,4 +94,4 @@ assert.match(liveRunner, /bestEffortFailureCleanup/);
 assert.match(orchestrator, /production-alpha-story-combat-e2e\.mjs/);
 assert.match(orchestrator, /'story-runtime-spawn-combat'/);
 
-console.log('Story Runtime spawn_monster + start_combat effect and production vertical contract passed.');
+console.log('Story Runtime spawn_monster + start_combat effect, GM authoring and production vertical contract passed.');
