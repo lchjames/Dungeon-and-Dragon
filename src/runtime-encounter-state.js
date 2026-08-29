@@ -21,7 +21,6 @@ export async function ensureRuntimeEncounterSchema(env) {
         UNIQUE (scene_run_id, encounter_id),
         FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
         FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
-        FOREIGN KEY (activated_by_story_event_id) REFERENCES story_events(id) ON DELETE SET NULL,
         FOREIGN KEY (activated_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
       )`),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_scene_status ON runtime_encounter_states(scene_run_id, status, updated_at)'),
