@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
+const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', import.meta.url), 'utf8');
 const gmRoot = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
@@ -12,7 +13,8 @@ const liveRunner = await readFile(new URL('../scripts/production-alpha-story-eve
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-zone-trigger-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
+assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(zoneGateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/runtime-visibility-gateway\.js'/);
 for (const table of ['story_events', 'runtime_story_flags', 'runtime_story_narratives', 'runtime_story_event_executions']) {
@@ -70,4 +72,4 @@ assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual runtime integration contract passed.');
+console.log('Story Event manual runtime integration contract passed behind Runtime Encounter routing.');
