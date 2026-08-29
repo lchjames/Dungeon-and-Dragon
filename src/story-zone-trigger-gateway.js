@@ -419,6 +419,7 @@ async function executeEnteredZoneEvent(env, shared, event, firedCount) {
   const conditions = evaluateStoryConditions(event.conditions, {
     flags: shared.flags,
     eventAlreadyFired: firedCount > 0,
+    storyEventId: event.id,
     sceneRunStatus: shared.sceneRunStatus,
     doors: shared.doors,
     encounters: shared.encounters
