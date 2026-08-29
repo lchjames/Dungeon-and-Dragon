@@ -72,6 +72,9 @@ assert.match(story, /trigger\.encounterId !== encounterId/);
 assert.match(story, /evaluateStoryConditions/);
 assert.match(story, /runtime_story_event_executions/);
 assert.match(story, /spawnRuntimeMonster/);
+assert.match(story, /spawnRuntimeBoss/);
+assert.match(story, /effect\.type === 'spawn_boss'/);
+assert.match(story, /profileId:\s*effect\.profileId/);
 assert.match(story, /startRuntimeEncounterCombat/);
 assert.doesNotMatch(story, /eval\s*\(/);
 assert.doesNotMatch(story, /new Function\s*\(/);
@@ -110,4 +113,4 @@ assert.match(canonical, /Manual resolution intentionally does \*\*not\*\* requir
 assert.match(canonical, /encounter_resolved/);
 assert.match(canonical, /Definition \/ Runtime isolation/);
 
-console.log('Runtime Encounter resolution, post-Combat Story continuation, GM control and production runner contract passed.');
+console.log('Runtime Encounter resolution, post-Combat Story continuation including Boss spawn, GM control and production runner contract passed.');
