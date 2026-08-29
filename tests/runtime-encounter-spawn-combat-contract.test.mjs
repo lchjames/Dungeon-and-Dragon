@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const gateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
+const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const service = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
 const encounterState = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-encounters.js', import.meta.url), 'utf8');
@@ -11,7 +12,8 @@ const liveBossRunner = await readFile(new URL('../scripts/production-alpha-runti
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m);
+assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(gateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.match(gateway, /spawnRuntimeMonster\(/);
@@ -80,6 +82,7 @@ assert.match(encounterState, /RUNTIME_ENCOUNTER_MAP_MISMATCH/);
 assert.match(encounterState, /FOREIGN KEY \(scene_run_id, encounter_id\) REFERENCES runtime_encounter_states/);
 
 assert.match(loader, /import '\.\/gm-runtime-encounters\.js'/);
+assert.match(loader, /import '\.\/gm-runtime-resolution\.js'/);
 assert.match(ui, /<h3>Encounter Spawn & Combat<\/h3>/);
 assert.match(ui, /id="runtime-encounter-map"/);
 assert.match(ui, /id="runtime-encounter-select"/);
@@ -126,4 +129,4 @@ assert.match(orchestrator, /production-alpha-runtime-boss-e2e\.mjs/);
 assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
 assert.match(orchestrator, /'runtime-boss-spawn-combat'/);
 
-console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runners contract passed.');
+console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runners contract passed behind resolution routing.');
