@@ -6,6 +6,7 @@ import {
   resolveRuntimeEncounter
 } from './runtime-encounter-resolution.js';
 import { processEncounterResolvedStoryEvents } from './encounter-resolved-story.js';
+import { processPendingEncounterActivatedStoryEvents } from './encounter-activated-story.js';
 import { processSceneRunStartStoryEvents } from './scene-run-start-story.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
@@ -61,6 +62,26 @@ async function mapContext(env, mapInstanceId) {
   return { id: row.id, sceneRunId: row.scene_run_id, sceneId: row.scene_id, status: row.status };
 }
 
+async function drainEncounterActivated(env, sceneRunId, context = {}) {
+  try {
+    return {
+      events: await processPendingEncounterActivatedStoryEvents(env, { sceneRunId }),
+      warning: null
+    };
+  } catch (error) {
+    console.error('encounter_activated Story lifecycle drain failed after committed Runtime mutation', {
+      sceneRunId,
+      ...context,
+      code: error?.code || null,
+      message: String(error?.message || error)
+    });
+    return {
+      events: [],
+      warning: { code: error?.code || 'STORY_ENCOUNTER_ACTIVATED_TRIGGER_ERROR' }
+    };
+  }
+}
+
 async function handleSceneRunStart(request, env) {
   const actor = await currentUser(request, env).catch(() => null);
   const response = await baseWorker.fetch(request, env);
@@ -94,23 +115,14 @@ async function handleSceneRunStart(request, env) {
     sceneRunStartStoryWarning = { code: 'STORY_SCENE_RUN_START_ACTOR_UNAVAILABLE' };
   }
 
+  const activated = await drainEncounterActivated(env, map.sceneRunId, { mapInstanceId: map.id, source: 'scene_run_start' });
   return json({
     ...payload,
     sceneRunStartStoryEvents,
-    ...(sceneRunStartStoryWarning ? { sceneRunStartStoryWarning } : {})
+    ...(sceneRunStartStoryWarning ? { sceneRunStartStoryWarning } : {}),
+    encounterActivatedStoryEvents: activated.events,
+    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
   }, response.status);
-}
-
-async function triggerResolvedStory(env, actor, resolution) {
-  if (!resolution?.changed || !resolution?.runtimeEncounter) return [];
-  const encounter = resolution.runtimeEncounter;
-  return processEncounterResolvedStoryEvents(env, {
-    actor,
-    sceneRunId: encounter.sceneRunId || resolution.resolutionLog?.sceneRunId,
-    sceneId: encounter.sceneId,
-    mapInstanceId: encounter.combat?.mapInstanceId || resolution.mapInstanceId,
-    encounterId: encounter.encounterId
-  });
 }
 
 async function resolveStoryWithContext(env, actor, resolution, context) {
@@ -159,11 +171,14 @@ async function handleManualResolve(request, env, mapInstanceId, encounterId) {
     }
   }
 
+  const activated = await drainEncounterActivated(env, map.sceneRunId, { mapInstanceId: map.id, source: 'encounter_resolved_manual' });
   return json({
     ok: true,
     resolution,
     storyEventsTriggered,
-    ...(storyTriggerWarning ? { storyTriggerWarning } : {})
+    ...(storyTriggerWarning ? { storyTriggerWarning } : {}),
+    encounterActivatedStoryEvents: activated.events,
+    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
   });
 }
 
@@ -230,11 +245,43 @@ async function handleCombatEnd(request, env, combatId) {
     }
   }
 
+  const activated = await drainEncounterActivated(env, linked.sceneRunId, { mapInstanceId: linked.mapInstanceId, combatId, source: 'encounter_resolved_combat' });
   return json({
     ...payload,
     runtimeEncounterResolution: resolution,
     storyEventsTriggered,
-    ...(storyTriggerWarning ? { storyTriggerWarning } : {})
+    ...(storyTriggerWarning ? { storyTriggerWarning } : {}),
+    encounterActivatedStoryEvents: activated.events,
+    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+  }, response.status);
+}
+
+async function handleStoryMutationWithEncounterDrain(request, env, mapInstanceId, source) {
+  const response = await baseWorker.fetch(request, env);
+  if (!response.ok) return response;
+  const contentType = response.headers.get('Content-Type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) return response;
+  const payload = await response.json();
+  let map;
+  try {
+    map = await mapContext(env, mapInstanceId);
+  } catch (error) {
+    console.error('Unable to load Runtime Map after committed Story mutation', {
+      mapInstanceId,
+      source,
+      message: String(error?.message || error)
+    });
+    return json({
+      ...payload,
+      encounterActivatedStoryEvents: [],
+      encounterActivatedStoryWarning: { code: 'STORY_ENCOUNTER_ACTIVATED_MAP_LOOKUP_ERROR' }
+    }, response.status);
+  }
+  const activated = await drainEncounterActivated(env, map.sceneRunId, { mapInstanceId: map.id, source });
+  return json({
+    ...payload,
+    encounterActivatedStoryEvents: activated.events,
+    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
   }, response.status);
 }
 
@@ -285,6 +332,29 @@ export default {
       match = pathname.match(/^\/api\/gm\/combat\/([^/]+)\/end$/);
       if (match && request.method === 'POST') {
         return await handleCombatEnd(request, env, decodeURIComponent(match[1]));
+      }
+
+      match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/story-events\/([^/]+)\/activate$/);
+      if (match && request.method === 'POST') {
+        return await handleStoryMutationWithEncounterDrain(request, env, decodeURIComponent(match[1]), 'manual_story_event');
+      }
+
+      match = pathname.match(/^\/api\/player\/world\/characters\/([^/]+)\/move$/);
+      if (match && request.method === 'POST') {
+        const response = await baseWorker.fetch(request, env);
+        if (!response.ok) return response;
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!contentType.toLowerCase().includes('application/json')) return response;
+        const payload = await response.json();
+        const mapInstanceId = payload?.map?.id;
+        const sceneRunId = payload?.map?.sceneRunId;
+        if (!mapInstanceId || !sceneRunId) return json(payload, response.status);
+        const activated = await drainEncounterActivated(env, sceneRunId, { mapInstanceId, source: 'player_move_enter_zone' });
+        return json({
+          ...payload,
+          encounterActivatedStoryEvents: activated.events,
+          ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+        }, response.status);
       }
 
       match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)$/);
