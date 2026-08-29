@@ -386,6 +386,204 @@ export async function spawnRuntimeMonster(env, {
   };
 }
 
+export async function spawnRuntimeBoss(env, {
+  mapInstanceId,
+  sceneRunId = '',
+  sceneId = '',
+  encounterId,
+  profileId,
+  sourceSpawnPointId,
+  displayName = '',
+  actorUserId
+}) {
+  await ensureRuntimeEncounterActionSchema(env);
+  const map = await mapContext(env, cleanText(mapInstanceId, 180), cleanText(sceneRunId, 180), cleanText(sceneId, 180));
+  const normalizedEncounterId = cleanText(encounterId, 180);
+  const normalizedProfileId = cleanText(profileId, 180);
+  const normalizedSpawnId = cleanText(sourceSpawnPointId, 180);
+  const normalizedActor = cleanText(actorUserId, 180);
+  if (!normalizedEncounterId || !normalizedProfileId || !normalizedSpawnId || !normalizedActor) {
+    throw problem('Runtime Boss spawn 缺少必要 reference。', 400, 'VALIDATION_ERROR');
+  }
+
+  const encounters = await loadRuntimeEncounterMap(env, map.sceneRunId, map.sceneId);
+  const encounter = encounters.get(normalizedEncounterId);
+  if (!encounter) throw problem('Runtime Encounter 不存在於呢個 Scene Run。', 404, 'RUNTIME_ENCOUNTER_NOT_FOUND');
+  if (encounter.status !== 'active') throw problem('Runtime Encounter 必須先 active 先可以 Spawn Boss。', 409, 'RUNTIME_ENCOUNTER_NOT_ACTIVE');
+  if (encounter.combat) throw problem('Runtime Encounter 已連結 Combat，唔可以再 Spawn Boss。', 409, 'RUNTIME_ENCOUNTER_COMBAT_EXISTS');
+
+  const spawn = await env.DB.prepare(`
+    SELECT id, source_spawn_point_id, x, y, spawn_type, enabled
+    FROM runtime_map_spawn_points
+    WHERE map_instance_id = ? AND source_spawn_point_id = ?
+    LIMIT 1
+  `).bind(map.id, normalizedSpawnId).first();
+  if (!spawn || !Boolean(spawn.enabled)) throw problem('Runtime Spawn Point 不存在或已停用。', 404, 'RUNTIME_SPAWN_NOT_FOUND');
+  if (spawn.spawn_type !== 'any' && spawn.spawn_type !== 'boss') throw problem('呢個 Spawn Point 唔接受 Boss。', 409, 'SPAWN_TYPE_MISMATCH');
+
+  const cell = await env.DB.prepare(`
+    SELECT is_walkable FROM runtime_map_cells
+    WHERE map_instance_id = ? AND x = ? AND y = ?
+    LIMIT 1
+  `).bind(map.id, spawn.x, spawn.y).first();
+  if (!cell) throw problem('Boss Spawn Point 對應唔到 Runtime Cell。', 409, 'RUNTIME_SPAWN_CELL_NOT_FOUND');
+  if (!Boolean(cell.is_walkable)) throw problem('Boss Spawn Point 位於 blocked Cell。', 409, 'POSITION_BLOCKED');
+
+  const occupied = await env.DB.prepare(`
+    SELECT entity_type, entity_id FROM runtime_entity_positions
+    WHERE map_instance_id = ? AND x = ? AND y = ? LIMIT 1
+  `).bind(map.id, spawn.x, spawn.y).first();
+  if (occupied) {
+    throw problem('Boss Spawn Point 已被其他 Entity 佔用。', 409, 'POSITION_OCCUPIED', {
+      occupiedBy: { entityType: occupied.entity_type, entityId: occupied.entity_id }
+    });
+  }
+
+  const profile = await env.DB.prepare(`
+    SELECT * FROM boss_design_profiles WHERE id = ? LIMIT 1
+  `).bind(normalizedProfileId).first();
+  if (!profile) throw problem('找不到 Boss Design Profile。', 404, 'BOSS_PROFILE_NOT_FOUND');
+  if (profile.status !== 'active') throw problem('Archived Boss Profile 不能 Spawn。', 409, 'BOSS_PROFILE_INACTIVE');
+
+  const [skillRows, phaseRows] = await Promise.all([
+    env.DB.prepare(`
+      SELECT sp.*, bps.skill_profile_id AS linked_skill_profile_id, bps.sort_order AS boss_sort_order
+      FROM boss_profile_skills bps
+      LEFT JOIN monster_skill_profiles sp ON sp.id = bps.skill_profile_id
+      WHERE bps.boss_profile_id = ?
+      ORDER BY bps.sort_order, bps.created_at
+    `).bind(normalizedProfileId).all(),
+    env.DB.prepare(`
+      SELECT id, phase_number, name, hp_threshold_percent, gm_notes
+      FROM boss_profile_phases
+      WHERE boss_profile_id = ?
+      ORDER BY phase_number, created_at
+    `).bind(normalizedProfileId).all()
+  ]);
+  const linkedSkills = skillRows.results || [];
+  if (linkedSkills.some(row => !row.id || !Boolean(row.is_active))) {
+    throw problem('Boss Skill loadout 有缺失或包含 inactive Skill。', 409, 'BOSS_SKILL_SNAPSHOT_FAILED');
+  }
+
+  const attributes = {
+    STR: Number(profile.final_str),
+    DEX: Number(profile.final_dex),
+    CON: Number(profile.final_con),
+    POW: Number(profile.final_pow),
+    INT: Number(profile.final_int),
+    SIZ: Number(profile.final_siz)
+  };
+  if (!Object.values(attributes).every(Number.isFinite)) {
+    throw problem('Boss Profile 最終屬性 snapshot 無效。', 409, 'BOSS_PROFILE_INVALID');
+  }
+
+  const bossId = `bossinst_${crypto.randomUUID()}`;
+  const bossName = cleanText(displayName, 120) || profile.name;
+  const bossLevel = Number(profile.level);
+  const firstPhase = (phaseRows.results || [])[0]?.phase_number ?? null;
+  const now = Date.now();
+  const positionId = `runtime_position_${crypto.randomUUID()}`;
+  const bossValues = [
+    bossId, normalizedProfileId, profile.updated_at, normalizedEncounterId, bossName, bossLevel,
+    attributes.STR, attributes.DEX, attributes.CON, attributes.POW, attributes.INT, attributes.SIZ,
+    Number(profile.final_max_hp), Number(profile.final_max_hp), Number(profile.final_max_hp),
+    Number(profile.final_max_mp), Number(profile.final_max_mp), Number(profile.final_max_mp),
+    Number(profile.final_stored_defence || 0), profile.final_armor_name || '',
+    Number(profile.final_armor_defence || 0), Number(profile.final_armor_defence || 0),
+    profile.final_armor_notes || '', firstPhase, normalizedActor, now, now
+  ];
+  if (bossValues.length !== 27) throw problem('Boss Instance snapshot bind contract invalid.', 500, 'BOSS_INSTANCE_SNAPSHOT_FAILED');
+
+  const statements = [
+    env.DB.prepare(`
+      INSERT INTO boss_instances (
+        id, boss_profile_id, source_profile_updated_at, encounter_id, display_name, level, status,
+        final_str, final_dex, final_con, final_pow, final_int, final_siz,
+        snapshot_max_hp, hp_max_adjustment, final_max_hp, current_hp,
+        snapshot_max_mp, mp_max_adjustment, final_max_mp, current_mp,
+        stored_defence, defence_modifier, armor_name, armor_base_defence,
+        armor_defence_adjustment, final_armor_defence, armor_notes,
+        current_phase_number, phase_hold, created_by_user_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, 0, ?, ?, ?, 0, ?, ?, ?)
+    `).bind(...bossValues),
+    env.DB.prepare(`
+      INSERT INTO runtime_encounter_participants (
+        id, scene_run_id, encounter_id, entity_type, entity_id, display_name_snapshot,
+        source_encounter_participant_id, source_kind, created_by_user_id, created_at, updated_at
+      ) VALUES (?, ?, ?, 'boss_instance', ?, ?, NULL, 'runtime_spawn', ?, ?, ?)
+    `).bind(`runtime_ep_${crypto.randomUUID()}`, map.sceneRunId, normalizedEncounterId, bossId, bossName, normalizedActor, now, now),
+    env.DB.prepare(`
+      INSERT INTO runtime_entity_positions (
+        id, map_instance_id, entity_type, entity_id, x, y, visibility_mode,
+        placed_by_user_id, created_at, updated_at
+      ) VALUES (?, ?, 'boss_instance', ?, ?, ?, 'default', ?, ?, ?)
+    `).bind(positionId, map.id, bossId, spawn.x, spawn.y, normalizedActor, now, now)
+  ];
+
+  for (const row of linkedSkills) {
+    const skill = skillProfile(row);
+    const snapshot = snapshotMonsterSkill(skill, { level: bossLevel, effectiveAttributes: attributes });
+    statements.push(env.DB.prepare(`
+      INSERT INTO boss_instance_skills (
+        id, boss_instance_id, source_skill_profile_id, source_scope, name,
+        stored_accuracy, hit_modifier, damage_type, template_base_damage, damage_growth_weight,
+        damage_attribute_links, damage_attribute_values, damage_attribute_basis,
+        calculated_base_damage, calculated_damage_center,
+        suggested_spread_min, suggested_spread_max, final_spread_min, final_spread_max,
+        range_text, targeting_text, mp_cost, cooldown_rounds, gm_notes, is_active,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `).bind(
+      `bis_${crypto.randomUUID()}`, bossId, skill.id, skill.sourceScope, skill.name,
+      skill.storedAccuracy, skill.damageType, skill.templateBaseDamage, skill.damageGrowthWeight,
+      JSON.stringify(snapshot.damageAttributeLinks), JSON.stringify(snapshot.damageAttributeValues), snapshot.damageAttributeBasis,
+      snapshot.calculatedBaseDamage, snapshot.calculatedDamageCenter,
+      snapshot.suggestedSpreadMin, snapshot.suggestedSpreadMax, snapshot.finalSpreadMin, snapshot.finalSpreadMax,
+      skill.rangeText, skill.targetingText, skill.mpCost, skill.cooldownRounds, skill.gmNotes, now, now
+    ));
+  }
+
+  for (const phase of phaseRows.results || []) {
+    statements.push(env.DB.prepare(`
+      INSERT INTO boss_instance_phases (
+        id, boss_instance_id, source_phase_id, phase_number, name,
+        hp_threshold_percent, gm_notes, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      `bip_${crypto.randomUUID()}`, bossId, phase.id, Number(phase.phase_number), phase.name,
+      phase.hp_threshold_percent === null ? null : Number(phase.hp_threshold_percent), phase.gm_notes || '', now
+    ));
+  }
+
+  await env.DB.batch(statements);
+  const refreshed = await loadRuntimeEncounterMap(env, map.sceneRunId, map.sceneId);
+  return {
+    boss: {
+      id: bossId,
+      profileId: normalizedProfileId,
+      encounterId: normalizedEncounterId,
+      displayName: bossName,
+      level: bossLevel,
+      status: 'active'
+    },
+    spawnPoint: {
+      sourceSpawnPointId: normalizedSpawnId,
+      runtimeSpawnPointId: spawn.id,
+      x: Number(spawn.x),
+      y: Number(spawn.y)
+    },
+    runtimeEncounter: refreshed.get(normalizedEncounterId) || null,
+    position: {
+      id: positionId,
+      entityType: 'boss_instance',
+      entityId: bossId,
+      x: Number(spawn.x),
+      y: Number(spawn.y)
+    },
+    unchanged: false
+  };
+}
+
 async function selectedCharacters(env, characterIds) {
   const placeholders = characterIds.map(() => '?').join(',');
   const rows = await env.DB.prepare(`
@@ -468,11 +666,9 @@ export async function startRuntimeEncounterCombat(env, {
   }
 
   const participants = encounter.participants || [];
-  if (participants.some(item => item.entityType === 'boss_instance')) {
-    throw problem('Runtime Boss Combat 會喺下一個 Boss migration slice 接入；目前唔會 fallback 去 Definition Combat。', 409, 'RUNTIME_BOSS_COMBAT_NOT_READY');
-  }
   const characterIds = participants.filter(item => item.entityType === 'character').map(item => item.entityId);
   const monsterIds = participants.filter(item => item.entityType === 'monster_instance').map(item => item.entityId);
+  const bossIds = participants.filter(item => item.entityType === 'boss_instance').map(item => item.entityId);
   if (!characterIds.length) throw problem('Runtime Encounter 至少要有一個 Character participant。', 409, 'ENCOUNTER_CHARACTER_REQUIRED');
 
   const positionRows = await env.DB.prepare(`
@@ -517,13 +713,42 @@ export async function startRuntimeEncounterCombat(env, {
     for (const monsterId of monsterIds) {
       const row = byId.get(monsterId);
       if (row.status !== 'active') throw problem(`${row.display_name} 目前唔係 active Monster Instance。`, 409, 'MONSTER_INSTANCE_NOT_ACTIVE');
+      const dex = Number(row.effective_dex);
+      if (!Number.isFinite(dex)) throw problem(`${row.display_name} 缺少有效 DEX。`, 409, 'MONSTER_INSTANCE_DEX_REQUIRED');
       initiativeInput.push({
         id: `monster_instance:${row.id}`,
         entityType: 'monster_instance',
         entityId: row.id,
         controllerUserId: null,
         displayName: row.display_name,
-        dex: Number(row.effective_dex)
+        dex
+      });
+    }
+  }
+
+  if (bossIds.length) {
+    const placeholders = bossIds.map(() => '?').join(',');
+    const rows = await env.DB.prepare(`
+      SELECT id, display_name, final_dex, status, current_hp
+      FROM boss_instances WHERE id IN (${placeholders})
+    `).bind(...bossIds).all();
+    const bosses = rows.results || [];
+    if (bosses.length !== bossIds.length) throw problem('部分 Runtime Boss Instance 不存在。', 409, 'BOSS_INSTANCE_NOT_FOUND');
+    const byId = new Map(bosses.map(row => [row.id, row]));
+    for (const bossId of bossIds) {
+      const row = byId.get(bossId);
+      if (row.status !== 'active' || Number(row.current_hp) <= 0) {
+        throw problem(`${row.display_name} 目前唔係可戰鬥 Boss Instance。`, 409, 'BOSS_INSTANCE_NOT_ACTIVE');
+      }
+      const dex = Number(row.final_dex);
+      if (!Number.isFinite(dex)) throw problem(`${row.display_name} 缺少有效 DEX。`, 409, 'BOSS_INSTANCE_DEX_REQUIRED');
+      initiativeInput.push({
+        id: `boss_instance:${row.id}`,
+        entityType: 'boss_instance',
+        entityId: row.id,
+        controllerUserId: null,
+        displayName: row.display_name,
+        dex
       });
     }
   }
