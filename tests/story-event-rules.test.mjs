@@ -19,6 +19,7 @@ assert.ok(STORY_EVENT_EFFECT_TYPES.includes('show_narrative'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('close_door'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('activate_encounter'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('spawn_monster'));
+assert.ok(STORY_EVENT_EFFECT_TYPES.includes('spawn_boss'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('start_combat'));
 
 assert.equal(normalizeStoryFlagKey('Boss.Defeated'), 'boss.defeated');
@@ -68,6 +69,25 @@ assert.deepEqual(normalizeStoryEffect({
 }), {
   type: 'spawn_monster', encounterId: 'encounter_1', templateId: 'monster_template_1', level: 1, sourceSpawnPointId: 'spawn_ambush'
 });
+assert.deepEqual(normalizeStoryEffect({
+  type: 'spawn_boss',
+  encounterId: 'encounter_boss',
+  profileId: 'boss_profile_1',
+  sourceSpawnPointId: 'spawn_boss',
+  displayName: 'The Warden',
+  level: 99
+}), {
+  type: 'spawn_boss',
+  encounterId: 'encounter_boss',
+  profileId: 'boss_profile_1',
+  sourceSpawnPointId: 'spawn_boss',
+  displayName: 'The Warden'
+});
+assert.deepEqual(normalizeStoryEffect({
+  type: 'spawn_boss', encounterId: 'encounter_boss', profileId: 'boss_profile_1', sourceSpawnPointId: 'spawn_boss'
+}), {
+  type: 'spawn_boss', encounterId: 'encounter_boss', profileId: 'boss_profile_1', sourceSpawnPointId: 'spawn_boss'
+});
 assert.deepEqual(normalizeStoryEffect({ type: 'start_combat', encounterId: 'encounter_1' }), {
   type: 'start_combat', encounterId: 'encounter_1'
 });
@@ -77,6 +97,9 @@ assert.throws(() => normalizeStoryEffect({ type: 'spawn_monster', encounterId: '
 assert.throws(() => normalizeStoryEffect({ type: 'spawn_monster', encounterId: 'encounter_1', templateId: 'monster_template_1', level: 101, sourceSpawnPointId: 'spawn_ambush' }));
 assert.throws(() => normalizeStoryEffect({ type: 'spawn_monster', encounterId: 'encounter_1', templateId: 'monster_template_1', level: 1.5, sourceSpawnPointId: 'spawn_ambush' }));
 assert.throws(() => normalizeStoryEffect({ type: 'spawn_monster', encounterId: 'encounter_1', templateId: 'monster_template_1', level: 1 }));
+assert.throws(() => normalizeStoryEffect({ type: 'spawn_boss', profileId: 'boss_profile_1', sourceSpawnPointId: 'spawn_boss' }));
+assert.throws(() => normalizeStoryEffect({ type: 'spawn_boss', encounterId: 'encounter_boss', sourceSpawnPointId: 'spawn_boss' }));
+assert.throws(() => normalizeStoryEffect({ type: 'spawn_boss', encounterId: 'encounter_boss', profileId: 'boss_profile_1' }));
 assert.throws(() => normalizeStoryEffect({ type: 'start_combat' }));
 assert.throws(() => normalizeStoryEffect({ type: 'open_door', edgeId: 'runtime-edge-is-not-stable' }));
 assert.throws(() => normalizeStoryEffect({ type: 'javascript', code: 'alert(1)' }));
@@ -115,6 +138,20 @@ const enterZoneStructure = normalizeStoryEventStructure({
 });
 assert.deepEqual(enterZoneStructure.trigger, { sourceZoneId: 'zone_er' });
 assert.deepEqual(enterZoneStructure.effects.map(item => item.type), ['activate_encounter', 'spawn_monster', 'start_combat']);
+
+const bossStructure = normalizeStoryEventStructure({
+  triggerType: 'enter_zone',
+  trigger: { sourceZoneId: 'zone_boss' },
+  conditions: [{ type: 'encounter_status', encounterId: 'encounter_boss', status: 'planned' }],
+  effects: [
+    { type: 'activate_encounter', encounterId: 'encounter_boss' },
+    { type: 'spawn_boss', encounterId: 'encounter_boss', profileId: 'boss_profile_1', sourceSpawnPointId: 'spawn_boss' },
+    { type: 'start_combat', encounterId: 'encounter_boss' }
+  ]
+});
+assert.deepEqual(bossStructure.effects.map(item => item.type), ['activate_encounter', 'spawn_boss', 'start_combat']);
+assert.equal('level' in bossStructure.effects[1], false, 'Story must not override Boss Profile level.');
+
 assert.throws(() => normalizeStoryEventStructure({
   triggerType: 'enter_zone',
   trigger: {},

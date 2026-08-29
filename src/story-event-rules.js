@@ -27,6 +27,7 @@ const EFFECT_TYPES = new Set([
   'close_door',
   'activate_encounter',
   'spawn_monster',
+  'spawn_boss',
   'start_combat'
 ]);
 
@@ -132,6 +133,16 @@ export function normalizeStoryEffect(raw) {
       encounterId: text(raw.encounterId, 'Encounter ID', 180),
       templateId: text(raw.templateId, 'Monster Template ID', 180),
       level,
+      sourceSpawnPointId: text(raw.sourceSpawnPointId, 'Map Template Spawn Point sourceSpawnPointId', 180),
+      ...(displayName ? { displayName } : {})
+    };
+  }
+  if (type === 'spawn_boss') {
+    const displayName = optionalText(raw.displayName, 'Boss displayName', 120);
+    return {
+      type,
+      encounterId: text(raw.encounterId, 'Encounter ID', 180),
+      profileId: text(raw.profileId, 'Boss Design Profile ID', 180),
       sourceSpawnPointId: text(raw.sourceSpawnPointId, 'Map Template Spawn Point sourceSpawnPointId', 180),
       ...(displayName ? { displayName } : {})
     };
