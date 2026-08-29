@@ -6,6 +6,7 @@ import {
   resolveRuntimeEncounter
 } from './runtime-encounter-resolution.js';
 import { processEncounterResolvedStoryEvents } from './encounter-resolved-story.js';
+import { processSceneRunStartStoryEvents } from './scene-run-start-story.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -58,6 +59,46 @@ async function mapContext(env, mapInstanceId) {
   if (!row) throw Object.assign(new Error('Runtime Map 不存在。'), { status: 404, code: 'RUNTIME_MAP_NOT_FOUND' });
   if (row.status !== 'active') throw Object.assign(new Error('Runtime Map 已關閉。'), { status: 409, code: 'RUNTIME_MAP_CLOSED' });
   return { id: row.id, sceneRunId: row.scene_run_id, sceneId: row.scene_id, status: row.status };
+}
+
+async function handleSceneRunStart(request, env) {
+  const actor = await currentUser(request, env).catch(() => null);
+  const response = await baseWorker.fetch(request, env);
+  if (!response.ok) return response;
+  const contentType = response.headers.get('Content-Type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) return response;
+  const payload = await response.json();
+  const map = payload?.mapInstance;
+  if (!map?.id || !map?.sceneRunId || !map?.sceneId) return json(payload, response.status);
+
+  let sceneRunStartStoryEvents = [];
+  let sceneRunStartStoryWarning = null;
+  if (actor?.id) {
+    try {
+      sceneRunStartStoryEvents = await processSceneRunStartStoryEvents(env, {
+        actor,
+        sceneRunId: map.sceneRunId,
+        sceneId: map.sceneId,
+        mapInstanceId: map.id
+      });
+    } catch (error) {
+      console.error('scene_run_start Story processing failed after committed Scene Runtime creation', {
+        sceneRunId: map.sceneRunId,
+        sceneId: map.sceneId,
+        mapInstanceId: map.id,
+        message: String(error?.message || error)
+      });
+      sceneRunStartStoryWarning = { code: 'STORY_SCENE_RUN_START_TRIGGER_ERROR' };
+    }
+  } else {
+    sceneRunStartStoryWarning = { code: 'STORY_SCENE_RUN_START_ACTOR_UNAVAILABLE' };
+  }
+
+  return json({
+    ...payload,
+    sceneRunStartStoryEvents,
+    ...(sceneRunStartStoryWarning ? { sceneRunStartStoryWarning } : {})
+  }, response.status);
 }
 
 async function triggerResolvedStory(env, actor, resolution) {
@@ -232,6 +273,10 @@ export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
     try {
+      if (pathname === '/api/gm/world/runtime/scene-runs' && request.method === 'POST') {
+        return await handleSceneRunStart(request, env);
+      }
+
       let match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/encounters\/([^/]+)\/resolve$/);
       if (match) {
         return await handleManualResolve(request, env, decodeURIComponent(match[1]), decodeURIComponent(match[2]));
