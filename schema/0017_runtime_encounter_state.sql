@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS runtime_encounter_states (
   encounter_id TEXT NOT NULL,
   definition_status_snapshot TEXT NOT NULL CHECK (definition_status_snapshot IN ('planned', 'active', 'resolved', 'skipped')),
   status TEXT NOT NULL CHECK (status IN ('planned', 'active', 'resolved', 'skipped')),
+  -- Optional provenance reference. Kept as an ID rather than a FK so a Scene
+  -- Run can materialise its Encounter snapshot before Story Event tables exist
+  -- on a fresh/legacy D1.
   activated_by_story_event_id TEXT,
   activated_by_user_id TEXT,
   activated_at INTEGER,
@@ -15,7 +18,6 @@ CREATE TABLE IF NOT EXISTS runtime_encounter_states (
   UNIQUE (scene_run_id, encounter_id),
   FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
   FOREIGN KEY (encounter_id) REFERENCES encounters(id) ON DELETE RESTRICT,
-  FOREIGN KEY (activated_by_story_event_id) REFERENCES story_events(id) ON DELETE SET NULL,
   FOREIGN KEY (activated_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
 );
 
