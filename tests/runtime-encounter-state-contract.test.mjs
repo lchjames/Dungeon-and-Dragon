@@ -22,6 +22,7 @@ for (const table of ['runtime_encounter_snapshot_meta', 'runtime_encounter_parti
 }
 assert.match(participantMigration, /UNIQUE \(scene_run_id, encounter_id, entity_type, entity_id\)/);
 assert.match(participantMigration, /PRIMARY KEY \(scene_run_id, encounter_id\)/);
+assert.match(participantMigration, /FOREIGN KEY \(scene_run_id, encounter_id\) REFERENCES runtime_encounter_states\(scene_run_id, encounter_id\)/);
 assert.match(participantMigration, /map_instance_id TEXT NOT NULL/);
 assert.match(participantMigration, /source_kind TEXT NOT NULL DEFAULT 'definition_character'/);
 assert.doesNotMatch(participantMigration, /DROP TABLE/i);
@@ -29,13 +30,17 @@ assert.doesNotMatch(participantMigration, /DELETE FROM/i);
 
 assert.match(helper, /export async function ensureRuntimeEncounterRows/);
 assert.match(helper, /runtime_encounter_snapshot_meta/);
-assert.match(helper, /if \(materialized\) return materialized/);
+assert.match(helper, /if \(materialized\) \{/);
+assert.match(helper, /RUNTIME_ENCOUNTER_SNAPSHOT_SCENE_MISMATCH/);
+assert.match(helper, /return materialized/);
 assert.match(helper, /INSERT OR IGNORE INTO runtime_encounter_states/);
 assert.match(helper, /INSERT OR IGNORE INTO runtime_encounter_participants/);
 assert.match(helper, /ep\.entity_type = 'character'/);
 assert.doesNotMatch(helper, /ep\.entity_type IN \('character', 'monster_instance', 'boss_instance'\)/, 'Definition Monster/Boss instances must not be copied across Scene Runs.');
 assert.match(helper, /export async function addRuntimeEncounterParticipant/);
 assert.match(helper, /sourceKind = 'runtime_spawn'/);
+assert.match(helper, /Only Character participants may be snapshotted from Encounter Definition state/);
+assert.match(helper, /Characters must use definition_character or runtime_manual participant source kind/);
 assert.match(helper, /export async function linkRuntimeEncounterCombat/);
 assert.match(helper, /INSERT INTO runtime_encounter_combats/);
 assert.match(helper, /RUNTIME_ENCOUNTER_MAP_MISMATCH/);
