@@ -289,6 +289,29 @@ async function runtimeStoryState(env, sceneRunId, sceneId, mapInstanceId) {
   };
 }
 
+async function enrichStartedRuntime(env, response) {
+  if (!response.ok) return response;
+  const payload = await response.json();
+  const sceneRunId = payload?.mapInstance?.sceneRunId;
+  const sceneId = payload?.mapInstance?.sceneId;
+  if (!sceneRunId || !sceneId) return json(payload, response.status);
+  try {
+    await ensureStorySchema(env);
+    const runtimeEncounters = await loadRuntimeEncounterRows(env, sceneRunId, sceneId);
+    return json({ ...payload, runtimeEncounters }, response.status);
+  } catch (error) {
+    console.error('Runtime Encounter snapshot materialisation failed after committed Scene Runtime creation', {
+      sceneRunId,
+      sceneId,
+      message: String(error?.message || error)
+    });
+    return json({
+      ...payload,
+      runtimeEncounterWarning: { code: 'RUNTIME_ENCOUNTER_SNAPSHOT_DELAYED' }
+    }, response.status);
+  }
+}
+
 async function enrichGmRuntimeDetail(env, response) {
   if (!response.ok) return response;
   const payload = await response.json();
@@ -446,7 +469,7 @@ async function applyEffect(request, env, context, effect) {
       WHERE id = ? AND map_instance_id = ?
     `).bind(now, zone.id, context.mapInstanceId).run();
     if (Number(result?.meta?.changes || 0) !== 1) {
-      throw Object.assign(new Error('Runtime Zone reveal target changed before effect execution.'), {
+      throw Object.assign(new Error('Runtime Zone reveal target changed before Story Event effect execution.'), {
         status: 409, code: 'STORY_EFFECT_ZONE_CHANGED'
       });
     }
@@ -612,6 +635,10 @@ export default {
 
       match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/story-events\/([^/]+)\/activate$/);
       if (match) return await activateStoryEvent(request, env, decodeURIComponent(match[1]), decodeURIComponent(match[2]));
+
+      if (pathname === '/api/gm/world/runtime/scene-runs' && request.method === 'POST') {
+        return enrichStartedRuntime(env, await baseWorker.fetch(request, env));
+      }
 
       match = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)$/);
       if (match && request.method === 'GET') {
