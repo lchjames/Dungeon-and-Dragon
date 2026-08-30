@@ -103,10 +103,19 @@ async function ensureCombatSchema(env) {
         FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
         FOREIGN KEY (controller_user_id) REFERENCES users(id) ON DELETE SET NULL
       )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_combat_end_audit (
+        combat_id TEXT PRIMARY KEY,
+        ended_by_user_id TEXT NOT NULL,
+        ended_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
+        FOREIGN KEY (ended_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+      )`),
       env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_single_active_combat ON combats(status) WHERE status = 'active'"),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_combats_status ON combats(status, updated_at)'),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_combatants_combat_order ON combatants(combat_id, initiative_order)'),
-      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_combatants_controller ON combatants(controller_user_id, combat_id)')
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_combatants_controller ON combatants(controller_user_id, combat_id)'),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_combat_end_actor ON runtime_combat_end_audit(ended_by_user_id, ended_at)')
     ]).catch(error => {
       combatSchemaPromise = null;
       throw error;
@@ -431,20 +440,38 @@ async function forceTurn(request, env, combatId) {
 async function endCombat(request, env, combatId) {
   if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
-  await requireGM(request, env);
+  const user = await requireGM(request, env);
   await ensureCombatSchema(env);
 
   const loaded = await activeCombatById(env, combatId);
   if (loaded.error) return loaded.error;
   const now = Date.now();
-  const result = await env.DB.prepare(`
-    UPDATE combats
-    SET status = 'ended', ended_at = ?, updated_at = ?
-    WHERE id = ? AND status = 'active'
-  `).bind(now, now, combatId).run();
+  const results = await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE combats
+      SET status = 'ended', ended_at = ?, updated_at = ?
+      WHERE id = ? AND status = 'active'
+    `).bind(now, now, combatId),
+    env.DB.prepare(`
+      INSERT INTO runtime_combat_end_audit (
+        combat_id, ended_by_user_id, ended_at, created_at
+      )
+      SELECT ?, ?, ?, ?
+      WHERE EXISTS (
+        SELECT 1 FROM combats
+        WHERE id = ? AND status = 'ended' AND ended_at = ? AND updated_at = ?
+      )
+    `).bind(combatId, user.id, now, now, combatId, now, now)
+  ]);
 
-  if (Number(result?.meta?.changes || 0) !== 1) {
+  if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
     return apiError('Combat state 已改變，請重新載入。', 409, 'COMBAT_STATE_CHANGED');
+  }
+  if (Number(results?.[1]?.meta?.changes || 0) !== 1) {
+    throw Object.assign(new Error('Combat End audit could not be committed with Combat state.'), {
+      status: 500,
+      code: 'COMBAT_END_AUDIT_FAILED'
+    });
   }
   return json({ ok: true, combat: await loadCombat(env, combatId) });
 }
