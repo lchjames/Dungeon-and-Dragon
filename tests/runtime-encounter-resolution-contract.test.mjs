@@ -4,6 +4,7 @@ import { normalizeStoryTrigger, normalizeStoryEventStructure } from '../src/stor
 
 const migration = await readFile(new URL('../schema/0020_runtime_encounter_resolution.sql', import.meta.url), 'utf8');
 const service = await readFile(new URL('../src/runtime-encounter-resolution.js', import.meta.url), 'utf8');
+const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const story = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-resolution.js', import.meta.url), 'utf8');
@@ -13,7 +14,8 @@ const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 const canonical = await readFile(new URL('../docs/RUNTIME_ENCOUNTER_RESOLUTION_ALPHA.md', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS runtime_encounter_resolution_log/);
 assert.match(migration, /resolution_source TEXT NOT NULL CHECK \(resolution_source IN \('combat_hostiles_cleared', 'gm_manual'\)\)/);
@@ -113,4 +115,4 @@ assert.match(canonical, /Manual resolution intentionally does \*\*not\*\* requir
 assert.match(canonical, /encounter_resolved/);
 assert.match(canonical, /Definition \/ Runtime isolation/);
 
-console.log('Runtime Encounter resolution, post-Combat Story continuation including Boss spawn, GM control and production runner contract passed.');
+console.log('Runtime Encounter resolution, post-Combat Story continuation including Boss spawn, GM control and production runner contract passed behind Runtime Story lifecycle routing.');
