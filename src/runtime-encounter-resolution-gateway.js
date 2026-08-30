@@ -6,7 +6,7 @@ import {
   resolveRuntimeEncounter
 } from './runtime-encounter-resolution.js';
 import { processEncounterResolvedStoryEvents } from './encounter-resolved-story.js';
-import { processPendingEncounterActivatedStoryEvents } from './encounter-activated-story.js';
+import { processPendingRuntimeStoryLifecycleEvents } from './runtime-story-lifecycle.js';
 import { processSceneRunStartStoryEvents } from './scene-run-start-story.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
@@ -62,14 +62,14 @@ async function mapContext(env, mapInstanceId) {
   return { id: row.id, sceneRunId: row.scene_run_id, sceneId: row.scene_id, status: row.status };
 }
 
-async function drainEncounterActivated(env, sceneRunId, context = {}) {
+async function drainRuntimeLifecycle(env, sceneRunId, context = {}) {
   try {
     return {
-      events: await processPendingEncounterActivatedStoryEvents(env, { sceneRunId }),
+      events: await processPendingRuntimeStoryLifecycleEvents(env, { sceneRunId }),
       warning: null
     };
   } catch (error) {
-    console.error('encounter_activated Story lifecycle drain failed after committed Runtime mutation', {
+    console.error('Runtime Story lifecycle drain failed after committed Runtime mutation', {
       sceneRunId,
       ...context,
       code: error?.code || null,
@@ -77,9 +77,27 @@ async function drainEncounterActivated(env, sceneRunId, context = {}) {
     });
     return {
       events: [],
-      warning: { code: error?.code || 'STORY_ENCOUNTER_ACTIVATED_TRIGGER_ERROR' }
+      warning: { code: error?.code || 'STORY_LIFECYCLE_DRAIN_ERROR' }
     };
   }
+}
+
+function lifecycleGroups(...eventLists) {
+  const all = eventLists.flat().filter(Boolean);
+  const seen = new Set();
+  const unique = [];
+  for (const event of all) {
+    const key = [event.triggerType || '', event.occurrenceId || '', event.eventId || '', event.executionId || '', event.status || ''].join(':');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(event);
+  }
+  return {
+    storyLifecycleEvents: unique,
+    encounterActivatedStoryEvents: unique.filter(event => event.triggerType === 'encounter_activated'),
+    combatStartedStoryEvents: unique.filter(event => event.triggerType === 'combat_started'),
+    combatEndedStoryEvents: unique.filter(event => event.triggerType === 'combat_ended')
+  };
 }
 
 async function handleSceneRunStart(request, env) {
@@ -115,13 +133,16 @@ async function handleSceneRunStart(request, env) {
     sceneRunStartStoryWarning = { code: 'STORY_SCENE_RUN_START_ACTOR_UNAVAILABLE' };
   }
 
-  const activated = await drainEncounterActivated(env, map.sceneRunId, { mapInstanceId: map.id, source: 'scene_run_start' });
+  const lifecycle = await drainRuntimeLifecycle(env, map.sceneRunId, { mapInstanceId: map.id, source: 'scene_run_start' });
   return json({
     ...payload,
     sceneRunStartStoryEvents,
     ...(sceneRunStartStoryWarning ? { sceneRunStartStoryWarning } : {}),
-    encounterActivatedStoryEvents: activated.events,
-    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+    ...lifecycleGroups(lifecycle.events),
+    ...(lifecycle.warning ? {
+      storyLifecycleWarning: lifecycle.warning,
+      encounterActivatedStoryWarning: lifecycle.warning
+    } : {})
   }, response.status);
 }
 
@@ -171,14 +192,17 @@ async function handleManualResolve(request, env, mapInstanceId, encounterId) {
     }
   }
 
-  const activated = await drainEncounterActivated(env, map.sceneRunId, { mapInstanceId: map.id, source: 'encounter_resolved_manual' });
+  const lifecycle = await drainRuntimeLifecycle(env, map.sceneRunId, { mapInstanceId: map.id, source: 'encounter_resolved_manual' });
   return json({
     ok: true,
     resolution,
     storyEventsTriggered,
     ...(storyTriggerWarning ? { storyTriggerWarning } : {}),
-    encounterActivatedStoryEvents: activated.events,
-    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+    ...lifecycleGroups(lifecycle.events),
+    ...(lifecycle.warning ? {
+      storyLifecycleWarning: lifecycle.warning,
+      encounterActivatedStoryWarning: lifecycle.warning
+    } : {})
   });
 }
 
@@ -202,6 +226,14 @@ async function handleCombatEnd(request, env, combatId) {
   }
   if (!linked) return json(payload, response.status);
 
+  // Combat End lifecycle belongs between the committed Combat transition and Encounter auto-resolution.
+  // This preserves the meaningful state boundary: Combat=ended while Runtime Encounter is still active.
+  const preResolutionLifecycle = await drainRuntimeLifecycle(env, linked.sceneRunId, {
+    mapInstanceId: linked.mapInstanceId,
+    combatId,
+    source: 'combat_ended_pre_resolution'
+  });
+
   let resolution;
   try {
     resolution = await resolveRuntimeEncounter(env, {
@@ -221,6 +253,8 @@ async function handleCombatEnd(request, env, combatId) {
     });
     return json({
       ...payload,
+      ...lifecycleGroups(preResolutionLifecycle.events),
+      ...(preResolutionLifecycle.warning ? { storyLifecycleWarning: preResolutionLifecycle.warning } : {}),
       runtimeEncounterResolutionWarning: { code: error?.code || 'RUNTIME_ENCOUNTER_AUTO_RESOLUTION_ERROR' }
     }, response.status);
   }
@@ -245,14 +279,22 @@ async function handleCombatEnd(request, env, combatId) {
     }
   }
 
-  const activated = await drainEncounterActivated(env, linked.sceneRunId, { mapInstanceId: linked.mapInstanceId, combatId, source: 'encounter_resolved_combat' });
+  const postResolutionLifecycle = await drainRuntimeLifecycle(env, linked.sceneRunId, {
+    mapInstanceId: linked.mapInstanceId,
+    combatId,
+    source: 'encounter_resolved_combat'
+  });
+  const lifecycleWarning = preResolutionLifecycle.warning || postResolutionLifecycle.warning;
   return json({
     ...payload,
     runtimeEncounterResolution: resolution,
     storyEventsTriggered,
     ...(storyTriggerWarning ? { storyTriggerWarning } : {}),
-    encounterActivatedStoryEvents: activated.events,
-    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+    ...lifecycleGroups(preResolutionLifecycle.events, postResolutionLifecycle.events),
+    ...(lifecycleWarning ? {
+      storyLifecycleWarning: lifecycleWarning,
+      encounterActivatedStoryWarning: lifecycleWarning
+    } : {})
   }, response.status);
 }
 
@@ -273,15 +315,22 @@ async function handleStoryMutationWithEncounterDrain(request, env, mapInstanceId
     });
     return json({
       ...payload,
+      storyLifecycleEvents: [],
       encounterActivatedStoryEvents: [],
+      combatStartedStoryEvents: [],
+      combatEndedStoryEvents: [],
+      storyLifecycleWarning: { code: 'STORY_LIFECYCLE_MAP_LOOKUP_ERROR' },
       encounterActivatedStoryWarning: { code: 'STORY_ENCOUNTER_ACTIVATED_MAP_LOOKUP_ERROR' }
     }, response.status);
   }
-  const activated = await drainEncounterActivated(env, map.sceneRunId, { mapInstanceId: map.id, source });
+  const lifecycle = await drainRuntimeLifecycle(env, map.sceneRunId, { mapInstanceId: map.id, source });
   return json({
     ...payload,
-    encounterActivatedStoryEvents: activated.events,
-    ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+    ...lifecycleGroups(lifecycle.events),
+    ...(lifecycle.warning ? {
+      storyLifecycleWarning: lifecycle.warning,
+      encounterActivatedStoryWarning: lifecycle.warning
+    } : {})
   }, response.status);
 }
 
@@ -349,11 +398,14 @@ export default {
         const mapInstanceId = payload?.map?.id;
         const sceneRunId = payload?.map?.sceneRunId;
         if (!mapInstanceId || !sceneRunId) return json(payload, response.status);
-        const activated = await drainEncounterActivated(env, sceneRunId, { mapInstanceId, source: 'player_move_enter_zone' });
+        const lifecycle = await drainRuntimeLifecycle(env, sceneRunId, { mapInstanceId, source: 'player_move_enter_zone' });
         return json({
           ...payload,
-          encounterActivatedStoryEvents: activated.events,
-          ...(activated.warning ? { encounterActivatedStoryWarning: activated.warning } : {})
+          ...lifecycleGroups(lifecycle.events),
+          ...(lifecycle.warning ? {
+            storyLifecycleWarning: lifecycle.warning,
+            encounterActivatedStoryWarning: lifecycle.warning
+          } : {})
         }, response.status);
       }
 
