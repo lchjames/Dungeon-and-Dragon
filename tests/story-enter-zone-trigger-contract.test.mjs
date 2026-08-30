@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
@@ -10,7 +11,8 @@ const liveRunner = await readFile(new URL('../scripts/production-alpha-story-zon
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
@@ -55,4 +57,4 @@ assert.match(liveRunner, /triggerType === 'enter_zone'/);
 assert.match(orchestrator, /production-alpha-story-zone-e2e\.mjs/);
 assert.match(orchestrator, /'story-enter-zone'/);
 
-console.log('Story Event enter-zone trigger integration contract passed behind Runtime Encounter resolution routing.');
+console.log('Story Event enter-zone trigger integration contract passed behind Runtime Story lifecycle and Runtime Encounter resolution routing.');
