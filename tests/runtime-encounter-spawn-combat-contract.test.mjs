@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const service = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
@@ -12,7 +13,8 @@ const liveBossRunner = await readFile(new URL('../scripts/production-alpha-runti
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(gateway, /from '\.\/runtime-encounter-service\.js'/);
@@ -129,4 +131,4 @@ assert.match(orchestrator, /production-alpha-runtime-boss-e2e\.mjs/);
 assert.match(orchestrator, /'runtime-encounter-spawn-combat'/);
 assert.match(orchestrator, /'runtime-boss-spawn-combat'/);
 
-console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runners contract passed behind resolution routing.');
+console.log('Runtime Encounter Monster/Boss spawn, shared Combat service, GM control and production runners contract passed behind Runtime Story lifecycle and resolution routing.');
