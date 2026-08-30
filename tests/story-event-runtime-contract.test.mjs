@@ -7,9 +7,12 @@ const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const runtimeEncounterState = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
+const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
+const runtimeLifecycle = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const sceneRunStartStory = await readFile(new URL('../src/scene-run-start-story.js', import.meta.url), 'utf8');
 const encounterActivatedStory = await readFile(new URL('../src/encounter-activated-story.js', import.meta.url), 'utf8');
 const lifecycleMigration = await readFile(new URL('../schema/0022_story_lifecycle_dispatches.sql', import.meta.url), 'utf8');
+const combatStartedMigration = await readFile(new URL('../schema/0023_story_combat_started_trigger.sql', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', import.meta.url), 'utf8');
 const gmRoot = await readFile(new URL('../public/assets/gm-attack-profiles.js', import.meta.url), 'utf8');
@@ -18,12 +21,15 @@ const playerMapUi = await readFile(new URL('../public/assets/player-map-ui.js', 
 const liveRunner = await readFile(new URL('../scripts/production-alpha-story-event-e2e.mjs', import.meta.url), 'utf8');
 const sceneRunStartRunner = await readFile(new URL('../scripts/production-alpha-story-scene-run-start-e2e.mjs', import.meta.url), 'utf8');
 const encounterActivatedRunner = await readFile(new URL('../scripts/production-alpha-story-encounter-activated-e2e.mjs', import.meta.url), 'utf8');
+const combatStartedRunner = await readFile(new URL('../scripts/production-alpha-story-combat-started-e2e.mjs', import.meta.url), 'utf8');
 const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs', import.meta.url), 'utf8');
 const sceneStartCanonical = await readFile(new URL('../docs/STORY_SCENE_RUN_START_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
 const encounterActivatedCanonical = await readFile(new URL('../docs/STORY_ENCOUNTER_ACTIVATED_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
+const combatStartedCanonical = await readFile(new URL('../docs/STORY_COMBAT_STARTED_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-encounter-resolution-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(zoneGateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
@@ -46,12 +52,14 @@ assert.match(gateway, /runtime_story_narratives/);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
 
-for (const value of ['manual', 'scene_run_start', 'enter_zone', 'encounter_activated', 'encounter_resolved', 'event_not_fired', 'flag_equals', 'door_state', 'show_narrative', 'set_flag', 'reveal_zone', 'open_door', 'close_door']) {
+for (const value of ['manual', 'scene_run_start', 'enter_zone', 'encounter_activated', 'encounter_resolved', 'combat_started', 'event_not_fired', 'flag_equals', 'door_state', 'show_narrative', 'set_flag', 'reveal_zone', 'open_door', 'close_door']) {
   assert.match(rules, new RegExp(`'${value}'`));
 }
 assert.deepEqual(normalizeStoryTrigger('scene_run_start', { ignored: true }), {});
 assert.deepEqual(normalizeStoryTrigger('encounter_activated', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
+assert.deepEqual(normalizeStoryTrigger('combat_started', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.throws(() => normalizeStoryTrigger('encounter_activated', {}));
+assert.throws(() => normalizeStoryTrigger('combat_started', {}));
 assert.match(rules, /sourceEdgeId/);
 assert.match(rules, /sourceZoneId/);
 assert.doesNotMatch(rules, /eval\s*\(/);
@@ -60,7 +68,7 @@ assert.doesNotMatch(rules, /new Function\s*\(/);
 assert.match(gmUi, /<h3>Story Events<\/h3>/);
 assert.match(gmUi, /Trigger \+ Conditions \+ Approved Effects/);
 assert.match(gmUi, /'manual', 'scene_run_start', 'enter_zone', 'interact_object'/);
-assert.match(gmUi, /'encounter_activated', 'encounter_resolved'/);
+assert.match(gmUi, /'encounter_activated', 'encounter_resolved', 'combat_started'/);
 assert.match(gmUi, /id="gm-story-event-conditions"/);
 assert.match(gmUi, /id="gm-story-event-effects"/);
 assert.match(gmUi, /sourceEdgeId/);
@@ -143,26 +151,48 @@ assert.match(runtimeEncounterState, /activated_at/);
 assert.match(runtimeEncounterState, /COALESCE\(activated_by_user_id, \?\)/);
 assert.doesNotMatch(runtimeEncounterState, /UPDATE\s+encounters\s+SET\s+status/i);
 
-assert.match(encounterActivatedStory, /TRIGGER_TYPE = 'encounter_activated'/);
-assert.match(encounterActivatedStory, /MAX_OCCURRENCES_PER_DRAIN = 50/);
-assert.match(encounterActivatedStory, /LEASE_TIMEOUT_MS/);
-assert.match(encounterActivatedStory, /claimNextOccurrence/);
-assert.match(encounterActivatedStory, /lease_token/);
-assert.match(encounterActivatedStory, /runtime_story_lifecycle_dispatches/);
-assert.match(encounterActivatedStory, /created_at <= \?/);
-assert.match(encounterActivatedStory, /normalizeStoryTrigger\(TRIGGER_TYPE/);
+assert.match(combatStartedMigration, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_started_story_occurrence/);
+assert.match(combatStartedMigration, /AFTER INSERT ON runtime_encounter_combats/);
+assert.match(combatStartedMigration, /'combat_started'/);
+assert.match(combatStartedMigration, /'combat'/);
+assert.match(combatStartedMigration, /NEW\.combat_id/);
+assert.match(combatStartedMigration, /COALESCE\(c\.started_at, NEW\.linked_at\)/);
+assert.match(combatStartedMigration, /NEW\.linked_by_user_id/);
+assert.doesNotMatch(combatStartedMigration, /encounter_participants/);
+assert.doesNotMatch(combatStartedMigration, /encounter_combats\s+SET/i);
+assert.doesNotMatch(combatStartedMigration, /UPDATE\s+encounters\s+SET/i);
+
+assert.match(encounterActivatedStory, /processPendingRuntimeStoryLifecycleEvents/);
 assert.match(encounterActivatedStory, /processPendingEncounterActivatedStoryEvents/);
-assert.match(encounterActivatedStory, /STORY_LIFECYCLE_CASCADE_LIMIT/);
-assert.match(encounterActivatedStory, /spawnRuntimeMonster/);
-assert.match(encounterActivatedStory, /spawnRuntimeBoss/);
-assert.match(encounterActivatedStory, /startRuntimeEncounterCombat/);
-assert.match(encounterActivatedStory, /activateRuntimeEncounter/);
-assert.doesNotMatch(encounterActivatedStory, /INSERT INTO encounter_participants/);
-assert.doesNotMatch(encounterActivatedStory, /INSERT INTO encounter_combats/);
-assert.doesNotMatch(encounterActivatedStory, /UPDATE\s+encounters\s+SET\s+status/i);
-assert.doesNotMatch(encounterActivatedStory, /\/api\/gm\//, 'Lifecycle dispatcher must use server-internal Runtime services rather than GM HTTP impersonation.');
-assert.doesNotMatch(encounterActivatedStory, /eval\s*\(/);
-assert.doesNotMatch(encounterActivatedStory, /new Function\s*\(/);
+assert.doesNotMatch(encounterActivatedStory, /runtime_story_lifecycle_dispatches/);
+
+assert.match(runtimeLifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started'\]\)/);
+assert.match(runtimeLifecycle, /MAX_OCCURRENCES_PER_DRAIN = 50/);
+assert.match(runtimeLifecycle, /LEASE_TIMEOUT_MS/);
+assert.match(runtimeLifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_started_story_occurrence/);
+assert.match(runtimeLifecycle, /AFTER INSERT ON runtime_encounter_combats/);
+assert.match(runtimeLifecycle, /trigger_type IN \('encounter_activated', 'combat_started'\)/);
+assert.match(runtimeLifecycle, /claimNextOccurrence/);
+assert.match(runtimeLifecycle, /lease_token/);
+assert.match(runtimeLifecycle, /runtime_story_lifecycle_dispatches/);
+assert.match(runtimeLifecycle, /created_at <= \?/);
+assert.match(runtimeLifecycle, /normalizeStoryTrigger\(occurrence\.trigger_type/);
+assert.match(runtimeLifecycle, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(runtimeLifecycle, /STORY_LIFECYCLE_CASCADE_LIMIT/);
+assert.match(runtimeLifecycle, /runtime_encounter_combats rec/);
+assert.match(runtimeLifecycle, /linked\.encounter_id/);
+assert.match(runtimeLifecycle, /spawnRuntimeMonster/);
+assert.match(runtimeLifecycle, /spawnRuntimeBoss/);
+assert.match(runtimeLifecycle, /startRuntimeEncounterCombat/);
+assert.match(runtimeLifecycle, /activateRuntimeEncounter/);
+assert.match(runtimeLifecycle, /triggerType: occurrence\.trigger_type/);
+assert.match(runtimeLifecycle, /combatId: subject\.combatId/);
+assert.doesNotMatch(runtimeLifecycle, /INSERT INTO encounter_participants/);
+assert.doesNotMatch(runtimeLifecycle, /INSERT INTO encounter_combats/);
+assert.doesNotMatch(runtimeLifecycle, /UPDATE\s+encounters\s+SET\s+status/i);
+assert.doesNotMatch(runtimeLifecycle, /\/api\/gm\//, 'Generic lifecycle dispatcher must use server-internal Runtime services rather than GM HTTP impersonation.');
+assert.doesNotMatch(runtimeLifecycle, /eval\s*\(/);
+assert.doesNotMatch(runtimeLifecycle, /new Function\s*\(/);
 
 assert.match(resolutionGateway, /processPendingEncounterActivatedStoryEvents/);
 assert.match(resolutionGateway, /drainEncounterActivated/);
@@ -173,14 +203,18 @@ assert.match(resolutionGateway, /player_move_enter_zone/);
 assert.match(resolutionGateway, /encounter_resolved_manual/);
 assert.match(resolutionGateway, /encounter_resolved_combat/);
 assert.match(resolutionGateway, /source: 'scene_run_start'/);
-assert.ok(
-  resolutionGateway.includes('story-events\\/([^/]+)\\/activate'),
-  'Top-level Runtime gateway must drain encounter_activated occurrences after manual Story activation.'
-);
-assert.ok(
-  resolutionGateway.includes('api\\/player\\/world\\/characters'),
-  'Top-level Runtime gateway must drain encounter_activated occurrences after Player Move / enter_zone Story.'
-);
+
+assert.match(lifecycleGateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
+assert.match(lifecycleGateway, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(lifecycleGateway, /STORY_LIFECYCLE_AUTHORITY_UNAVAILABLE/);
+assert.match(lifecycleGateway, /Runtime Story lifecycle drain failed after committed mutation/);
+assert.match(lifecycleGateway, /storyLifecycleEvents/);
+assert.match(lifecycleGateway, /encounterActivatedStoryEvents/);
+assert.match(lifecycleGateway, /combatStartedStoryEvents/);
+assert.match(lifecycleGateway, /start-combat/);
+assert.match(lifecycleGateway, /story-events/);
+assert.match(lifecycleGateway, /api\\\/player\\\/world\\\/characters/);
+assert.match(lifecycleGateway, /api\\\/gm\\\/combat/);
 
 assert.match(encounterActivatedRunner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(encounterActivatedRunner, /triggerType:\s*'encounter_activated'/);
@@ -194,6 +228,19 @@ assert.match(encounterActivatedRunner, /Definition status/);
 assert.match(orchestrator, /production-alpha-story-encounter-activated-e2e\.mjs/);
 assert.match(orchestrator, /'story-encounter-activated'/);
 
+assert.match(combatStartedRunner, /DND_ALPHA_EXECUTE === '1'/);
+assert.match(combatStartedRunner, /triggerType:\s*'combat_started'/);
+assert.match(combatStartedRunner, /ignoredByCanonicalNormalizer/);
+assert.match(combatStartedRunner, /\/start-combat/);
+assert.match(combatStartedRunner, /combatStartedStoryEvents/);
+assert.match(combatStartedRunner, /storyLifecycleEvents/);
+assert.match(combatStartedRunner, /combat_started → encounter_activated\(B\) cascade did not apply/);
+assert.match(combatStartedRunner, /Retry start-combat did not return the existing Runtime Combat idempotently/);
+assert.match(combatStartedRunner, /zero duplicate lifecycle Narrative \/ dispatch result/);
+assert.match(combatStartedRunner, /Definition status \/ roster \/ legacy Combat isolation verification/);
+assert.match(orchestrator, /production-alpha-story-combat-started-e2e\.mjs/);
+assert.match(orchestrator, /'story-combat-started'/);
+
 assert.match(encounterActivatedCanonical, /same D1 batch/);
 assert.match(encounterActivatedCanonical, /created_at <= occurrence\.source_at/);
 assert.match(encounterActivatedCanonical, /runtime_story_lifecycle_occurrences/);
@@ -202,8 +249,19 @@ assert.match(encounterActivatedCanonical, /50 occurrences/);
 assert.match(encounterActivatedCanonical, /Definition \/ Runtime isolation/);
 assert.match(encounterActivatedCanonical, /interact_object/);
 
+assert.match(combatStartedCanonical, /AFTER INSERT/);
+assert.match(combatStartedCanonical, /runtime_encounter_combats/);
+assert.match(combatStartedCanonical, /same transaction boundary/);
+assert.match(combatStartedCanonical, /subject_type = combat/);
+assert.match(combatStartedCanonical, /story_events\.created_at <= occurrence\.source_at/);
+assert.match(combatStartedCanonical, /combat_started\(A\)/);
+assert.match(combatStartedCanonical, /encounter_activated\(B\)/);
+assert.match(combatStartedCanonical, /50 supported lifecycle occurrences/);
+assert.match(combatStartedCanonical, /Definition \/ Runtime isolation/);
+assert.match(combatStartedCanonical, /combat_ended/);
+
 assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual + scene_run_start + durable encounter_activated lifecycle runtime integration contract passed.');
+console.log('Story Event manual + scene_run_start + durable encounter_activated + combat_started lifecycle runtime integration contract passed.');
