@@ -23,12 +23,13 @@ try {
   runComponent('Production Encounter Activated Story E2E', './production-alpha-story-encounter-activated-e2e.mjs');
   runComponent('Production Combat Started Story E2E', './production-alpha-story-combat-started-e2e.mjs');
   runComponent('Production Combat Ended Story E2E', './production-alpha-story-combat-ended-e2e.mjs');
+  runComponent('Production Encounter Resolved Story E2E', './production-alpha-runtime-resolution-e2e.mjs');
+  runComponent('Production Flag Changed Story E2E', './production-alpha-story-flag-changed-e2e.mjs');
   runComponent('Production Enter-zone Story Event E2E', './production-alpha-story-zone-e2e.mjs');
   runComponent('Production Runtime Encounter Spawn / Combat E2E', './production-alpha-runtime-encounter-e2e.mjs');
   runComponent('Production Player Zone → Story Spawn → Combat E2E', './production-alpha-story-combat-e2e.mjs');
   runComponent('Production Runtime Boss Spawn / Combat E2E', './production-alpha-runtime-boss-e2e.mjs');
   runComponent('Production Story Boss Spawn Retry E2E', './production-alpha-story-boss-e2e.mjs');
-  runComponent('Production Runtime Encounter Resolution E2E', './production-alpha-runtime-resolution-e2e.mjs');
   runComponent('Production Combat / Focus E2E', './production-alpha-combat-e2e.mjs');
   console.log(JSON.stringify({
     ok: true,
@@ -42,12 +43,13 @@ try {
       'story-encounter-activated',
       'story-combat-started',
       'story-combat-ended',
+      'runtime-encounter-resolution',
+      'story-flag-changed',
       'story-enter-zone',
       'runtime-encounter-spawn-combat',
       'story-runtime-spawn-combat',
       'runtime-boss-spawn-combat',
       'story-runtime-spawn-boss-retry',
-      'runtime-encounter-resolution',
       'combat-focus'
     ]
   }, null, 2));
