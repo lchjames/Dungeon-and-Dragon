@@ -41,9 +41,9 @@ assert.match(resolution, /env\.DB\.batch\(\[/);
 assert.match(resolution, /SET status = 'resolved'/);
 assert.match(resolution, /INSERT INTO runtime_encounter_resolution_log/);
 
-assert.match(lifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved'\]\)/);
+assert.match(lifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed'\]\)/);
 assert.match(lifecycle, /ensureRuntimeEncounterResolutionSchema/);
-assert.match(lifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved'\)/);
+assert.match(lifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed'\)/);
 assert.match(lifecycle, /occurrence\.trigger_type === 'encounter_resolved'/);
 assert.match(lifecycle, /occurrence\.subject_type !== 'encounter_resolution'/);
 assert.match(lifecycle, /FROM runtime_encounter_resolution_log/);

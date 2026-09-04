@@ -11,7 +11,7 @@ import {
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
 
-const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved']);
+const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed']);
 const SUPPORTED_TRIGGER_SET = new Set(SUPPORTED_TRIGGER_TYPES);
 const MAX_OCCURRENCES_PER_DRAIN = 50;
 const LEASE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -34,6 +34,87 @@ export async function ensureRuntimeStoryLifecycleAuthoritySchema(env) {
   await ensureRuntimeEncounterResolutionSchema(env);
   if (!authoritySchemaPromise) {
     authoritySchemaPromise = env.DB.batch([
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_story_flags (
+        scene_run_id TEXT NOT NULL,
+        flag_key TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        updated_by_user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (scene_run_id, flag_key),
+        FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
+        FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_story_flag_change_log (
+        id TEXT PRIMARY KEY,
+        scene_run_id TEXT NOT NULL,
+        flag_key TEXT NOT NULL,
+        from_value_json TEXT,
+        to_value_json TEXT NOT NULL,
+        changed_by_user_id TEXT NOT NULL,
+        changed_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (scene_run_id) REFERENCES scene_runs(id) ON DELETE CASCADE,
+        FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+      )`),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_story_flag_change_scene ON runtime_story_flag_change_log(scene_run_id, flag_key, changed_at, created_at)'),
+      env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_runtime_story_flag_insert_change_log
+        AFTER INSERT ON runtime_story_flags
+        BEGIN
+          INSERT INTO runtime_story_flag_change_log (
+            id, scene_run_id, flag_key, from_value_json, to_value_json,
+            changed_by_user_id, changed_at, created_at
+          ) VALUES (
+            'story_flag_change_' || lower(hex(randomblob(16))),
+            NEW.scene_run_id,
+            NEW.flag_key,
+            NULL,
+            NEW.value_json,
+            NEW.updated_by_user_id,
+            NEW.updated_at,
+            NEW.updated_at
+          );
+        END`),
+      env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_runtime_story_flag_update_change_log
+        AFTER UPDATE OF value_json ON runtime_story_flags
+        WHEN OLD.value_json IS NOT NEW.value_json
+        BEGIN
+          INSERT INTO runtime_story_flag_change_log (
+            id, scene_run_id, flag_key, from_value_json, to_value_json,
+            changed_by_user_id, changed_at, created_at
+          ) VALUES (
+            'story_flag_change_' || lower(hex(randomblob(16))),
+            NEW.scene_run_id,
+            NEW.flag_key,
+            OLD.value_json,
+            NEW.value_json,
+            NEW.updated_by_user_id,
+            NEW.updated_at,
+            NEW.updated_at
+          );
+        END`),
+      env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_runtime_story_flag_changed_occurrence
+        AFTER INSERT ON runtime_story_flag_change_log
+        BEGIN
+          INSERT OR IGNORE INTO runtime_story_lifecycle_occurrences (
+            id, scene_run_id, trigger_type, subject_type, subject_id,
+            source_at, actor_user_id, lease_token, lease_at, completed_at,
+            created_at, updated_at
+          ) VALUES (
+            'story_lifecycle_' || lower(hex(randomblob(16))),
+            NEW.scene_run_id,
+            'flag_changed',
+            'story_flag_change',
+            NEW.id,
+            NEW.changed_at,
+            NEW.changed_by_user_id,
+            NULL,
+            NULL,
+            NULL,
+            NEW.created_at,
+            NEW.created_at
+          );
+        END`),
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_combat_end_audit (
         combat_id TEXT PRIMARY KEY,
         ended_by_user_id TEXT NOT NULL,
@@ -490,7 +571,7 @@ async function claimNextOccurrence(env, sceneRunId) {
       SELECT rowid AS occurrence_sequence, *
       FROM runtime_story_lifecycle_occurrences
       WHERE scene_run_id = ?
-        AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved')
+        AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed')
         AND completed_at IS NULL
         AND (lease_token IS NULL OR lease_at IS NULL OR lease_at < ?)
       ORDER BY source_at, created_at, occurrence_sequence
@@ -551,6 +632,38 @@ async function runtimeContext(env, sceneRunId) {
 }
 
 async function occurrenceSubject(env, occurrence, encounters, mapInstanceId) {
+  if (occurrence.trigger_type === 'flag_changed') {
+    if (occurrence.subject_type !== 'story_flag_change') {
+      throw Object.assign(new Error('flag_changed occurrence has an invalid subject type.'), {
+        code: 'STORY_LIFECYCLE_SUBJECT_INVALID'
+      });
+    }
+    const change = await env.DB.prepare(`
+      SELECT id, scene_run_id, flag_key, from_value_json, to_value_json,
+             changed_by_user_id, changed_at, created_at
+      FROM runtime_story_flag_change_log
+      WHERE id = ? AND scene_run_id = ?
+      LIMIT 1
+    `).bind(occurrence.subject_id, occurrence.scene_run_id).first();
+    if (!change || change.changed_by_user_id !== occurrence.actor_user_id || Number(change.changed_at) !== Number(occurrence.source_at)) {
+      throw Object.assign(new Error('flag_changed occurrence does not point to a valid committed Story flag change.'), {
+        code: 'STORY_LIFECYCLE_FLAG_CHANGE_INVALID'
+      });
+    }
+    return {
+      triggerType: occurrence.trigger_type,
+      encounterId: null,
+      combatId: null,
+      resolutionId: null,
+      flagChangeId: change.id,
+      flagKey: change.flag_key,
+      flagHadPreviousValue: change.from_value_json !== null,
+      flagFromValue: change.from_value_json === null ? null : parseJson(change.from_value_json, null),
+      flagToValue: parseJson(change.to_value_json, null),
+      flagChangedAt: change.changed_at
+    };
+  }
+
   if (occurrence.trigger_type === 'encounter_activated') {
     if (occurrence.subject_type !== 'encounter') {
       throw Object.assign(new Error('encounter_activated occurrence has an invalid subject type.'), {
@@ -640,6 +753,24 @@ async function occurrenceSubject(env, occurrence, encounters, mapInstanceId) {
   });
 }
 
+function triggerMatchesSubject(triggerType, trigger, subject) {
+  if (triggerType === 'flag_changed') return trigger.key === subject.flagKey;
+  return trigger.encounterId === subject.encounterId;
+}
+
+function subjectResultMetadata(subject) {
+  return {
+    encounterId: subject.encounterId,
+    combatId: subject.combatId,
+    resolutionId: subject.resolutionId,
+    flagChangeId: subject.flagChangeId || null,
+    flagKey: subject.flagKey || null,
+    flagHadPreviousValue: subject.flagHadPreviousValue ?? null,
+    flagFromValue: subject.flagFromValue ?? null,
+    flagToValue: subject.flagToValue ?? null
+  };
+}
+
 async function processOccurrence(env, occurrence) {
   if (!SUPPORTED_TRIGGER_SET.has(occurrence.trigger_type)) {
     throw Object.assign(new Error(`Unsupported Runtime Story lifecycle trigger: ${occurrence.trigger_type}`), {
@@ -666,6 +797,7 @@ async function processOccurrence(env, occurrence) {
     occurrenceDispatchIds(env, occurrence.id)
   ]);
   const subject = await occurrenceSubject(env, occurrence, encounters, map.id);
+  if (subject.flagKey) flags.set(subject.flagKey, subject.flagToValue);
   const shared = {
     actor: { id: occurrence.actor_user_id },
     sceneRunId: sceneRun.id,
@@ -679,7 +811,11 @@ async function processOccurrence(env, occurrence) {
     lifecycleTriggerType: occurrence.trigger_type,
     lifecycleEncounterId: subject.encounterId,
     lifecycleCombatId: subject.combatId,
-    lifecycleResolutionId: subject.resolutionId
+    lifecycleResolutionId: subject.resolutionId,
+    lifecycleFlagChangeId: subject.flagChangeId || null,
+    lifecycleFlagKey: subject.flagKey || null,
+    lifecycleFlagFromValue: subject.flagFromValue ?? null,
+    lifecycleFlagToValue: subject.flagToValue ?? null
   };
   const results = [];
   for (const row of eventRows.results || []) {
@@ -699,15 +835,13 @@ async function processOccurrence(env, occurrence) {
         results.push({
           ...failed,
           triggerType: occurrence.trigger_type,
-          encounterId: subject.encounterId,
-          combatId: subject.combatId,
-          resolutionId: subject.resolutionId,
+          ...subjectResultMetadata(subject),
           occurrenceId: occurrence.id
         });
       }
       continue;
     }
-    if (trigger.encounterId !== subject.encounterId || alreadyDispatched.has(event.id)) continue;
+    if (!triggerMatchesSubject(occurrence.trigger_type, trigger, subject) || alreadyDispatched.has(event.id)) continue;
     const firedCount = counts.get(event.id) || 0;
     const result = await executeEvent(env, shared, event, firedCount);
     await writeDispatch(env, occurrence.id, event.id, result);
@@ -715,9 +849,7 @@ async function processOccurrence(env, occurrence) {
     results.push({
       ...result,
       triggerType: occurrence.trigger_type,
-      encounterId: subject.encounterId,
-      combatId: subject.combatId,
-      resolutionId: subject.resolutionId,
+      ...subjectResultMetadata(subject),
       occurrenceId: occurrence.id
     });
   }
@@ -743,7 +875,7 @@ export async function processPendingRuntimeStoryLifecycleEvents(env, { sceneRunI
   const pending = await env.DB.prepare(`
     SELECT id FROM runtime_story_lifecycle_occurrences
     WHERE scene_run_id = ?
-      AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved')
+      AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed')
       AND completed_at IS NULL
     LIMIT 1
   `).bind(sceneRunId).first();

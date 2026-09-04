@@ -47,10 +47,10 @@ assert.throws(() => normalizeStoryTrigger('combat_ended', {}));
 assert.match(rules, /'combat_ended'/);
 assert.match(rules, /type === 'encounter_activated' \|\| type === 'encounter_resolved' \|\| type === 'combat_started' \|\| type === 'combat_ended'/);
 
-assert.match(lifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved'\]\)/);
+assert.match(lifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed'\]\)/);
 assert.match(lifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_ended_story_occurrence/);
 assert.match(lifecycle, /AFTER INSERT ON runtime_combat_end_audit/);
-assert.match(lifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved'\)/);
+assert.match(lifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed'\)/);
 assert.match(lifecycle, /occurrence\.trigger_type === 'combat_started' \|\| occurrence\.trigger_type === 'combat_ended'/);
 assert.match(lifecycle, /linked\.combat_status !== 'ended'/);
 assert.match(lifecycle, /STORY_LIFECYCLE_COMBAT_NOT_ENDED/);

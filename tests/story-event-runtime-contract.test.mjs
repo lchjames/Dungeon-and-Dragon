@@ -61,6 +61,7 @@ for (const value of [
   'encounter_resolved',
   'combat_started',
   'combat_ended',
+  'flag_changed',
   'event_not_fired',
   'flag_equals',
   'door_state',
@@ -77,10 +78,12 @@ assert.deepEqual(normalizeStoryTrigger('encounter_activated', { encounterId: 'en
 assert.deepEqual(normalizeStoryTrigger('encounter_resolved', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('combat_started', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('combat_ended', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
+assert.deepEqual(normalizeStoryTrigger('flag_changed', { key: 'Quest.Stage', ignored: true }), { key: 'quest.stage' });
 assert.throws(() => normalizeStoryTrigger('encounter_activated', {}));
 assert.throws(() => normalizeStoryTrigger('encounter_resolved', {}));
 assert.throws(() => normalizeStoryTrigger('combat_started', {}));
 assert.throws(() => normalizeStoryTrigger('combat_ended', {}));
+assert.throws(() => normalizeStoryTrigger('flag_changed', {}));
 assert.match(rules, /sourceEdgeId/);
 assert.match(rules, /sourceZoneId/);
 assert.doesNotMatch(rules, /eval\s*\(/);
@@ -89,7 +92,7 @@ assert.doesNotMatch(rules, /new Function\s*\(/);
 assert.match(gmUi, /<h3>Story Events<\/h3>/);
 assert.match(gmUi, /Trigger \+ Conditions \+ Approved Effects/);
 assert.match(gmUi, /'manual', 'scene_run_start', 'enter_zone', 'interact_object'/);
-assert.match(gmUi, /'encounter_activated', 'encounter_resolved', 'combat_started', 'combat_ended'/);
+assert.match(gmUi, /'encounter_activated', 'encounter_resolved', 'combat_started', 'combat_ended', 'flag_changed'/);
 assert.match(gmUi, /id="gm-story-event-conditions"/);
 assert.match(gmUi, /id="gm-story-event-effects"/);
 assert.match(gmUi, /sourceEdgeId/);
@@ -187,14 +190,16 @@ assert.match(encounterActivatedStory, /processPendingRuntimeStoryLifecycleEvents
 assert.match(encounterActivatedStory, /processPendingEncounterActivatedStoryEvents/);
 assert.doesNotMatch(encounterActivatedStory, /runtime_story_lifecycle_dispatches/);
 
-assert.match(runtimeLifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved'\]\)/);
+assert.match(runtimeLifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed'\]\)/);
 assert.match(runtimeLifecycle, /MAX_OCCURRENCES_PER_DRAIN = 50/);
 assert.match(runtimeLifecycle, /LEASE_TIMEOUT_MS/);
 assert.match(runtimeLifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_started_story_occurrence/);
 assert.match(runtimeLifecycle, /AFTER INSERT ON runtime_encounter_combats/);
 assert.match(runtimeLifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_ended_story_occurrence/);
 assert.match(runtimeLifecycle, /AFTER INSERT ON runtime_combat_end_audit/);
-assert.match(runtimeLifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved'\)/);
+assert.match(runtimeLifecycle, /CREATE TABLE IF NOT EXISTS runtime_story_flag_change_log/);
+assert.match(runtimeLifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_story_flag_changed_occurrence/);
+assert.match(runtimeLifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed'\)/);
 assert.match(runtimeLifecycle, /claimNextOccurrence/);
 assert.match(runtimeLifecycle, /lease_token/);
 assert.match(runtimeLifecycle, /runtime_story_lifecycle_dispatches/);
@@ -206,6 +211,8 @@ assert.match(runtimeLifecycle, /runtime_encounter_combats rec/);
 assert.match(runtimeLifecycle, /linked\.encounter_id/);
 assert.match(runtimeLifecycle, /runtime_encounter_resolution_log/);
 assert.match(runtimeLifecycle, /encounter\.status !== 'resolved'/);
+assert.match(runtimeLifecycle, /occurrence\.trigger_type === 'flag_changed'/);
+assert.match(runtimeLifecycle, /flagKey: change\.flag_key/);
 assert.match(runtimeLifecycle, /spawnRuntimeMonster/);
 assert.match(runtimeLifecycle, /spawnRuntimeBoss/);
 assert.match(runtimeLifecycle, /startRuntimeEncounterCombat/);
@@ -213,6 +220,7 @@ assert.match(runtimeLifecycle, /activateRuntimeEncounter/);
 assert.match(runtimeLifecycle, /triggerType: occurrence\.trigger_type/);
 assert.match(runtimeLifecycle, /combatId: subject\.combatId/);
 assert.match(runtimeLifecycle, /resolutionId: subject\.resolutionId/);
+assert.match(runtimeLifecycle, /flagChangeId: subject\.flagChangeId \|\| null/);
 assert.doesNotMatch(runtimeLifecycle, /INSERT INTO encounter_participants/);
 assert.doesNotMatch(runtimeLifecycle, /INSERT INTO encounter_combats/);
 assert.doesNotMatch(runtimeLifecycle, /UPDATE\s+encounters\s+SET\s+status/i);
@@ -245,6 +253,7 @@ assert.match(lifecycleGateway, /encounterActivatedStoryEvents/);
 assert.match(lifecycleGateway, /combatStartedStoryEvents/);
 assert.match(lifecycleGateway, /combatEndedStoryEvents/);
 assert.match(lifecycleGateway, /encounterResolvedStoryEvents/);
+assert.match(lifecycleGateway, /flagChangedStoryEvents/);
 assert.match(lifecycleGateway, /start-combat/);
 assert.match(lifecycleGateway, /story-events/);
 assert.match(lifecycleGateway, /api\\\/player\\\/world\\\/characters/);
@@ -298,4 +307,4 @@ assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual + scene_run_start + durable encounter_activated + combat_started + combat_ended + encounter_resolved lifecycle runtime integration contract passed.');
+console.log('Story Event manual + scene_run_start + durable encounter_activated + combat_started + combat_ended + encounter_resolved + flag_changed lifecycle runtime integration contract passed.');
