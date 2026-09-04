@@ -47,7 +47,7 @@ jobs:
           node tests/story-combat-ended-trigger-contract.test.mjs
           node tests/story-encounter-resolved-trigger-contract.test.mjs
 
-      - name: Static / deployment contract tests
+      - name: General static contracts
         run: |
           node tests/static-ui-contract.test.mjs
           node tests/player-focus-contract.test.mjs
@@ -55,16 +55,25 @@ jobs:
           node tests/boss-defeat-contract.test.mjs
           node tests/admin-auth-contract.test.mjs
           node tests/deployment-contract.test.mjs
+
+      - name: World Map static contracts
+        run: |
           node tests/world-map-foundation.test.mjs
           node tests/world-map-grid-editor.test.mjs
           node tests/runtime-map-position.test.mjs
           node tests/runtime-token-visibility-contract.test.mjs
+
+      - name: Story and Runtime Encounter contracts
+        run: |
           node tests/story-event-runtime-contract.test.mjs
           node tests/story-enter-zone-trigger-contract.test.mjs
           node tests/story-runtime-spawn-combat-effects-contract.test.mjs
           node tests/runtime-encounter-state-contract.test.mjs
           node tests/runtime-encounter-spawn-combat-contract.test.mjs
           node tests/runtime-encounter-resolution-contract.test.mjs
+
+      - name: Movement and control contracts
+        run: |
           node tests/player-map-movement.test.mjs
           node tests/runtime-door-control.test.mjs
           node tests/hostile-combat-movement.test.mjs
