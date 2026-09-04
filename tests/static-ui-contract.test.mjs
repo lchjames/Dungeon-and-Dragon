@@ -153,4 +153,4 @@ assert.match(bossRules, /monsterCalculatedResources/, 'Boss baseline must reuse 
 assert.match(bossRules, /bossPhaseApplicability/, 'Boss Phase applicability must remain advisory.');
 assert.match(bossRules, /validateBossPhases/, 'Boss Phase definitions must be validated centrally.');
 
-assert.match(wrangler, /"main"\s*:\s*"\.\/src\/admin-auth\.js"/, 'Wrangler must route through the Admin authentication gateway.');
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m, 'Wrangler must validate the actual production Worker entrypoint; deeper Admin authentication is verified through deployment-chain contracts.');
