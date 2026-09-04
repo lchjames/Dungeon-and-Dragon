@@ -4,13 +4,14 @@ import {
   ensureRuntimeEncounterSchema,
   loadRuntimeEncounterMap
 } from './runtime-encounter-state.js';
+import { ensureRuntimeEncounterResolutionSchema } from './runtime-encounter-resolution.js';
 import {
   spawnRuntimeBoss,
   spawnRuntimeMonster,
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
 
-const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended']);
+const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved']);
 const SUPPORTED_TRIGGER_SET = new Set(SUPPORTED_TRIGGER_TYPES);
 const MAX_OCCURRENCES_PER_DRAIN = 50;
 const LEASE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -30,6 +31,7 @@ function cleanError(error) {
 
 export async function ensureRuntimeStoryLifecycleAuthoritySchema(env) {
   await ensureRuntimeEncounterSchema(env);
+  await ensureRuntimeEncounterResolutionSchema(env);
   if (!authoritySchemaPromise) {
     authoritySchemaPromise = env.DB.batch([
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_combat_end_audit (
@@ -488,7 +490,7 @@ async function claimNextOccurrence(env, sceneRunId) {
       SELECT rowid AS occurrence_sequence, *
       FROM runtime_story_lifecycle_occurrences
       WHERE scene_run_id = ?
-        AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended')
+        AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved')
         AND completed_at IS NULL
         AND (lease_token IS NULL OR lease_at IS NULL OR lease_at < ?)
       ORDER BY source_at, created_at, occurrence_sequence
@@ -564,7 +566,37 @@ async function occurrenceSubject(env, occurrence, encounters, mapInstanceId) {
     return {
       triggerType: occurrence.trigger_type,
       encounterId: occurrence.subject_id,
-      combatId: null
+      combatId: null,
+      resolutionId: null
+    };
+  }
+
+  if (occurrence.trigger_type === 'encounter_resolved') {
+    if (occurrence.subject_type !== 'encounter_resolution') {
+      throw Object.assign(new Error('encounter_resolved occurrence has an invalid subject type.'), {
+        code: 'STORY_LIFECYCLE_SUBJECT_INVALID'
+      });
+    }
+    const resolution = await env.DB.prepare(`
+      SELECT id, scene_run_id, encounter_id, to_status, resolution_source, combat_id,
+             resolved_by_user_id, created_at
+      FROM runtime_encounter_resolution_log
+      WHERE id = ? AND scene_run_id = ?
+      LIMIT 1
+    `).bind(occurrence.subject_id, occurrence.scene_run_id).first();
+    const encounter = resolution ? encounters.get(resolution.encounter_id) : null;
+    if (!resolution || resolution.to_status !== 'resolved' || !encounter || encounter.status !== 'resolved') {
+      throw Object.assign(new Error('encounter_resolved occurrence does not point to a committed resolved Runtime Encounter.'), {
+        code: 'STORY_LIFECYCLE_ENCOUNTER_NOT_RESOLVED'
+      });
+    }
+    return {
+      triggerType: occurrence.trigger_type,
+      encounterId: resolution.encounter_id,
+      combatId: resolution.combat_id || encounter.combat?.combatId || null,
+      resolutionId: resolution.id,
+      resolutionSource: resolution.resolution_source,
+      resolvedAt: resolution.created_at
     };
   }
 
@@ -596,6 +628,7 @@ async function occurrenceSubject(env, occurrence, encounters, mapInstanceId) {
       triggerType: occurrence.trigger_type,
       encounterId: linked.encounter_id,
       combatId: linked.combat_id,
+      resolutionId: null,
       combatStatus: linked.combat_status,
       combatStartedAt: linked.started_at,
       combatEndedAt: linked.ended_at
@@ -645,7 +678,8 @@ async function processOccurrence(env, occurrence) {
     encounters,
     lifecycleTriggerType: occurrence.trigger_type,
     lifecycleEncounterId: subject.encounterId,
-    lifecycleCombatId: subject.combatId
+    lifecycleCombatId: subject.combatId,
+    lifecycleResolutionId: subject.resolutionId
   };
   const results = [];
   for (const row of eventRows.results || []) {
@@ -667,6 +701,7 @@ async function processOccurrence(env, occurrence) {
           triggerType: occurrence.trigger_type,
           encounterId: subject.encounterId,
           combatId: subject.combatId,
+          resolutionId: subject.resolutionId,
           occurrenceId: occurrence.id
         });
       }
@@ -682,6 +717,7 @@ async function processOccurrence(env, occurrence) {
       triggerType: occurrence.trigger_type,
       encounterId: subject.encounterId,
       combatId: subject.combatId,
+      resolutionId: subject.resolutionId,
       occurrenceId: occurrence.id
     });
   }
@@ -707,7 +743,7 @@ export async function processPendingRuntimeStoryLifecycleEvents(env, { sceneRunI
   const pending = await env.DB.prepare(`
     SELECT id FROM runtime_story_lifecycle_occurrences
     WHERE scene_run_id = ?
-      AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended')
+      AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved')
       AND completed_at IS NULL
     LIMIT 1
   `).bind(sceneRunId).first();
