@@ -5,7 +5,6 @@ import {
   loadRuntimeEncounterResolutionReadiness,
   resolveRuntimeEncounter
 } from './runtime-encounter-resolution.js';
-import { processEncounterResolvedStoryEvents } from './encounter-resolved-story.js';
 import { processPendingRuntimeStoryLifecycleEvents } from './runtime-story-lifecycle.js';
 import { processSceneRunStartStoryEvents } from './scene-run-start-story.js';
 
@@ -96,7 +95,8 @@ function lifecycleGroups(...eventLists) {
     storyLifecycleEvents: unique,
     encounterActivatedStoryEvents: unique.filter(event => event.triggerType === 'encounter_activated'),
     combatStartedStoryEvents: unique.filter(event => event.triggerType === 'combat_started'),
-    combatEndedStoryEvents: unique.filter(event => event.triggerType === 'combat_ended')
+    combatEndedStoryEvents: unique.filter(event => event.triggerType === 'combat_ended'),
+    encounterResolvedStoryEvents: unique.filter(event => event.triggerType === 'encounter_resolved')
   };
 }
 
@@ -146,17 +146,6 @@ async function handleSceneRunStart(request, env) {
   }, response.status);
 }
 
-async function resolveStoryWithContext(env, actor, resolution, context) {
-  if (!resolution?.changed) return [];
-  return processEncounterResolvedStoryEvents(env, {
-    actor,
-    sceneRunId: context.sceneRunId,
-    sceneId: context.sceneId,
-    mapInstanceId: context.mapInstanceId,
-    encounterId: context.encounterId
-  });
-}
-
 async function handleManualResolve(request, env, mapInstanceId, encounterId) {
   if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
@@ -172,35 +161,17 @@ async function handleManualResolve(request, env, mapInstanceId, encounterId) {
     requireHostilesCleared: false
   });
 
-  let storyEventsTriggered = [];
-  let storyTriggerWarning = null;
-  if (resolution.changed) {
-    try {
-      storyEventsTriggered = await resolveStoryWithContext(env, gm, resolution, {
-        sceneRunId: map.sceneRunId,
-        sceneId: map.sceneId,
-        mapInstanceId: map.id,
-        encounterId
-      });
-    } catch (error) {
-      console.error('encounter_resolved Story processing failed after committed manual resolution', {
-        encounterId,
-        mapInstanceId: map.id,
-        message: String(error?.message || error)
-      });
-      storyTriggerWarning = { code: 'STORY_ENCOUNTER_RESOLVED_TRIGGER_ERROR' };
-    }
-  }
-
   const lifecycle = await drainRuntimeLifecycle(env, map.sceneRunId, { mapInstanceId: map.id, source: 'encounter_resolved_manual' });
+  const groups = lifecycleGroups(lifecycle.events);
   return json({
     ok: true,
     resolution,
-    storyEventsTriggered,
-    ...(storyTriggerWarning ? { storyTriggerWarning } : {}),
-    ...lifecycleGroups(lifecycle.events),
+    storyEventsTriggered: groups.encounterResolvedStoryEvents,
+    ...groups,
     ...(lifecycle.warning ? {
+      storyTriggerWarning: lifecycle.warning,
       storyLifecycleWarning: lifecycle.warning,
+      encounterResolvedStoryWarning: lifecycle.warning,
       encounterActivatedStoryWarning: lifecycle.warning
     } : {})
   });
@@ -240,7 +211,7 @@ async function handleCombatEnd(request, env, combatId) {
       sceneRunId: linked.sceneRunId,
       sceneId: linked.sceneId,
       encounterId: linked.encounterId,
-      actorUserId: actor?.id || null,
+      actorUserId: linked.endedByUserId || actor?.id || null,
       source: 'combat_hostiles_cleared',
       combatId,
       requireHostilesCleared: true
@@ -259,40 +230,22 @@ async function handleCombatEnd(request, env, combatId) {
     }, response.status);
   }
 
-  let storyEventsTriggered = [];
-  let storyTriggerWarning = null;
-  if (resolution.changed && actor?.id) {
-    try {
-      storyEventsTriggered = await resolveStoryWithContext(env, actor, resolution, {
-        sceneRunId: linked.sceneRunId,
-        sceneId: linked.sceneId,
-        mapInstanceId: linked.mapInstanceId,
-        encounterId: linked.encounterId
-      });
-    } catch (error) {
-      console.error('encounter_resolved Story processing failed after committed Combat resolution', {
-        combatId,
-        encounterId: linked.encounterId,
-        message: String(error?.message || error)
-      });
-      storyTriggerWarning = { code: 'STORY_ENCOUNTER_RESOLVED_TRIGGER_ERROR' };
-    }
-  }
-
   const postResolutionLifecycle = await drainRuntimeLifecycle(env, linked.sceneRunId, {
     mapInstanceId: linked.mapInstanceId,
     combatId,
     source: 'encounter_resolved_combat'
   });
   const lifecycleWarning = preResolutionLifecycle.warning || postResolutionLifecycle.warning;
+  const groups = lifecycleGroups(preResolutionLifecycle.events, postResolutionLifecycle.events);
   return json({
     ...payload,
     runtimeEncounterResolution: resolution,
-    storyEventsTriggered,
-    ...(storyTriggerWarning ? { storyTriggerWarning } : {}),
-    ...lifecycleGroups(preResolutionLifecycle.events, postResolutionLifecycle.events),
+    storyEventsTriggered: groups.encounterResolvedStoryEvents,
+    ...groups,
     ...(lifecycleWarning ? {
+      storyTriggerWarning: lifecycleWarning,
       storyLifecycleWarning: lifecycleWarning,
+      encounterResolvedStoryWarning: lifecycleWarning,
       encounterActivatedStoryWarning: lifecycleWarning
     } : {})
   }, response.status);
@@ -319,6 +272,7 @@ async function handleStoryMutationWithEncounterDrain(request, env, mapInstanceId
       encounterActivatedStoryEvents: [],
       combatStartedStoryEvents: [],
       combatEndedStoryEvents: [],
+      encounterResolvedStoryEvents: [],
       storyLifecycleWarning: { code: 'STORY_LIFECYCLE_MAP_LOOKUP_ERROR' },
       encounterActivatedStoryWarning: { code: 'STORY_ENCOUNTER_ACTIVATED_MAP_LOOKUP_ERROR' }
     }, response.status);
