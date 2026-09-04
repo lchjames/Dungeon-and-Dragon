@@ -15,7 +15,7 @@ const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter
 const runtimeEncounterService = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
-const objectGateway = await readFile(new URL('../src/runtime-map-object-gateway.js', import.meta.url), 'utf8');
+const objectLayer = await readFile(new URL('../src/runtime-map-object-layer.js', import.meta.url), 'utf8');
 const resolutionService = await readFile(new URL('../src/runtime-encounter-resolution.js', import.meta.url), 'utf8');
 const resolvedStory = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 
@@ -60,7 +60,7 @@ assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha w
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
 assert.match(
   wrangler,
-  /^\s*"main"\s*:\s*"\.\/src\/runtime-map-object-gateway\.js"\s*,?\s*$/m,
+  /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m,
   'Deployment contract must validate the actual Wrangler main property, not a historical gateway marker inside a comment.'
 );
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);
@@ -69,14 +69,17 @@ assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b78
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
 
-assert.match(objectGateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
-assert.match(objectGateway, /runtime_map_objects/);
-assert.match(objectGateway, /trg_runtime_map_object_snapshot/);
-assert.match(objectGateway, /augmentRuntimeResponse/);
-assert.doesNotMatch(objectGateway, /eval\s*\(/);
-assert.doesNotMatch(objectGateway, /new Function\s*\(/);
+assert.match(objectLayer, /export function createRuntimeMapObjectWorker\(baseWorker\)/);
+assert.match(objectLayer, /runtime_map_objects/);
+assert.match(objectLayer, /trg_runtime_map_object_snapshot/);
+assert.match(objectLayer, /augmentRuntimeResponse/);
+assert.doesNotMatch(objectLayer, /eval\s*\(/);
+assert.doesNotMatch(objectLayer, /new Function\s*\(/);
 
 assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
+assert.match(lifecycleGateway, /import \{ createRuntimeMapObjectWorker \} from '\.\/runtime-map-object-layer\.js'/);
+assert.match(lifecycleGateway, /const runtimeMapObjectWorker = createRuntimeMapObjectWorker\(baseWorker\)/);
+assert.match(lifecycleGateway, /const response = await runtimeMapObjectWorker\.fetch\(request, env\)/);
 assert.match(lifecycleGateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
 assert.match(lifecycleGateway, /processPendingRuntimeStoryLifecycleEvents/);
 assert.match(lifecycleGateway, /storyLifecycleEvents/);
