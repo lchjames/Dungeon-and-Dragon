@@ -80,6 +80,9 @@ export function normalizeStoryTrigger(type, raw = {}) {
   if (type === 'enter_zone') {
     return { sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   }
+  if (type === 'flag_changed') {
+    return { key: normalizeStoryFlagKey(raw.key) };
+  }
   if (type === 'encounter_activated' || type === 'encounter_resolved' || type === 'combat_started' || type === 'combat_ended') {
     return { encounterId: text(raw.encounterId, 'Encounter ID', 180) };
   }
