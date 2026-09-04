@@ -3,7 +3,8 @@
 > Status: **Implemented Alpha Runtime Contract**  
 > Updated: 2026-09-05  
 > Parents: `docs/RUNTIME_ENCOUNTER_STATE_ALPHA.md`, `docs/RUNTIME_ENCOUNTER_SPAWN_COMBAT_ALPHA.md`  
-> Durable Story Canonical: `docs/STORY_ENCOUNTER_RESOLVED_TRIGGER_ALPHA.md`
+> Durable Story Canonical: `docs/STORY_ENCOUNTER_RESOLVED_TRIGGER_ALPHA.md`  
+> Flag Cascade Canonical: `docs/STORY_FLAG_CHANGED_TRIGGER_ALPHA.md`
 
 ## Purpose
 
@@ -263,7 +264,9 @@ spawn_boss
 start_combat
 ```
 
-Therefore a valid continuation can be:
+A successful `set_flag` that genuinely changes a Runtime Story flag can now continue through the durable `flag_changed` lifecycle defined in `docs/STORY_FLAG_CHANGED_TRIGGER_ALPHA.md`; rewriting the same scalar value is intentionally lifecycle-silent.
+
+Therefore valid continuations include:
 
 ```text
 Encounter A resolved
@@ -272,6 +275,15 @@ Encounter A resolved
 → activate Encounter B
 → spawn hostile
 → start Encounter B Combat
+```
+
+and:
+
+```text
+Encounter A resolved
+→ set_flag quest.stage = 2
+→ flag_changed(quest.stage)
+→ another approved Story Event
 ```
 
 Effects execute through server-internal Runtime services. Arbitrary JavaScript, arbitrary SQL, and privileged browser-route impersonation are not allowed.
@@ -408,7 +420,7 @@ Both paths finish with Definition status, participant roster, and legacy Combat-
 
 ## Current checkpoint
 
-With durable `encounter_resolved` integrated, the primary lifecycle chain is now:
+With durable `flag_changed` integrated, the primary Story lifecycle chain now includes:
 
 ```text
 scene_run_start
@@ -417,6 +429,7 @@ scene_run_start
 → combat_started
 → combat_ended
 → encounter_resolved
+→ flag_changed cascades from genuine set_flag mutations
 ```
 
-Remaining approved-but-not-yet-durable automatic trigger work includes `interact_object` and `flag_changed`, plus later Scene completion/transition policy and richer object-state mechanics.
+The remaining approved automatic trigger that needs a new Runtime authority model is `interact_object`. It should be implemented together with Runtime Object identity, interaction permission and object-state mechanics rather than as a trigger-only shell. Later work also includes Scene completion/transition policy and richer object-state mechanics.
