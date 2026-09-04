@@ -65,8 +65,10 @@ assert.doesNotMatch(lifecycle, /\/api\/gm\//);
 assert.match(resolutionGateway, /processPendingRuntimeStoryLifecycleEvents/);
 assert.match(resolutionGateway, /combat_ended_pre_resolution/);
 const preDrainIndex = resolutionGateway.indexOf("source: 'combat_ended_pre_resolution'");
-const resolveIndex = resolutionGateway.indexOf('resolution = await resolveRuntimeEncounter');
-assert(preDrainIndex >= 0 && resolveIndex > preDrainIndex, 'combat_ended lifecycle must drain after Combat commit but before Encounter auto-resolution.');
+const autoResolveIndex = preDrainIndex >= 0
+  ? resolutionGateway.indexOf('resolution = await resolveRuntimeEncounter', preDrainIndex)
+  : -1;
+assert(preDrainIndex >= 0 && autoResolveIndex > preDrainIndex, 'combat_ended lifecycle must drain after Combat commit but before Encounter auto-resolution.');
 assert.match(resolutionGateway, /combatEndedStoryEvents: unique\.filter\(event => event\.triggerType === 'combat_ended'\)/);
 assert.match(resolutionGateway, /runtimeEncounterResolution: resolution/);
 assert.match(resolutionGateway, /storyEventsTriggered/);
