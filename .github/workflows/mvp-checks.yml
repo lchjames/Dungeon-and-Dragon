@@ -56,6 +56,7 @@ jobs:
           node tests/runtime-token-visibility-contract.test.mjs
           node tests/story-event-runtime-contract.test.mjs
           node tests/story-combat-ended-trigger-contract.test.mjs
+          node tests/story-encounter-resolved-trigger-contract.test.mjs
           node tests/story-enter-zone-trigger-contract.test.mjs
           node tests/story-runtime-spawn-combat-effects-contract.test.mjs
           node tests/runtime-encounter-state-contract.test.mjs
