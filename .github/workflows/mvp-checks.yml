@@ -42,6 +42,11 @@ jobs:
           node tests/boss-rules.test.mjs
           node tests/boss-life.test.mjs
 
+      - name: Durable Story lifecycle contracts
+        run: |
+          node tests/story-combat-ended-trigger-contract.test.mjs
+          node tests/story-encounter-resolved-trigger-contract.test.mjs
+
       - name: Static / deployment contract tests
         run: |
           node tests/static-ui-contract.test.mjs
@@ -55,8 +60,6 @@ jobs:
           node tests/runtime-map-position.test.mjs
           node tests/runtime-token-visibility-contract.test.mjs
           node tests/story-event-runtime-contract.test.mjs
-          node tests/story-combat-ended-trigger-contract.test.mjs
-          node tests/story-encounter-resolved-trigger-contract.test.mjs
           node tests/story-enter-zone-trigger-contract.test.mjs
           node tests/story-runtime-spawn-combat-effects-contract.test.mjs
           node tests/runtime-encounter-state-contract.test.mjs
