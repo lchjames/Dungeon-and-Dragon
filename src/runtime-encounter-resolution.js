@@ -1,4 +1,4 @@
-import { loadRuntimeEncounterMap } from './runtime-encounter-state.js';
+import { ensureRuntimeEncounterSchema, loadRuntimeEncounterMap } from './runtime-encounter-state.js';
 
 const RESOLUTION_SOURCES = new Set(['combat_hostiles_cleared', 'gm_manual']);
 const TERMINAL_HOSTILE_STATUSES = new Set(['defeated', 'removed']);
@@ -14,6 +14,7 @@ function cleanText(value, max = 180) {
 
 export async function ensureRuntimeEncounterResolutionSchema(env) {
   if (!env?.DB) throw new Error('D1 binding DB is unavailable.');
+  await ensureRuntimeEncounterSchema(env);
   if (!resolutionSchemaPromise) {
     resolutionSchemaPromise = env.DB.batch([
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_encounter_resolution_log (
@@ -32,7 +33,30 @@ export async function ensureRuntimeEncounterResolutionSchema(env) {
         FOREIGN KEY (resolved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
       )`),
       env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_resolution_scene ON runtime_encounter_resolution_log(scene_run_id, encounter_id, created_at)'),
-      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_resolution_combat ON runtime_encounter_resolution_log(combat_id, created_at)')
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_encounter_resolution_combat ON runtime_encounter_resolution_log(combat_id, created_at)'),
+      env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_resolved_story_occurrence
+        AFTER INSERT ON runtime_encounter_resolution_log
+        WHEN NEW.to_status = 'resolved' AND NEW.resolved_by_user_id IS NOT NULL
+        BEGIN
+          INSERT OR IGNORE INTO runtime_story_lifecycle_occurrences (
+            id, scene_run_id, trigger_type, subject_type, subject_id,
+            source_at, actor_user_id, lease_token, lease_at, completed_at,
+            created_at, updated_at
+          ) VALUES (
+            'story_lifecycle_' || lower(hex(randomblob(16))),
+            NEW.scene_run_id,
+            'encounter_resolved',
+            'encounter_resolution',
+            NEW.id,
+            NEW.created_at,
+            NEW.resolved_by_user_id,
+            NULL,
+            NULL,
+            NULL,
+            NEW.created_at,
+            NEW.created_at
+          );
+        END`)
     ]).catch(error => {
       resolutionSchemaPromise = null;
       throw error;
@@ -125,12 +149,14 @@ export async function findRuntimeEncounterByCombat(env, combatId) {
   if (!normalizedCombatId) return null;
   const row = await env.DB.prepare(`
     SELECT rec.scene_run_id, rec.encounter_id, rec.map_instance_id, rec.combat_id,
-           rmi.scene_id, res.status AS encounter_status, c.status AS combat_status
+           rmi.scene_id, res.status AS encounter_status, c.status AS combat_status,
+           cea.ended_by_user_id
     FROM runtime_encounter_combats rec
     JOIN runtime_map_instances rmi ON rmi.id = rec.map_instance_id
     JOIN runtime_encounter_states res
       ON res.scene_run_id = rec.scene_run_id AND res.encounter_id = rec.encounter_id
     LEFT JOIN combats c ON c.id = rec.combat_id
+    LEFT JOIN runtime_combat_end_audit cea ON cea.combat_id = rec.combat_id
     WHERE rec.combat_id = ?
     LIMIT 1
   `).bind(normalizedCombatId).first();
@@ -142,7 +168,8 @@ export async function findRuntimeEncounterByCombat(env, combatId) {
     mapInstanceId: row.map_instance_id,
     combatId: row.combat_id,
     encounterStatus: row.encounter_status,
-    combatStatus: row.combat_status || 'missing'
+    combatStatus: row.combat_status || 'missing',
+    endedByUserId: row.ended_by_user_id || null
   };
 }
 
@@ -185,6 +212,9 @@ export async function resolveRuntimeEncounter(env, {
   const normalizedCombatId = cleanText(combatId);
   if (!normalizedSceneRunId || !normalizedSceneId || !normalizedEncounterId) {
     throw problem('Runtime Encounter resolution 缺少必要 reference。', 400, 'VALIDATION_ERROR');
+  }
+  if (!normalizedActor) {
+    throw problem('Runtime Encounter resolution 必須保留實際執行者。', 409, 'RUNTIME_ENCOUNTER_RESOLUTION_ACTOR_REQUIRED');
   }
   if (!RESOLUTION_SOURCES.has(normalizedSource)) throw problem('Runtime Encounter resolution source 無效。', 400, 'VALIDATION_ERROR');
 
@@ -262,7 +292,7 @@ export async function resolveRuntimeEncounter(env, {
       )
     `).bind(
       logId, normalizedSceneRunId, normalizedEncounterId, normalizedSource,
-      normalizedCombatId || null, normalizedActor || null, JSON.stringify(detail), now,
+      normalizedCombatId || null, normalizedActor, JSON.stringify(detail), now,
       normalizedSceneRunId, normalizedEncounterId, now, now
     )
   ]);

@@ -16,6 +16,7 @@ const runtimeEncounterService = await readFile(new URL('../src/runtime-encounter
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
 const resolutionService = await readFile(new URL('../src/runtime-encounter-resolution.js', import.meta.url), 'utf8');
+const lifecycleService = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const resolvedStory = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
@@ -73,13 +74,16 @@ assert.match(lifecycleGateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
 assert.match(lifecycleGateway, /processPendingRuntimeStoryLifecycleEvents/);
 assert.match(lifecycleGateway, /storyLifecycleEvents/);
 assert.match(lifecycleGateway, /combatStartedStoryEvents/);
+assert.match(lifecycleGateway, /encounterResolvedStoryEvents/);
 assert.doesNotMatch(lifecycleGateway, /eval\s*\(/);
 assert.doesNotMatch(lifecycleGateway, /new Function\s*\(/);
 
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(resolutionGateway, /findRuntimeEncounterByCombat/);
 assert.match(resolutionGateway, /resolveRuntimeEncounter/);
-assert.match(resolutionGateway, /processEncounterResolvedStoryEvents/);
+assert.doesNotMatch(resolutionGateway, /processEncounterResolvedStoryEvents/);
+assert.match(resolutionGateway, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(resolutionGateway, /encounterResolvedStoryEvents/);
 assert.match(resolutionGateway, /runtimeEncounterResolutionWarning/);
 assert.match(resolutionGateway, /handleManualResolve/);
 assert.match(resolutionGateway, /handleCombatEnd/);
@@ -95,9 +99,17 @@ assert.match(resolutionService, /TERMINAL_HOSTILE_STATUSES/);
 assert.match(resolutionService, /hostiles\.length > 0 && blockers\.length === 0/);
 assert.match(resolutionService, /RUNTIME_ENCOUNTER_COMBAT_ACTIVE/);
 assert.match(resolutionService, /SET status = 'resolved'/);
+assert.match(resolutionService, /trg_runtime_encounter_resolved_story_occurrence/);
 assert.doesNotMatch(resolutionService, /UPDATE\s+encounters\s+SET\s+status/i);
 assert.doesNotMatch(resolutionService, /INSERT INTO encounter_combats/);
 
+assert.match(lifecycleService, /'encounter_resolved'/);
+assert.match(lifecycleService, /subject_type !== 'encounter_resolution'/);
+assert.match(lifecycleService, /runtime_encounter_resolution_log/);
+assert.match(lifecycleService, /encounter\.status !== 'resolved'/);
+assert.match(lifecycleService, /runtime_story_lifecycle_dispatches/);
+
+// Kept as a legacy source module for compatibility/reference; production resolution routing must not call it.
 assert.match(resolvedStory, /trigger_type = 'encounter_resolved'/);
 assert.match(resolvedStory, /normalizeStoryTrigger\('encounter_resolved'/);
 assert.match(resolvedStory, /trigger\.encounterId !== encounterId/);

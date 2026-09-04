@@ -1,20 +1,21 @@
 # Runtime Encounter Resolution + `encounter_resolved` — Alpha
 
 > Status: **Implemented Alpha Runtime Contract**  
-> Date: 2026-08-29  
-> Parents: `docs/RUNTIME_ENCOUNTER_STATE_ALPHA.md`, `docs/RUNTIME_ENCOUNTER_SPAWN_COMBAT_ALPHA.md`
+> Updated: 2026-09-05  
+> Parents: `docs/RUNTIME_ENCOUNTER_STATE_ALPHA.md`, `docs/RUNTIME_ENCOUNTER_SPAWN_COMBAT_ALPHA.md`  
+> Durable Story Canonical: `docs/STORY_ENCOUNTER_RESOLVED_TRIGGER_ALPHA.md`
 
 ## Purpose
 
-This slice closes the Runtime Encounter lifecycle after same-Map Combat.
+This slice closes the Runtime Encounter lifecycle after same-Map Combat while preserving a strict separation between Combat state, Encounter state, and Story lifecycle state.
 
-The canonical rule is:
+The canonical rule remains:
 
 ```text
 Combat End != Encounter Resolved
 ```
 
-Ending Combat only ends the Combat record. The Runtime Encounter changes from `active` to `resolved` through the dedicated Runtime Encounter resolution authority.
+Ending Combat only ends the Combat record. A Runtime Encounter changes from `active` to `resolved` through the dedicated Runtime Encounter resolution authority.
 
 Reusable Encounter Definition state remains authoring data and is never rewritten by Runtime resolution.
 
@@ -30,7 +31,8 @@ active + linked Combat
 active + ended Combat
   ↓ resolution authority
 resolved
-  ↓ encounter_resolved Story Event
+  ↓ durable encounter_resolved occurrence
+  ↓ generic Runtime Story lifecycle dispatcher
 post-Encounter Scene continuation
 ```
 
@@ -38,7 +40,7 @@ post-Encounter Scene continuation
 
 ## Automatic resolution after Combat
 
-After a GM successfully ends a Combat linked through `runtime_encounter_combats`, the top-level Runtime resolution gateway checks the Runtime Encounter roster.
+After a GM successfully ends a Combat linked through `runtime_encounter_combats`, the Runtime resolution gateway checks the Runtime Encounter roster.
 
 Hostile participants are:
 
@@ -63,17 +65,21 @@ at least one Runtime hostile participant exists
 all Runtime hostiles = defeated or removed
 ```
 
-Then:
+A Runtime Encounter with **zero hostile participants does not auto-resolve** from Combat End. This prevents a social, puzzle, or non-hostile Encounter from being completed merely because a Combat happened to end.
+
+The locked Combat-driven ordering is:
 
 ```text
-active Runtime Encounter
-→ resolved
-→ resolved_at snapshot
+Combat End commit
+→ durable combat_ended Story drain
+→ hostile readiness check
+→ Runtime Encounter active → resolved commit
 → runtime_encounter_resolution_log
-→ encounter_resolved Story processing
+→ durable encounter_resolved occurrence
+→ generic Story lifecycle drain
 ```
 
-A Runtime Encounter with **zero hostile participants does not auto-resolve** from Combat End. That avoids treating a non-hostile / social / puzzle Encounter as completed merely because a Combat happened to end.
+This ordering is intentional. During `combat_ended`, the linked Encounter may still be `active`; during `encounter_resolved`, the same Encounter is already committed as `resolved`.
 
 ## Active hostiles block automatic resolution
 
@@ -87,7 +93,7 @@ Character + Monster Combat
 → readiness blocker = hostile_active
 ```
 
-The Combat End response reports the blocked resolution attempt, including:
+The Combat End response reports:
 
 ```text
 resolved = false
@@ -105,16 +111,7 @@ GM route:
 POST /api/gm/world/runtime/maps/:mapId/encounters/:encounterId/resolve
 ```
 
-Manual resolution exists for valid non-lethal or scripted outcomes, including:
-
-```text
-surrender
-negotiation
-hostiles flee
-GM adjudicated objective completion
-scripted transition
-other non-kill Encounter conclusion
-```
+Manual resolution exists for valid non-lethal or scripted outcomes, including surrender, negotiation, hostile retreat, objective completion, scripted transitions, and other GM-adjudicated conclusions.
 
 Manual resolution requirements:
 
@@ -127,6 +124,17 @@ linked Combat, if any, must not be active
 Manual resolution intentionally does **not** require all hostile instances to be defeated/removed.
 
 It also does **not** end an active Combat automatically. The GM must explicitly end the Combat first.
+
+Manual resolution uses the same durable lifecycle path:
+
+```text
+GM resolution authority
+→ Encounter resolved + audit commit
+→ durable encounter_resolved occurrence
+→ generic Runtime Story lifecycle dispatcher
+```
+
+There is no separate authoritative manual-only `encounter_resolved` executor.
 
 ## Resolution readiness
 
@@ -155,17 +163,23 @@ hostileCount > 0
 AND blockerCount = 0
 ```
 
-Readiness is factual Runtime state. A manually resolved Encounter may still show a surviving hostile blocker because manual resolution represents a narrative outcome rather than rewriting the hostile instance into a fake defeated state.
+Readiness is factual Runtime state. A manually resolved Encounter may still show surviving hostile blockers because narrative resolution does not rewrite a living hostile into a fake defeated state.
 
-## Resolution audit
+## Resolution authority and audit
 
-Canonical additive schema:
+Canonical base schema:
 
 ```text
 schema/0020_runtime_encounter_resolution.sql
 ```
 
-Runtime table:
+Durable Story trigger migration:
+
+```text
+schema/0025_story_encounter_resolved_trigger.sql
+```
+
+Runtime audit table:
 
 ```text
 runtime_encounter_resolution_log
@@ -174,6 +188,7 @@ runtime_encounter_resolution_log
 Important fields:
 
 ```text
+id
 scene_run_id
 encounter_id
 from_status
@@ -192,13 +207,13 @@ combat_hostiles_cleared
 gm_manual
 ```
 
-The service also lazily creates the table/indexes for long-lived production D1 compatibility.
+The current Alpha resolver requires the actual resolving GM/Admin actor. For Combat-driven auto-resolution, the resolver prefers the identity preserved by `runtime_combat_end_audit`, so the Story actor is the actual Combat ender rather than the Combat creator or another inferred identity.
 
-## `encounter_resolved` Story trigger
+The first successful `active → resolved` transition and its resolution audit are committed together in one D1 batch. An SQLite `AFTER INSERT ON runtime_encounter_resolution_log` trigger then materialises the durable Story occurrence inside the same database transaction boundary.
 
-Trigger type already belongs to the approved Story vocabulary. This slice gives it a concrete Runtime executor.
+## Durable `encounter_resolved` Story trigger
 
-Canonical trigger shape:
+Canonical authoring shape:
 
 ```json
 {
@@ -209,49 +224,33 @@ Canonical trigger shape:
 }
 ```
 
-`encounterId` is mandatory and is the stable Encounter Definition ID used to locate the per-Scene-Run Runtime Encounter state.
+The authored target is the stable Encounter Definition ID. The Runtime occurrence is anchored to the exact resolution audit row:
 
-There is no broadcast / wildcard resolved trigger in Alpha.
-
-Example post-Encounter event:
-
-```json
-{
-  "triggerType": "encounter_resolved",
-  "trigger": {
-    "encounterId": "encounter_gate_guard"
-  },
-  "conditions": [
-    {
-      "type": "encounter_status",
-      "encounterId": "encounter_gate_guard",
-      "status": "resolved"
-    }
-  ],
-  "effects": [
-    {
-      "type": "set_flag",
-      "key": "gate.guard.cleared",
-      "value": true
-    },
-    {
-      "type": "show_narrative",
-      "text": "The corridor falls silent."
-    },
-    {
-      "type": "open_door",
-      "sourceEdgeId": "edge_inner_gate"
-    }
-  ],
-  "oncePerSceneRun": true
-}
+```text
+trigger_type = encounter_resolved
+subject_type = encounter_resolution
+subject_id = runtime_encounter_resolution_log.id
+actor_user_id = resolved_by_user_id
+source_at = resolution audit created_at
 ```
 
-The executor reuses the existing approved Story effect authority. It does not execute arbitrary JavaScript or SQL.
+Before Event evaluation, the generic lifecycle dispatcher verifies that the exact resolution audit exists and that the Runtime Encounter currently has:
 
-## Post-resolution continuation
+```text
+status = resolved
+```
 
-Because effects execute sequentially, an `encounter_resolved` Event may continue the Scene by using existing approved effects, for example:
+A new Story Event authored after the historical resolution does not retroactively fire because the generic dispatcher preserves:
+
+```text
+story_event.created_at <= occurrence.source_at
+```
+
+See `docs/STORY_ENCOUNTER_RESOLVED_TRIGGER_ALPHA.md` for the complete durable trigger, lease, dispatch, idempotency, cascade, and failure contract.
+
+## Approved continuation effects
+
+The durable trigger reuses the generic approved Story effect authority, including:
 
 ```text
 show_narrative
@@ -260,72 +259,88 @@ reveal_zone
 open_door / close_door
 activate_encounter
 spawn_monster
+spawn_boss
 start_combat
 ```
 
-Therefore a valid chain can be:
+Therefore a valid continuation can be:
 
 ```text
 Encounter A resolved
 → encounter_resolved Event
 → open exit Door
 → activate Encounter B
-→ spawn Monster for Encounter B
+→ spawn hostile
 → start Encounter B Combat
 ```
 
-The new Combat is allowed only because the previous linked Combat has already ended.
+Effects execute through server-internal Runtime services. Arbitrary JavaScript, arbitrary SQL, and privileged browser-route impersonation are not allowed.
+
+## Idempotency and retry
+
+Durable lifecycle execution uses:
+
+```text
+runtime_story_lifecycle_occurrences
+runtime_story_lifecycle_dispatches
+runtime_story_event_executions
+```
+
+The occurrence is unique to its Scene Run, trigger type, and exact resolution audit subject. Dispatch rows prevent the same authored Event from being executed twice for one occurrence. The shared lifecycle lease can be reclaimed after the standard stale timeout, and the shared 50-occurrence cascade limit prevents unbounded Story loops.
+
+The former `src/encounter-resolved-story.js` module remains legacy source/reference compatibility only. Production Runtime Encounter resolution no longer calls it as a second inline executor, preventing duplicate `encounter_resolved` execution.
 
 ## Commit boundary and warnings
 
-Combat End is committed by the existing Combat engine first.
+Authoritative gameplay state always commits before secondary Story processing.
 
-After that:
-
-```text
-Combat End commit
-→ Runtime Encounter lookup
-→ auto-resolution attempt
-→ encounter_resolved Story processing
-```
-
-If Runtime resolution or Story processing fails after Combat End:
+Combat-driven path:
 
 ```text
-Combat remains ended
-HTTP response remains the successful Combat End response
-warning metadata is attached
+Combat End commits
+→ combat_ended Story drain
+→ optional Runtime Encounter resolution commits
+→ encounter_resolved Story drain
 ```
 
-Possible warning surfaces include:
-
-```text
-runtimeEncounterResolutionWarning
-storyTriggerWarning
-```
-
-This prevents a post-commit Story failure from falsely telling the GM that Combat End failed.
-
-Manual resolution follows the same principle for Story processing:
+Manual path:
 
 ```text
 Runtime Encounter resolution commits
-→ encounter_resolved Story processing
-→ Story failure returns warning
-→ Encounter remains resolved
+→ encounter_resolved Story drain
 ```
+
+If Story lifecycle processing fails after a valid resolution:
+
+```text
+Encounter remains resolved
+resolution audit remains durable
+Story occurrence remains retryable unless already completed
+warning metadata may be attached
+resolution is not rolled back
+```
+
+Current warning surfaces include:
+
+```text
+runtimeEncounterResolutionWarning
+storyTriggerWarning                 (compatibility)
+storyLifecycleWarning
+encounterResolvedStoryWarning
+```
+
+Response grouping includes:
+
+```text
+storyLifecycleEvents
+encounterResolvedStoryEvents
+```
+
+`storyEventsTriggered` remains a compatibility alias for the durable `encounterResolvedStoryEvents` result on the Encounter resolution response. It is not a second execution path.
 
 ## GM GUI
 
-World Map Runtime Encounter workspace includes a dedicated:
-
-```text
-Runtime Encounter Resolution
-```
-
-panel that follows the selected Runtime Map + Encounter.
-
-It displays:
+The World Map Runtime Encounter workspace includes a dedicated Runtime Encounter Resolution panel showing:
 
 ```text
 Runtime Encounter status
@@ -363,6 +378,7 @@ Definition combat link = null                (unchanged)
 Runtime Encounter status = resolved
 Runtime Combat status = ended
 Runtime resolution audit = present
+Runtime encounter_resolved occurrence = durable
 ```
 
 A later Scene Run receives a fresh Runtime snapshot from the reusable Definition.
@@ -375,49 +391,32 @@ Operator-only runner:
 scripts/production-alpha-runtime-resolution-e2e.mjs
 ```
 
-Plan-only unless:
+It remains plan-only unless:
 
 ```text
 DND_ALPHA_EXECUTE=1
 DND_ALPHA_GM_PASSWORD=<operator credential>
 ```
 
-The runner creates two Runtime Encounters in one Scene Run.
+The auto path creates a Runtime Monster, starts same-Map Combat, defeats the Monster, ends Combat, verifies automatic Runtime Encounter resolution, and requires the authored `encounter_resolved` Event to be returned/applied with its Story flag and narrative persisted.
 
-### Auto path
+Because `storyEventsTriggered` is now only the compatibility alias produced from `encounterResolvedStoryEvents`, that existing live assertion exercises the durable dispatcher rather than the removed inline executor.
 
-```text
-Runtime Encounter A active
-→ fresh Runtime Monster
-→ same-Map Combat
-→ GM HP correction to 0 reconciles Monster = defeated
-→ End Combat
-→ auto Runtime Encounter resolve
-→ encounter_resolved Event
-→ Story flag + narrative
-```
+The manual path keeps an active hostile, verifies Combat End does not resolve the Encounter, then verifies GM manual resolution with `source = gm_manual`.
 
-### Manual path
+Both paths finish with Definition status, participant roster, and legacy Combat-link isolation checks.
+
+## Current checkpoint
+
+With durable `encounter_resolved` integrated, the primary lifecycle chain is now:
 
 ```text
-Runtime Encounter B active
-→ fresh Runtime Monster remains active
-→ End Combat
-→ auto resolution blocked: HOSTILES_REMAIN
-→ Encounter remains active
-→ GM Resolve Encounter
-→ resolved with source = gm_manual
+scene_run_start
+→ enter_zone / manual Story entry
+→ encounter_activated
+→ combat_started
+→ combat_ended
+→ encounter_resolved
 ```
 
-The runner then verifies both reusable Encounter Definitions remain `planned`, Character-only and without legacy Combat links.
-
-## Next Canonical slice
-
-With Runtime Encounter lifecycle complete, the next Story/runtime work can focus on:
-
-```text
-spawn_boss Story effect with per-Run provenance
-interact_object automatic trigger
-scene_run_start / combat_started / combat_ended trigger executors
-Scene completion / transition policy
-```
+Remaining approved-but-not-yet-durable automatic trigger work includes `interact_object` and `flag_changed`, plus later Scene completion/transition policy and richer object-state mechanics.
