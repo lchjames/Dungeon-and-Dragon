@@ -34,6 +34,7 @@ assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-g
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(zoneGateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/runtime-visibility-gateway\.js'/);
+
 for (const table of ['story_events', 'runtime_story_flags', 'runtime_story_narratives', 'runtime_story_event_executions']) {
   assert.match(gateway, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}`));
 }
@@ -52,14 +53,32 @@ assert.match(gateway, /runtime_story_narratives/);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
 
-for (const value of ['manual', 'scene_run_start', 'enter_zone', 'encounter_activated', 'encounter_resolved', 'combat_started', 'event_not_fired', 'flag_equals', 'door_state', 'show_narrative', 'set_flag', 'reveal_zone', 'open_door', 'close_door']) {
+for (const value of [
+  'manual',
+  'scene_run_start',
+  'enter_zone',
+  'encounter_activated',
+  'encounter_resolved',
+  'combat_started',
+  'combat_ended',
+  'event_not_fired',
+  'flag_equals',
+  'door_state',
+  'show_narrative',
+  'set_flag',
+  'reveal_zone',
+  'open_door',
+  'close_door'
+]) {
   assert.match(rules, new RegExp(`'${value}'`));
 }
 assert.deepEqual(normalizeStoryTrigger('scene_run_start', { ignored: true }), {});
 assert.deepEqual(normalizeStoryTrigger('encounter_activated', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('combat_started', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
+assert.deepEqual(normalizeStoryTrigger('combat_ended', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.throws(() => normalizeStoryTrigger('encounter_activated', {}));
 assert.throws(() => normalizeStoryTrigger('combat_started', {}));
+assert.throws(() => normalizeStoryTrigger('combat_ended', {}));
 assert.match(rules, /sourceEdgeId/);
 assert.match(rules, /sourceZoneId/);
 assert.doesNotMatch(rules, /eval\s*\(/);
@@ -68,7 +87,7 @@ assert.doesNotMatch(rules, /new Function\s*\(/);
 assert.match(gmUi, /<h3>Story Events<\/h3>/);
 assert.match(gmUi, /Trigger \+ Conditions \+ Approved Effects/);
 assert.match(gmUi, /'manual', 'scene_run_start', 'enter_zone', 'interact_object'/);
-assert.match(gmUi, /'encounter_activated', 'encounter_resolved', 'combat_started'/);
+assert.match(gmUi, /'encounter_activated', 'encounter_resolved', 'combat_started', 'combat_ended'/);
 assert.match(gmUi, /id="gm-story-event-conditions"/);
 assert.match(gmUi, /id="gm-story-event-effects"/);
 assert.match(gmUi, /sourceEdgeId/);
@@ -166,12 +185,14 @@ assert.match(encounterActivatedStory, /processPendingRuntimeStoryLifecycleEvents
 assert.match(encounterActivatedStory, /processPendingEncounterActivatedStoryEvents/);
 assert.doesNotMatch(encounterActivatedStory, /runtime_story_lifecycle_dispatches/);
 
-assert.match(runtimeLifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started'\]\)/);
+assert.match(runtimeLifecycle, /SUPPORTED_TRIGGER_TYPES = Object\.freeze\(\['encounter_activated', 'combat_started', 'combat_ended'\]\)/);
 assert.match(runtimeLifecycle, /MAX_OCCURRENCES_PER_DRAIN = 50/);
 assert.match(runtimeLifecycle, /LEASE_TIMEOUT_MS/);
 assert.match(runtimeLifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_started_story_occurrence/);
 assert.match(runtimeLifecycle, /AFTER INSERT ON runtime_encounter_combats/);
-assert.match(runtimeLifecycle, /trigger_type IN \('encounter_activated', 'combat_started'\)/);
+assert.match(runtimeLifecycle, /CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_ended_story_occurrence/);
+assert.match(runtimeLifecycle, /AFTER INSERT ON runtime_combat_end_audit/);
+assert.match(runtimeLifecycle, /trigger_type IN \('encounter_activated', 'combat_started', 'combat_ended'\)/);
 assert.match(runtimeLifecycle, /claimNextOccurrence/);
 assert.match(runtimeLifecycle, /lease_token/);
 assert.match(runtimeLifecycle, /runtime_story_lifecycle_dispatches/);
@@ -194,14 +215,19 @@ assert.doesNotMatch(runtimeLifecycle, /\/api\/gm\//, 'Generic lifecycle dispatch
 assert.doesNotMatch(runtimeLifecycle, /eval\s*\(/);
 assert.doesNotMatch(runtimeLifecycle, /new Function\s*\(/);
 
-assert.match(resolutionGateway, /processPendingEncounterActivatedStoryEvents/);
-assert.match(resolutionGateway, /drainEncounterActivated/);
+assert.match(resolutionGateway, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(resolutionGateway, /drainRuntimeLifecycle/);
+assert.match(resolutionGateway, /lifecycleGroups/);
 assert.match(resolutionGateway, /encounterActivatedStoryEvents/);
+assert.match(resolutionGateway, /combatStartedStoryEvents/);
+assert.match(resolutionGateway, /combatEndedStoryEvents/);
+assert.match(resolutionGateway, /storyLifecycleWarning/);
 assert.match(resolutionGateway, /encounterActivatedStoryWarning/);
 assert.match(resolutionGateway, /manual_story_event/);
 assert.match(resolutionGateway, /player_move_enter_zone/);
 assert.match(resolutionGateway, /encounter_resolved_manual/);
 assert.match(resolutionGateway, /encounter_resolved_combat/);
+assert.match(resolutionGateway, /combat_ended_pre_resolution/);
 assert.match(resolutionGateway, /source: 'scene_run_start'/);
 
 assert.match(lifecycleGateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
@@ -211,6 +237,7 @@ assert.match(lifecycleGateway, /Runtime Story lifecycle drain failed after commi
 assert.match(lifecycleGateway, /storyLifecycleEvents/);
 assert.match(lifecycleGateway, /encounterActivatedStoryEvents/);
 assert.match(lifecycleGateway, /combatStartedStoryEvents/);
+assert.match(lifecycleGateway, /combatEndedStoryEvents/);
 assert.match(lifecycleGateway, /start-combat/);
 assert.match(lifecycleGateway, /story-events/);
 assert.match(lifecycleGateway, /api\\\/player\\\/world\\\/characters/);
@@ -264,4 +291,4 @@ assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual + scene_run_start + durable encounter_activated + combat_started lifecycle runtime integration contract passed.');
+console.log('Story Event manual + scene_run_start + durable encounter_activated + combat_started + combat_ended lifecycle runtime integration contract passed.');

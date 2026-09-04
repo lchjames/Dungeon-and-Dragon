@@ -74,6 +74,7 @@ function normalizeLifecyclePayload(payload, extraEvents = [], warning = null) {
     ...(Array.isArray(payload?.storyLifecycleEvents) ? payload.storyLifecycleEvents : []),
     ...(Array.isArray(payload?.encounterActivatedStoryEvents) ? payload.encounterActivatedStoryEvents : []),
     ...(Array.isArray(payload?.combatStartedStoryEvents) ? payload.combatStartedStoryEvents : []),
+    ...(Array.isArray(payload?.combatEndedStoryEvents) ? payload.combatEndedStoryEvents : []),
     ...(Array.isArray(extraEvents) ? extraEvents : [])
   ];
   const seen = new Set();
@@ -86,9 +87,11 @@ function normalizeLifecyclePayload(payload, extraEvents = [], warning = null) {
   }
   const encounterActivated = all.filter(event => event?.triggerType === 'encounter_activated');
   const combatStarted = all.filter(event => event?.triggerType === 'combat_started');
+  const combatEnded = all.filter(event => event?.triggerType === 'combat_ended');
   const hadLifecycleShape = sourceEvents.length > 0
     || Object.prototype.hasOwnProperty.call(payload || {}, 'encounterActivatedStoryEvents')
     || Object.prototype.hasOwnProperty.call(payload || {}, 'combatStartedStoryEvents')
+    || Object.prototype.hasOwnProperty.call(payload || {}, 'combatEndedStoryEvents')
     || Object.prototype.hasOwnProperty.call(payload || {}, 'storyLifecycleEvents');
   if (!hadLifecycleShape && !warning) return payload;
   return {
@@ -96,6 +99,7 @@ function normalizeLifecyclePayload(payload, extraEvents = [], warning = null) {
     storyLifecycleEvents: all,
     encounterActivatedStoryEvents: encounterActivated,
     combatStartedStoryEvents: combatStarted,
+    combatEndedStoryEvents: combatEnded,
     ...(warning ? { storyLifecycleWarning: warning } : {})
   };
 }

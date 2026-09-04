@@ -10,7 +10,7 @@ import {
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
 
-const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started']);
+const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended']);
 const SUPPORTED_TRIGGER_SET = new Set(SUPPORTED_TRIGGER_TYPES);
 const MAX_OCCURRENCES_PER_DRAIN = 50;
 const LEASE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -32,6 +32,15 @@ export async function ensureRuntimeStoryLifecycleAuthoritySchema(env) {
   await ensureRuntimeEncounterSchema(env);
   if (!authoritySchemaPromise) {
     authoritySchemaPromise = env.DB.batch([
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS runtime_combat_end_audit (
+        combat_id TEXT PRIMARY KEY,
+        ended_by_user_id TEXT NOT NULL,
+        ended_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (combat_id) REFERENCES combats(id) ON DELETE CASCADE,
+        FOREIGN KEY (ended_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+      )`),
+      env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_runtime_combat_end_actor ON runtime_combat_end_audit(ended_by_user_id, ended_at)'),
       env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_started_story_occurrence
         AFTER INSERT ON runtime_encounter_combats
         BEGIN
@@ -55,6 +64,30 @@ export async function ensureRuntimeStoryLifecycleAuthoritySchema(env) {
             NEW.linked_at
           FROM combats c
           WHERE c.id = NEW.combat_id;
+        END`),
+      env.DB.prepare(`CREATE TRIGGER IF NOT EXISTS trg_runtime_encounter_combat_ended_story_occurrence
+        AFTER INSERT ON runtime_combat_end_audit
+        BEGIN
+          INSERT OR IGNORE INTO runtime_story_lifecycle_occurrences (
+            id, scene_run_id, trigger_type, subject_type, subject_id,
+            source_at, actor_user_id, lease_token, lease_at, completed_at,
+            created_at, updated_at
+          )
+          SELECT
+            'story_lifecycle_' || lower(hex(randomblob(16))),
+            rec.scene_run_id,
+            'combat_ended',
+            'combat',
+            NEW.combat_id,
+            NEW.ended_at,
+            NEW.ended_by_user_id,
+            NULL,
+            NULL,
+            NULL,
+            NEW.created_at,
+            NEW.created_at
+          FROM runtime_encounter_combats rec
+          WHERE rec.combat_id = NEW.combat_id;
         END`)
     ]).catch(error => {
       authoritySchemaPromise = null;
@@ -455,7 +488,7 @@ async function claimNextOccurrence(env, sceneRunId) {
       SELECT rowid AS occurrence_sequence, *
       FROM runtime_story_lifecycle_occurrences
       WHERE scene_run_id = ?
-        AND trigger_type IN ('encounter_activated', 'combat_started')
+        AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended')
         AND completed_at IS NULL
         AND (lease_token IS NULL OR lease_at IS NULL OR lease_at < ?)
       ORDER BY source_at, created_at, occurrence_sequence
@@ -535,9 +568,9 @@ async function occurrenceSubject(env, occurrence, encounters, mapInstanceId) {
     };
   }
 
-  if (occurrence.trigger_type === 'combat_started') {
+  if (occurrence.trigger_type === 'combat_started' || occurrence.trigger_type === 'combat_ended') {
     if (occurrence.subject_type !== 'combat') {
-      throw Object.assign(new Error('combat_started occurrence has an invalid subject type.'), {
+      throw Object.assign(new Error(`${occurrence.trigger_type} occurrence has an invalid subject type.`), {
         code: 'STORY_LIFECYCLE_SUBJECT_INVALID'
       });
     }
@@ -550,8 +583,13 @@ async function occurrenceSubject(env, occurrence, encounters, mapInstanceId) {
       LIMIT 1
     `).bind(occurrence.scene_run_id, occurrence.subject_id).first();
     if (!linked || linked.map_instance_id !== mapInstanceId || !encounters.has(linked.encounter_id)) {
-      throw Object.assign(new Error('combat_started occurrence cannot resolve its Runtime Encounter Combat link.'), {
+      throw Object.assign(new Error(`${occurrence.trigger_type} occurrence cannot resolve its Runtime Encounter Combat link.`), {
         code: 'STORY_LIFECYCLE_COMBAT_INVALID'
+      });
+    }
+    if (occurrence.trigger_type === 'combat_ended' && (linked.combat_status !== 'ended' || !linked.ended_at)) {
+      throw Object.assign(new Error('combat_ended occurrence does not point to a committed ended Combat.'), {
+        code: 'STORY_LIFECYCLE_COMBAT_NOT_ENDED'
       });
     }
     return {
@@ -669,7 +707,7 @@ export async function processPendingRuntimeStoryLifecycleEvents(env, { sceneRunI
   const pending = await env.DB.prepare(`
     SELECT id FROM runtime_story_lifecycle_occurrences
     WHERE scene_run_id = ?
-      AND trigger_type IN ('encounter_activated', 'combat_started')
+      AND trigger_type IN ('encounter_activated', 'combat_started', 'combat_ended')
       AND completed_at IS NULL
     LIMIT 1
   `).bind(sceneRunId).first();
