@@ -80,6 +80,9 @@ export function normalizeStoryTrigger(type, raw = {}) {
   if (type === 'enter_zone') {
     return { sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   }
+  if (type === 'interact_object') {
+    return { sourceObjectId: text(raw.sourceObjectId, 'Map Template Object sourceObjectId', 180) };
+  }
   if (type === 'flag_changed') {
     return { key: normalizeStoryFlagKey(raw.key) };
   }
