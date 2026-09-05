@@ -1,0 +1,29 @@
+.player-map-cell.has-object {
+  position: relative;
+}
+
+.player-map-object-marker {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  z-index: 4;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  opacity: .72;
+}
+
+.player-map-object-marker.can-interact {
+  opacity: 1;
+  transform: scale(1.18);
+}
+
+.player-object-row {
+  gap: 10px;
+  align-items: center;
+}
+
+.player-object-row > div {
+  min-width: 0;
+  flex: 1;
+}
