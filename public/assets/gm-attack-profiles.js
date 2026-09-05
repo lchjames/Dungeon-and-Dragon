@@ -1,6 +1,7 @@
 import './gm-story.js';
 import './gm-world-map.js';
 import './gm-map-editor.js';
+import './gm-map-objects.js';
 import './gm-runtime-map.js';
 import './gm-runtime-doors.js';
 import './gm-story-events.js';

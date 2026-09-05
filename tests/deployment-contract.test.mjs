@@ -15,6 +15,7 @@ const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter
 const runtimeEncounterService = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
+const objectLayer = await readFile(new URL('../src/runtime-map-object-layer.js', import.meta.url), 'utf8');
 const resolutionService = await readFile(new URL('../src/runtime-encounter-resolution.js', import.meta.url), 'utf8');
 const lifecycleService = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const resolvedStory = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
@@ -69,7 +70,17 @@ assert.match(wrangler, /"database_id"\s*:\s*"7a9abf7b-5f87-4295-89b1-8187e991b78
 assert.match(wrangler, /"pattern"\s*:\s*"dungeon-and-dragon\.lchjames\.com"/);
 assert.doesNotMatch(wrangler, /live-diagnostic-gateway/, 'Temporary live diagnostic gateway must stay out of the deployment chain.');
 
+assert.match(objectLayer, /export function createRuntimeMapObjectWorker\(baseWorker\)/);
+assert.match(objectLayer, /runtime_map_objects/);
+assert.match(objectLayer, /trg_runtime_map_object_snapshot/);
+assert.match(objectLayer, /augmentRuntimeResponse/);
+assert.doesNotMatch(objectLayer, /eval\s*\(/);
+assert.doesNotMatch(objectLayer, /new Function\s*\(/);
+
 assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
+assert.match(lifecycleGateway, /import \{ createRuntimeMapObjectWorker \} from '\.\/runtime-map-object-layer\.js'/);
+assert.match(lifecycleGateway, /const runtimeMapObjectWorker = createRuntimeMapObjectWorker\(baseWorker\)/);
+assert.match(lifecycleGateway, /const response = await runtimeMapObjectWorker\.fetch\(request, env\)/);
 assert.match(lifecycleGateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
 assert.match(lifecycleGateway, /processPendingRuntimeStoryLifecycleEvents/);
 assert.match(lifecycleGateway, /storyLifecycleEvents/);

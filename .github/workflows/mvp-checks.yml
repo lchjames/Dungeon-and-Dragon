@@ -62,6 +62,7 @@ jobs:
           node tests/world-map-foundation.test.mjs
           node tests/world-map-grid-editor.test.mjs
           node tests/runtime-map-position.test.mjs
+          node tests/runtime-map-object-contract.test.mjs
           node tests/runtime-token-visibility-contract.test.mjs
 
       - name: Story and Runtime Encounter contracts

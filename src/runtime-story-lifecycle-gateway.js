@@ -1,8 +1,11 @@
 import baseWorker from './runtime-encounter-resolution-gateway.js';
+import { createRuntimeMapObjectWorker } from './runtime-map-object-layer.js';
 import {
   ensureRuntimeStoryLifecycleAuthoritySchema,
   processPendingRuntimeStoryLifecycleEvents
 } from './runtime-story-lifecycle.js';
+
+const runtimeMapObjectWorker = createRuntimeMapObjectWorker(baseWorker);
 
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -134,7 +137,7 @@ export default {
       }
     }
 
-    const response = await baseWorker.fetch(request, env);
+    const response = await runtimeMapObjectWorker.fetch(request, env);
     if (!response.ok || !lifecycleMutation) return response;
     const contentType = response.headers.get('Content-Type') || '';
     if (!contentType.toLowerCase().includes('application/json')) return response;

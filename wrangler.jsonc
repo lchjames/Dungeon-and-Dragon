@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dnd",
-  // Delegated downstream contracts: "main": "./src/runtime-encounter-resolution-gateway.js", "main": "./src/runtime-encounter-gateway.js", "main": "./src/story-zone-trigger-gateway.js", "main": "./src/story-event-gateway.js", "main": "./src/runtime-visibility-gateway.js", "main": "./src/hostile-combat-movement-gateway.js", "main": "./src/runtime-door-gateway.js", "main": "./src/player-rest.js", "main": "./src/player-map-gateway.js", "main": "./src/player-map.js", "main": "./src/runtime-map.js", "main": "./src/world-map-editor.js", "main": "./src/world-map.js", "main": "./src/player-monster-audit-compat.js", "main": "./src/admin-gateway.js" and "main": "./src/admin-auth.js"
+  // Runtime Map Object handling is embedded inside runtime-story-lifecycle-gateway.js before delegation to the Runtime Encounter / Story / Map chain.
+  // Delegated downstream contracts include runtime-encounter-resolution-gateway.js, runtime-encounter-gateway.js, story-zone-trigger-gateway.js, story-event-gateway.js, runtime-visibility-gateway.js, hostile-combat-movement-gateway.js, runtime-door-gateway.js, player-rest.js, player-map-gateway.js, player-map.js, runtime-map.js, world-map-editor.js, world-map.js, player-monster-audit-compat.js, admin-gateway.js and admin-auth.js.
   "main": "./src/runtime-story-lifecycle-gateway.js",
   "compatibility_date": "2026-08-19",
   "workers_dev": true,
