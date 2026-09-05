@@ -7,10 +7,12 @@ const storyZoneGateway = await readFile(new URL('../src/story-zone-trigger-gatew
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
+const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-map.js', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-object-gateway\.js"\s*,?\s*$/m);
+assert.match(objectGateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
 assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
@@ -41,4 +43,4 @@ assert.match(ui, /saveViewerVisibility/);
 assert.match(ui, /Own Character token is always visible to its owner/);
 assert.match(ui, /visibility\/\$\{encodeURIComponent\(viewerUserId\)\}/);
 
-console.log('Runtime token visibility integration contract passed behind the Runtime Story lifecycle, Runtime Encounter resolution and Story gateways.');
+console.log('Runtime token visibility integration contract passed behind the Runtime Object, Runtime Story lifecycle, Runtime Encounter resolution and Story gateways.');
