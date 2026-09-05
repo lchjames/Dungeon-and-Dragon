@@ -50,7 +50,8 @@ assert.match(gateway, /import baseWorker from '\.\/runtime-story-lifecycle-gatew
 assert.match(gateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
 assert.match(gateway, /processPendingObjectStoryEvents/);
 assert.match(gateway, /processPendingRuntimeStoryLifecycleEvents/);
-assert.match(gateway, /\/objects\/\(\[\^\/\]\+\)\/interact/);
+assert.match(gateway, /const playerInteraction = pathname\.match/);
+assert.match(gateway, /interactWithObject\(/);
 assert.match(gateway, /CHARACTER_RESTING/);
 assert.match(gateway, /ACTION_ALREADY_SPENT/);
 assert.match(gateway, /OBJECT_OUT_OF_REACH/);
