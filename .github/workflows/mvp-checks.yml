@@ -47,6 +47,7 @@ jobs:
           node tests/story-combat-ended-trigger-contract.test.mjs
           node tests/story-encounter-resolved-trigger-contract.test.mjs
           node tests/story-flag-changed-trigger-contract.test.mjs
+          node tests/story-interact-object-trigger-contract.test.mjs
 
       - name: General static contracts
         run: |
