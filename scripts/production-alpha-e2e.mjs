@@ -25,6 +25,7 @@ try {
   runComponent('Production Combat Ended Story E2E', './production-alpha-story-combat-ended-e2e.mjs');
   runComponent('Production Encounter Resolved Story E2E', './production-alpha-runtime-resolution-e2e.mjs');
   runComponent('Production Flag Changed Story E2E', './production-alpha-story-flag-changed-e2e.mjs');
+  runComponent('Production Object Interaction Story E2E', './production-alpha-story-interact-object-e2e.mjs');
   runComponent('Production Enter-zone Story Event E2E', './production-alpha-story-zone-e2e.mjs');
   runComponent('Production Runtime Encounter Spawn / Combat E2E', './production-alpha-runtime-encounter-e2e.mjs');
   runComponent('Production Player Zone → Story Spawn → Combat E2E', './production-alpha-story-combat-e2e.mjs');
@@ -45,6 +46,7 @@ try {
       'story-combat-ended',
       'runtime-encounter-resolution',
       'story-flag-changed',
+      'story-interact-object',
       'story-enter-zone',
       'runtime-encounter-spawn-combat',
       'story-runtime-spawn-combat',

@@ -8,6 +8,7 @@ const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter
 const runtimeEncounterState = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
+const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const runtimeLifecycle = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const sceneRunStartStory = await readFile(new URL('../src/scene-run-start-story.js', import.meta.url), 'utf8');
 const encounterActivatedStory = await readFile(new URL('../src/encounter-activated-story.js', import.meta.url), 'utf8');
@@ -28,7 +29,8 @@ const encounterActivatedCanonical = await readFile(new URL('../docs/STORY_ENCOUN
 const combatStartedCanonical = await readFile(new URL('../docs/STORY_COMBAT_STARTED_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-object-gateway\.js"\s*,?\s*$/m);
+assert.match(objectGateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
 assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
@@ -57,6 +59,7 @@ for (const value of [
   'manual',
   'scene_run_start',
   'enter_zone',
+  'interact_object',
   'encounter_activated',
   'encounter_resolved',
   'combat_started',
@@ -74,11 +77,13 @@ for (const value of [
   assert.match(rules, new RegExp(`'${value}'`));
 }
 assert.deepEqual(normalizeStoryTrigger('scene_run_start', { ignored: true }), {});
+assert.deepEqual(normalizeStoryTrigger('interact_object', { sourceObjectId: 'object_alpha', ignored: true }), { sourceObjectId: 'object_alpha' });
 assert.deepEqual(normalizeStoryTrigger('encounter_activated', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('encounter_resolved', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('combat_started', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('combat_ended', { encounterId: 'encounter_alpha', ignored: true }), { encounterId: 'encounter_alpha' });
 assert.deepEqual(normalizeStoryTrigger('flag_changed', { key: 'Quest.Stage', ignored: true }), { key: 'quest.stage' });
+assert.throws(() => normalizeStoryTrigger('interact_object', {}));
 assert.throws(() => normalizeStoryTrigger('encounter_activated', {}));
 assert.throws(() => normalizeStoryTrigger('encounter_resolved', {}));
 assert.throws(() => normalizeStoryTrigger('combat_started', {}));
@@ -86,6 +91,7 @@ assert.throws(() => normalizeStoryTrigger('combat_ended', {}));
 assert.throws(() => normalizeStoryTrigger('flag_changed', {}));
 assert.match(rules, /sourceEdgeId/);
 assert.match(rules, /sourceZoneId/);
+assert.match(rules, /sourceObjectId/);
 assert.doesNotMatch(rules, /eval\s*\(/);
 assert.doesNotMatch(rules, /new Function\s*\(/);
 
@@ -103,6 +109,7 @@ assert.match(gmUi, /\/story-events\/\$\{encodeURIComponent\(event\.id\)\}\/activ
 assert.match(playerUi, /storyNarratives/);
 assert.match(playerUi, /GM-revealed narrative/);
 assert.match(playerMapUi, /player-story-narratives\.js/);
+assert.match(playerMapUi, /player-map-objects\.js/);
 
 assert.match(liveRunner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(liveRunner, /flag_not_equals/);
@@ -113,6 +120,8 @@ assert.match(liveRunner, /storyExecutions/);
 assert.match(liveRunner, /storyNarratives/);
 assert.match(orchestrator, /production-alpha-story-event-e2e\.mjs/);
 assert.match(orchestrator, /'story-event'/);
+assert.match(orchestrator, /production-alpha-story-interact-object-e2e\.mjs/);
+assert.match(orchestrator, /'story-interact-object'/);
 
 assert.match(resolutionGateway, /import \{ processSceneRunStartStoryEvents \} from '\.\/scene-run-start-story\.js'/);
 assert.match(resolutionGateway, /handleSceneRunStart/);
@@ -259,6 +268,13 @@ assert.match(lifecycleGateway, /story-events/);
 assert.match(lifecycleGateway, /api\\\/player\\\/world\\\/characters/);
 assert.match(lifecycleGateway, /api\\\/gm\\\/combat/);
 
+assert.match(objectGateway, /processPendingObjectStoryEvents/);
+assert.match(objectGateway, /interactObjectStoryEvents/);
+assert.match(objectGateway, /runtime_object_interaction_log/);
+assert.match(objectGateway, /sourceObjectId/);
+assert.doesNotMatch(objectGateway, /eval\s*\(/);
+assert.doesNotMatch(objectGateway, /new Function\s*\(/);
+
 assert.match(encounterActivatedRunner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(encounterActivatedRunner, /triggerType:\s*'encounter_activated'/);
 assert.match(encounterActivatedRunner, /triggerType:\s*'scene_run_start'/);
@@ -304,7 +320,8 @@ assert.match(combatStartedCanonical, /Definition \/ Runtime isolation/);
 assert.match(combatStartedCanonical, /combat_ended/);
 
 assert.match(gmRoot, /import '\.\/gm-story-events\.js'/);
+assert.match(gmRoot, /import '\.\/gm-map-objects\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual + scene_run_start + durable encounter_activated + combat_started + combat_ended + encounter_resolved + flag_changed lifecycle runtime integration contract passed.');
+console.log('Story Event manual + scene_run_start + enter_zone + durable interact_object + encounter_activated + combat_started + combat_ended + encounter_resolved + flag_changed runtime integration contract passed.');

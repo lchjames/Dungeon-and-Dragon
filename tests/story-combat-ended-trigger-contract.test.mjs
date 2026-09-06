@@ -6,6 +6,7 @@ const migration = await readFile(new URL('../schema/0024_story_combat_ended_trig
 const combatState = await readFile(new URL('../src/combat-state.js', import.meta.url), 'utf8');
 const lifecycle = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
+const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const runner = await readFile(new URL('../scripts/production-alpha-story-combat-ended-e2e.mjs', import.meta.url), 'utf8');
@@ -13,7 +14,8 @@ const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs
 const canonical = await readFile(new URL('../docs/STORY_COMBAT_ENDED_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-story-lifecycle-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-object-gateway\.js"\s*,?\s*$/m);
+assert.match(objectGateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS runtime_combat_end_audit/);
 assert.match(migration, /combat_id TEXT PRIMARY KEY/);
