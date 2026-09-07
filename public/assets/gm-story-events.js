@@ -68,7 +68,7 @@ function panelMarkup() {
             <label class="field"><span>Conditions JSON</span><textarea id="gm-story-event-conditions" class="textarea" rows="7">[\n  {"type":"event_not_fired"}\n]</textarea></label>
             <label class="field"><span>Approved Effects JSON</span><textarea id="gm-story-event-effects" class="textarea" rows="10">[\n  {"type":"show_narrative","text":"Something changes in the room."}\n]</textarea></label>
           </div>
-          <p class="muted">Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code> / <code>sourceObjectId</code>. Object conditions use <code>{type: object_state, sourceObjectId, stateKey}</code>; effects use <code>{type: set_object_state, sourceObjectId, stateKey}</code>. Runtime state stays isolated per Scene Run.</p>
+          <p class="muted">Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code> / <code>sourceObjectId</code>. Encounter effects use the Encounter Definition <code>encounterId</code>. Object conditions use <code>{type: object_state, sourceObjectId, stateKey}</code>; effects use <code>{type: set_object_state, sourceObjectId, stateKey}</code>. Runtime state stays isolated per Scene Run.</p>
           <div class="form-actions wrap">
             <button id="gm-story-event-save" class="button" type="button">Create Event</button>
             <button id="gm-story-event-activate" class="button button-ghost" type="button" disabled>Activate Selected</button>
