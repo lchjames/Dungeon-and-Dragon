@@ -198,14 +198,6 @@ assert text.count(anchor) == 1
 text = text.replace(anchor, anchor + "      'runtime-scene-transition',\n", 1)
 path.write_text(text, encoding='utf-8')
 
-# Main CI contract registration.
-path = Path('.github/workflows/mvp-checks.yml')
-text = path.read_text(encoding='utf-8')
-anchor = "          node tests/runtime-encounter-resolution-contract.test.mjs\n"
-assert text.count(anchor) == 1
-text = text.replace(anchor, anchor + "          node tests/runtime-scene-transition-contract.test.mjs\n", 1)
-path.write_text(text, encoding='utf-8')
-
 # Close prior Object-state checkpoint.
 path = Path('docs/STORY_OBJECT_STATE_MECHANICS_ALPHA.md')
 text = path.read_text(encoding='utf-8')
