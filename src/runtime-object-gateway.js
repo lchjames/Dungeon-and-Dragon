@@ -4,6 +4,7 @@ import {
   processPendingRuntimeStoryLifecycleEvents
 } from './runtime-story-lifecycle.js';
 import { processPendingObjectStoryEvents } from './runtime-object-story.js';
+import { transitionRuntimeScene } from './runtime-scene-transition.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const STATE_KEY = /^[a-z0-9][a-z0-9._-]{0,79}$/;
@@ -929,6 +930,26 @@ export default {
       const runtimeObjectItem = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/objects\/([^/]+)$/);
       if (runtimeObjectItem) {
         return await patchRuntimeObject(request, env, decodeURIComponent(runtimeObjectItem[1]), decodeURIComponent(runtimeObjectItem[2]));
+      }
+
+      const sceneTransition = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/transition$/);
+      if (sceneTransition) {
+        if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+        if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+        const actor = await requireGM(request, env);
+        await ensureRuntimeObjectAuthority(env);
+        const warmRequest = new Request(new URL('/api/gm/world/runtime', request.url), {
+          method: 'GET',
+          headers: { Accept: 'application/json', Cookie: request.headers.get('Cookie') || '' }
+        });
+        const warmResponse = await baseWorker.fetch(warmRequest, env);
+        if (!warmResponse.ok) return warmResponse;
+        const body = await readBody(request);
+        return json(await transitionRuntimeScene(env, {
+          mapInstanceId: decodeURIComponent(sceneTransition[1]),
+          actor,
+          body
+        }));
       }
 
       const runtimeMapDetail = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)$/);

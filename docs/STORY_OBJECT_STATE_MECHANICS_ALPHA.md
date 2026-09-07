@@ -367,4 +367,4 @@ set_object_state effects
 single canonical Object state audit
 ```
 
-The next major authority slice is **Scene completion / Scene transition policy**: what completes a Scene Run, how a next Scene is selected, what Runtime resources close, and which Story state is allowed to carry forward.
+Scene completion / Scene transition policy is now canonical in `RUNTIME_SCENE_TRANSITION_POLICY_ALPHA.md`. The next major authoring slice, if needed, is Definition-level branching / transition authoring rather than weakening Runtime Object state authority.
