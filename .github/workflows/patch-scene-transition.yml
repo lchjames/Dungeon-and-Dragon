@@ -1,0 +1,274 @@
+name: Patch Scene Transition Integration
+
+on:
+  push:
+    branches:
+      - feature/scene-transition-policy
+    paths:
+      - .github/workflows/patch-scene-transition.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/scene-transition-policy
+
+      - name: Patch gateway, GM UI, CI and production orchestrator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Runtime Object outer gateway: add canonical Scene transition route without changing Wrangler entrypoint.
+          path = Path('src/runtime-object-gateway.js')
+          text = path.read_text(encoding='utf-8')
+          anchor = "import { processPendingObjectStoryEvents } from './runtime-object-story.js';\n"
+          addition = anchor + "import { transitionRuntimeScene } from './runtime-scene-transition.js';\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, addition, 1)
+
+          anchor = """      const runtimeMapDetail = pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)$/);
+      if (runtimeMapDetail && request.method === 'GET') {
+        return await enrichRuntimeMapDetail(request, env, decodeURIComponent(runtimeMapDetail[1]));
+      }
+"""
+          addition = """      const sceneTransition = pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/transition$/);
+      if (sceneTransition) {
+        if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+        if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+        const actor = await requireGM(request, env);
+        await ensureRuntimeObjectAuthority(env);
+        const warmRequest = new Request(new URL('/api/gm/world/runtime', request.url), {
+          method: 'GET',
+          headers: { Accept: 'application/json', Cookie: request.headers.get('Cookie') || '' }
+        });
+        const warmResponse = await baseWorker.fetch(warmRequest, env);
+        if (!warmResponse.ok) return warmResponse;
+        const body = await readBody(request);
+        return json(await transitionRuntimeScene(env, {
+          mapInstanceId: decodeURIComponent(sceneTransition[1]),
+          actor,
+          body
+        }));
+      }
+
+""" + anchor
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, addition, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # GM Runtime UI.
+          path = Path('public/assets/gm-runtime-map.js')
+          text = path.read_text(encoding='utf-8')
+          anchor = "let selectedEntityKey = '';\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, anchor + "let transitionTargetEditor = null;\n", 1)
+
+          anchor = """        <section class="panel">
+          <h4>Positions</h4>
+          <div id="runtime-position-list" class="stack-list"></div>
+        </section>
+"""
+          addition = """        <section id="runtime-scene-transition-card" class="panel">
+          <h4>Complete Scene / Transition</h4>
+          <p class="muted">Canonical progression keeps the same Scenario Run, closes this Runtime Map, and creates a fresh next-Scene snapshot.</p>
+          <div class="form-grid compact-grid">
+            <label class="field"><span>Next Scene</span><select id="runtime-transition-scene" class="input"></select></label>
+            <label class="field"><span>Character entry Spawn</span><select id="runtime-transition-spawn" class="input"></select></label>
+            <label class="field"><span>Carry Story flags</span><input id="runtime-transition-flags" class="input" placeholder="quest.key_found, route.alpha"></label>
+            <label class="check-field"><input id="runtime-transition-carry-characters" type="checkbox" checked> Carry positioned Characters</label>
+          </div>
+          <p id="runtime-transition-note" class="muted">Only explicitly listed Scene-scoped flags carry forward. Runtime Object / Door / Zone / Encounter state does not.</p>
+          <div class="form-actions wrap">
+            <button class="button button-small" type="button" data-runtime-transition="next_scene">Transition to Scene</button>
+            <button class="button button-small button-danger-soft" type="button" data-runtime-transition="complete_scenario">Complete Scenario Run</button>
+          </div>
+        </section>
+
+""" + anchor
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, addition, 1)
+
+          anchor = "  $('#runtime-map-close-run')?.addEventListener('click', closeRuntimeMap);\n"
+          addition = anchor + "  $('#runtime-transition-scene')?.addEventListener('change', () => loadTransitionSpawns());\n  $('#runtime-transition-carry-characters')?.addEventListener('change', () => loadTransitionSpawns());\n  $('#runtime-scene-transition-card')?.addEventListener('click', handleSceneTransitionClick);\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, addition, 1)
+
+          anchor = """function renderDetail() {
+  if (!runtimeDetailState?.mapInstance) return;
+"""
+          functions = r'''function transitionCandidates() {
+  const map = runtimeDetailState?.mapInstance;
+  if (!map) return [];
+  return (runtimeOverviewState?.boundScenes || []).filter(scene =>
+    scene.scenarioId === map.scenarioId
+    && scene.sceneId !== map.sceneId
+    && scene.sceneStatus === 'active'
+  );
+}
+
+function transitionFlagKeys() {
+  const raw = $('#runtime-transition-flags')?.value || '';
+  return [...new Set(raw.split(/[\s,]+/).map(value => value.trim().toLowerCase()).filter(Boolean))];
+}
+
+async function loadTransitionSpawns() {
+  const sceneSelect = $('#runtime-transition-scene');
+  const spawnSelect = $('#runtime-transition-spawn');
+  const carry = Boolean($('#runtime-transition-carry-characters')?.checked);
+  if (!sceneSelect || !spawnSelect) return;
+  if (!carry) {
+    transitionTargetEditor = null;
+    spawnSelect.innerHTML = '<option value="">Character carry disabled</option>';
+    spawnSelect.disabled = true;
+    return;
+  }
+  const target = transitionCandidates().find(scene => scene.sceneId === sceneSelect.value);
+  if (!target) {
+    transitionTargetEditor = null;
+    spawnSelect.innerHTML = '<option value="">Select an active next Scene</option>';
+    spawnSelect.disabled = true;
+    return;
+  }
+  spawnSelect.disabled = true;
+  spawnSelect.innerHTML = '<option value="">Loading Spawn Points…</option>';
+  try {
+    transitionTargetEditor = await api(`/api/gm/world/maps/${encodeURIComponent(target.mapTemplateId)}/editor`);
+    const spawns = (transitionTargetEditor?.spawnPoints || []).filter(spawn => spawn.spawnType === 'character' || spawn.spawnType === 'any');
+    spawnSelect.innerHTML = spawns.length
+      ? spawns.map(spawn => `<option value="${escapeHtml(spawn.id)}">${escapeHtml(spawn.name)} · (${spawn.x}, ${spawn.y}) · ${escapeHtml(spawn.spawnType)}</option>`).join('')
+      : '<option value="">No Character / any Spawn Point</option>';
+    spawnSelect.disabled = !spawns.length;
+  } catch (error) {
+    transitionTargetEditor = null;
+    spawnSelect.innerHTML = '<option value="">Unable to load Spawn Points</option>';
+    spawnSelect.disabled = true;
+    toast(error.message, 'error');
+  }
+}
+
+function renderTransitionControls() {
+  const map = runtimeDetailState?.mapInstance;
+  const sceneSelect = $('#runtime-transition-scene');
+  const card = $('#runtime-scene-transition-card');
+  if (!map || !sceneSelect || !card) return;
+  const active = map.status === 'active';
+  const candidates = transitionCandidates();
+  sceneSelect.innerHTML = candidates.length
+    ? candidates.map(scene => `<option value="${escapeHtml(scene.sceneId)}">${escapeHtml(scene.sceneName)} · ${escapeHtml(scene.locationName)} · ${escapeHtml(scene.mapTemplateName)}</option>`).join('')
+    : '<option value="">No active next Scene with Map binding</option>';
+  sceneSelect.disabled = !active || !candidates.length;
+  $('#runtime-transition-flags').disabled = !active;
+  $('#runtime-transition-carry-characters').disabled = !active;
+  for (const button of card.querySelectorAll('[data-runtime-transition]')) button.disabled = !active;
+  transitionTargetEditor = null;
+  loadTransitionSpawns().catch(error => toast(error.message, 'error'));
+}
+
+async function handleSceneTransitionClick(event) {
+  const button = event.target.closest?.('[data-runtime-transition]');
+  if (!button || !runtimeDetailState?.mapInstance || runtimeDetailState.mapInstance.status !== 'active') return;
+  const mode = button.dataset.runtimeTransition;
+  const body = { mode, carryFlagKeys: transitionFlagKeys() };
+  if (mode === 'next_scene') {
+    body.nextSceneId = $('#runtime-transition-scene')?.value || '';
+    body.carryCharacters = Boolean($('#runtime-transition-carry-characters')?.checked);
+    if (!body.nextSceneId) return toast('Select an active next Scene first.', 'error');
+    if (body.carryCharacters) {
+      body.targetSourceSpawnPointId = $('#runtime-transition-spawn')?.value || '';
+      if (!body.targetSourceSpawnPointId) return toast('Select a Character entry Spawn Point first.', 'error');
+    }
+  }
+  button.disabled = true;
+  try {
+    const sourceMapId = runtimeDetailState.mapInstance.id;
+    const result = await api(`/api/gm/world/runtime/maps/${encodeURIComponent(sourceMapId)}/transition`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    await loadRuntimeOverview({ quiet: true });
+    if (result?.destinationMap?.id) {
+      await openRuntimeMap(result.destinationMap.id);
+      toast(result.idempotent ? 'Scene transition already completed; destination re-opened.' : 'Scene completed and next Scene Runtime started.', 'success');
+    } else {
+      await openRuntimeMap(sourceMapId);
+      toast(result.idempotent ? 'Scenario Run was already completed.' : 'Scene and Scenario Run completed.', 'success');
+    }
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    if (runtimeDetailState?.mapInstance?.status === 'active') button.disabled = false;
+  }
+}
+
+''' + anchor
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, functions, 1)
+
+          anchor = "  renderVisibilityControls();\n  $('#runtime-map-close-run').disabled = map.status !== 'active';\n"
+          replacement = "  renderVisibilityControls();\n  renderTransitionControls();\n  $('#runtime-map-close-run').disabled = map.status !== 'active';\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, replacement, 1)
+
+          anchor = "  selectedEntityKey = '';\n}\n\nconst observer = new MutationObserver"
+          replacement = "  selectedEntityKey = '';\n  transitionTargetEditor = null;\n}\n\nconst observer = new MutationObserver"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, replacement, 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Production orchestrator.
+          path = Path('scripts/production-alpha-e2e.mjs')
+          text = path.read_text(encoding='utf-8')
+          anchor = "  runComponent('Production Story Object State Mechanics E2E', './production-alpha-story-object-state-e2e.mjs');\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, anchor + "  runComponent('Production Scene Transition E2E', './production-alpha-scene-transition-e2e.mjs');\n", 1)
+          anchor = "      'story-object-state-mechanics',\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, anchor + "      'runtime-scene-transition',\n", 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Main CI contract registration.
+          path = Path('.github/workflows/mvp-checks.yml')
+          text = path.read_text(encoding='utf-8')
+          anchor = "          node tests/runtime-encounter-resolution-contract.test.mjs\n"
+          assert text.count(anchor) == 1
+          text = text.replace(anchor, anchor + "          node tests/runtime-scene-transition-contract.test.mjs\n", 1)
+          path.write_text(text, encoding='utf-8')
+
+          # Close the prior Object-state checkpoint now that this authority is delivered.
+          path = Path('docs/STORY_OBJECT_STATE_MECHANICS_ALPHA.md')
+          text = path.read_text(encoding='utf-8')
+          old = "The next major authority slice is **Scene completion / Scene transition policy**: what completes a Scene Run, how a next Scene is selected, what Runtime resources close, and which Story state is allowed to carry forward."
+          new = "Scene completion / Scene transition policy is now canonical in `RUNTIME_SCENE_TRANSITION_POLICY_ALPHA.md`. The next major authoring slice, if needed, is Definition-level branching / transition authoring rather than weakening Runtime Object state authority."
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate patched integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          node --check src/runtime-object-gateway.js
+          node --check src/runtime-scene-transition.js
+          node --check public/assets/gm-runtime-map.js
+          node --check scripts/production-alpha-scene-transition-e2e.mjs
+          node scripts/production-alpha-scene-transition-e2e.mjs
+          node tests/runtime-scene-transition-contract.test.mjs
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/runtime-object-gateway.js public/assets/gm-runtime-map.js scripts/production-alpha-e2e.mjs .github/workflows/mvp-checks.yml docs/STORY_OBJECT_STATE_MECHANICS_ALPHA.md
+          git commit -m "Integrate Runtime Scene transition policy"
+          git push origin HEAD:feature/scene-transition-policy
