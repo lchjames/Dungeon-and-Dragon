@@ -10,6 +10,11 @@ import {
   spawnRuntimeMonster,
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
+import {
+  applyRuntimeObjectStateEffect,
+  loadRuntimeObjectTargets,
+  runtimeObjectStateMap
+} from './runtime-object-state.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const EVENT_STATUSES = new Set(['active', 'archived']);
@@ -386,8 +391,9 @@ function doorStates(detail) {
     .map(edge => [edge.sourceEdgeId, edge.doorState || 'closed']));
 }
 
-function validateTargets(event, detail, encounters) {
+function validateTargets(event, detail, encounters, objectBySource) {
   const targets = runtimeTargets(detail);
+  targets.objectBySource = objectBySource;
   for (const condition of event.conditions || []) {
     if (condition.type === 'encounter_status' && !encounters.has(condition.encounterId)) {
       throw Object.assign(new Error(`Runtime Encounter target not found: ${condition.encounterId}`), {
@@ -397,6 +403,11 @@ function validateTargets(event, detail, encounters) {
     if (condition.type === 'door_state' && !targets.doorBySource.has(condition.sourceEdgeId)) {
       throw Object.assign(new Error(`Runtime Door source target not found: ${condition.sourceEdgeId}`), {
         status: 409, code: 'STORY_CONDITION_DOOR_NOT_FOUND'
+      });
+    }
+    if (condition.type === 'object_state' && !targets.objectBySource?.has(condition.sourceObjectId)) {
+      throw Object.assign(new Error(`Runtime Object target not found: ${condition.sourceObjectId}`), {
+        code: 'STORY_CONDITION_OBJECT_NOT_FOUND'
       });
     }
   }
@@ -474,6 +485,23 @@ async function applyEffect(request, env, context, effect, effectIndex) {
     `).bind(context.sceneRunId, effect.key, JSON.stringify(effect.value), context.gm.id, now, now).run();
     context.flags.set(effect.key, effect.value);
     return { type: effect.type, key: effect.key, value: effect.value };
+  }
+  if (effect.type === 'set_object_state') {
+    const target = context.targets.objectBySource.get(effect.sourceObjectId);
+    return {
+      type: effect.type,
+      ...(await applyRuntimeObjectStateEffect(env, {
+        sceneRunId: context.sceneRunId,
+        mapInstanceId: context.mapInstanceId,
+        target,
+        sourceObjectId: effect.sourceObjectId,
+        nextStateKey: effect.stateKey,
+        actorUserId: context.gm.id,
+        storyEventId: context.event.id,
+        storyEffectIndex: effectIndex,
+        objectStates: context.objects
+      }))
+    };
   }
   if (effect.type === 'reveal_zone') {
     const zone = context.targets.zoneBySource.get(effect.sourceZoneId);
@@ -633,20 +661,23 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
   }
 
   const encounters = await loadRuntimeEncounterMap(env, sceneRun.id, event.sceneId);
+  const objectBySource = await loadRuntimeObjectTargets(env, mapInstanceId);
   let targets;
   try {
-    targets = validateTargets(event, detail, encounters);
+    targets = validateTargets(event, detail, encounters, objectBySource);
   } catch (error) {
     return apiError(error.message, error.status || 409, error.code || 'STORY_EVENT_TARGET_INVALID');
   }
 
   const flags = await loadFlags(env, sceneRun.id);
+  const objects = runtimeObjectStateMap(objectBySource);
   const conditions = evaluateStoryConditions(event.conditions, {
     flags,
     eventAlreadyFired: firedCount > 0,
     storyEventId: event.id,
     sceneRunStatus: sceneRun.status,
     doors: doorStates(detail),
+    objects,
     encounters
   });
   if (!conditions.ok) {
@@ -664,6 +695,7 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
       gm,
       targets,
       flags,
+      objects,
       encounters
     };
     for (const [effectIndex, effect] of event.effects.entries()) {
@@ -750,6 +782,11 @@ export default {
         return apiError('資料庫尚未完成配置。', 503, 'DATABASE_UNAVAILABLE');
       }
       return apiError('Story Event runtime service 暫時無法使用。', 500, 'STORY_EVENT_SERVICE_ERROR');
+    }
+    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+      throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+        code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+      });
     }
   }
 };

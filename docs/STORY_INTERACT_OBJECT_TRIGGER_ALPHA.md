@@ -423,4 +423,4 @@ encounter_resolved
 flag_changed
 ```
 
-The next useful Story-runtime work is no longer another missing trigger name. It is richer Object-state mechanics / object conditions and Scene completion / transition policy, followed by consolidation of older direct Story processors where that improves maintainability without changing Canonical behaviour.
+Richer Object-state mechanics and object conditions are defined in `docs/STORY_OBJECT_STATE_MECHANICS_ALPHA.md`. The next major Story-runtime authority slice is Scene completion / transition policy, followed by consolidation of older direct Story processors where that improves maintainability without changing Canonical behaviour.

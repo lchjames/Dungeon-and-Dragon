@@ -10,6 +10,11 @@ import {
   spawnRuntimeMonster,
   startRuntimeEncounterCombat
 } from './runtime-encounter-service.js';
+import {
+  applyRuntimeObjectStateEffect,
+  loadRuntimeObjectTargets,
+  runtimeObjectStateMap
+} from './runtime-object-state.js';
 
 const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed']);
 const SUPPORTED_TRIGGER_SET = new Set(SUPPORTED_TRIGGER_TYPES);
@@ -320,6 +325,11 @@ function validateTargets(event, targets, encounters) {
     if (condition.type === 'door_state' && !targets.doorBySource.has(condition.sourceEdgeId)) {
       throw Object.assign(new Error(`Runtime Door target not found: ${condition.sourceEdgeId}`), { code: 'STORY_CONDITION_DOOR_NOT_FOUND' });
     }
+    if (condition.type === 'object_state' && !targets.objectBySource?.has(condition.sourceObjectId)) {
+      throw Object.assign(new Error(`Runtime Object target not found: ${condition.sourceObjectId}`), {
+        code: 'STORY_CONDITION_OBJECT_NOT_FOUND'
+      });
+    }
   }
   for (const effect of event.effects || []) {
     if ((effect.type === 'activate_encounter' || effect.type === 'spawn_monster' || effect.type === 'spawn_boss' || effect.type === 'start_combat') && !encounters.has(effect.encounterId)) {
@@ -333,6 +343,11 @@ function validateTargets(event, targets, encounters) {
     }
     if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
       throw Object.assign(new Error(`Runtime Door target not found: ${effect.sourceEdgeId}`), { code: 'STORY_EFFECT_DOOR_NOT_FOUND' });
+    }
+    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+      throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+        code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+      });
     }
   }
 }
@@ -400,6 +415,23 @@ async function applyEffect(env, context, effect, effectIndex) {
     `).bind(context.sceneRunId, effect.key, JSON.stringify(effect.value), context.actor.id, now, now).run();
     context.flags.set(effect.key, effect.value);
     return { type: effect.type, key: effect.key, value: effect.value };
+  }
+  if (effect.type === 'set_object_state') {
+    const target = context.targets.objectBySource.get(effect.sourceObjectId);
+    return {
+      type: effect.type,
+      ...(await applyRuntimeObjectStateEffect(env, {
+        sceneRunId: context.sceneRunId,
+        mapInstanceId: context.mapInstanceId,
+        target,
+        sourceObjectId: effect.sourceObjectId,
+        nextStateKey: effect.stateKey,
+        actorUserId: context.actor.id,
+        storyEventId: context.event.id,
+        storyEffectIndex: effectIndex,
+        objectStates: context.objects
+      }))
+    };
   }
   if (effect.type === 'reveal_zone') {
     const zone = context.targets.zoneBySource.get(effect.sourceZoneId);
@@ -540,6 +572,7 @@ async function executeEvent(env, shared, event, firedCount) {
     storyEventId: event.id,
     sceneRunStatus: shared.sceneRunStatus,
     doors: shared.doors,
+    objects: shared.objects,
     encounters: shared.encounters
   });
   if (!conditions.ok) {
@@ -798,6 +831,8 @@ async function processOccurrence(env, occurrence) {
   ]);
   const subject = await occurrenceSubject(env, occurrence, encounters, map.id);
   if (subject.flagKey) flags.set(subject.flagKey, subject.flagToValue);
+  targets.objectBySource = await loadRuntimeObjectTargets(env, map.id);
+
   const shared = {
     actor: { id: occurrence.actor_user_id },
     sceneRunId: sceneRun.id,
@@ -807,6 +842,7 @@ async function processOccurrence(env, occurrence) {
     targets,
     flags,
     doors: doorStates(targets),
+    objects: runtimeObjectStateMap(targets.objectBySource),
     encounters,
     lifecycleTriggerType: occurrence.trigger_type,
     lifecycleEncounterId: subject.encounterId,
