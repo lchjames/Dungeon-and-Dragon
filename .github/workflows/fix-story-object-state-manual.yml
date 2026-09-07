@@ -1,0 +1,95 @@
+name: Fix Story Object State Manual Integration
+
+on:
+  push:
+    branches:
+      - feature/story-object-state-mechanics
+    paths:
+      - .github/workflows/fix-story-object-state-manual.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/story-object-state-mechanics
+
+      - name: Repair manual Object-state validation and contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gateway_path = Path('src/story-event-gateway.js')
+          gateway = gateway_path.read_text(encoding='utf-8')
+
+          old = """    if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
+              throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
+                status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
+              });
+            }
+          }
+          return targets;
+          }"""
+          new = """    if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
+              throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
+                status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
+              });
+            }
+            if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+              throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+                status: 409, code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+              });
+            }
+          }
+          return targets;
+          }"""
+          if gateway.count(old) != 1:
+              raise SystemExit(f'Expected one validateTargets insertion point, found {gateway.count(old)}')
+          gateway = gateway.replace(old, new, 1)
+
+          orphan = """    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+              throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+                code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+              });
+            }
+          """
+          if gateway.count(orphan) != 1:
+              raise SystemExit(f'Expected one orphan Object validation block, found {gateway.count(orphan)}')
+          gateway = gateway.replace(orphan, '', 1)
+          gateway_path.write_text(gateway, encoding='utf-8')
+
+          contract_path = Path('tests/story-object-state-mechanics-contract.test.mjs')
+          contract = contract_path.read_text(encoding='utf-8')
+          old_assert = "assert.match(source, /objects:/, `${label} must pass Object states into condition evaluation.`);"
+          new_assert = "assert.match(source, /objects(?:\\s*:|\\s*,)/, `${label} must pass Object states into condition evaluation.`);"
+          if contract.count(old_assert) != 1:
+              raise SystemExit(f'Expected one Object condition-context assertion, found {contract.count(old_assert)}')
+          contract = contract.replace(old_assert, new_assert, 1)
+          contract_path.write_text(contract, encoding='utf-8')
+          PY
+
+      - name: Validate repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          node --check src/story-event-gateway.js
+          node tests/story-object-state-mechanics-contract.test.mjs
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/story-event-gateway.js tests/story-object-state-mechanics-contract.test.mjs
+          git commit -m "Fix manual Story Object state integration"
+          git push origin HEAD:feature/story-object-state-mechanics
