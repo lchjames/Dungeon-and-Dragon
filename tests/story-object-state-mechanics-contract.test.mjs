@@ -95,7 +95,7 @@ for (const [label, source] of [
   assert.match(source, /condition\.type === 'object_state'/, `${label} must validate object_state targets.`);
   assert.match(source, /effect\.type === 'set_object_state'/, `${label} must validate/execute set_object_state.`);
   assert.match(source, /applyRuntimeObjectStateEffect\(/, `${label} must use shared Object mutation authority.`);
-  assert.match(source, /objects:/, `${label} must pass Object states into condition evaluation.`);
+  assert.match(source, /objects(?:\s*:|\s*,)/, `${label} must pass Object states into condition evaluation.`);
   assert.match(source, /storyEffectIndex:\s*effectIndex/, `${label} must preserve Story effect provenance.`);
 }
 

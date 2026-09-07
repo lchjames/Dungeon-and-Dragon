@@ -432,6 +432,11 @@ function validateTargets(event, detail, encounters, objectBySource) {
         status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
       });
     }
+    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+    throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+      status: 409, code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+    });
+  }
   }
   return targets;
 }
@@ -782,11 +787,6 @@ export default {
         return apiError('資料庫尚未完成配置。', 503, 'DATABASE_UNAVAILABLE');
       }
       return apiError('Story Event runtime service 暫時無法使用。', 500, 'STORY_EVENT_SERVICE_ERROR');
-    }
-    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
-      throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
-        code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
-      });
     }
   }
 };
