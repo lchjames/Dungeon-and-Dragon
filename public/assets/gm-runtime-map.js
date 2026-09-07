@@ -3,6 +3,7 @@ import { $, escapeHtml, toast, emptyState } from './common.js';
 let runtimeOverviewState = null;
 let runtimeDetailState = null;
 let selectedEntityKey = '';
+let transitionTargetEditor = null;
 
 function ensureStylesheet() {
   if (document.querySelector('link[href="/assets/gm-runtime-map.css"]')) return;
@@ -120,6 +121,22 @@ function panelMarkup() {
           <div id="runtime-token-visibility-list" class="stack-list"></div>
         </section>
 
+        <section id="runtime-scene-transition-card" class="panel">
+          <h4>Complete Scene / Transition</h4>
+          <p class="muted">Canonical progression keeps the same Scenario Run, closes this Runtime Map, and creates a fresh next-Scene snapshot.</p>
+          <div class="form-grid compact-grid">
+            <label class="field"><span>Next Scene</span><select id="runtime-transition-scene" class="input"></select></label>
+            <label class="field"><span>Character entry Spawn</span><select id="runtime-transition-spawn" class="input"></select></label>
+            <label class="field"><span>Carry Story flags</span><input id="runtime-transition-flags" class="input" placeholder="quest.key_found, route.alpha"></label>
+            <label class="check-field"><input id="runtime-transition-carry-characters" type="checkbox" checked> Carry positioned Characters</label>
+          </div>
+          <p id="runtime-transition-note" class="muted">Only explicitly listed Scene-scoped flags carry forward. Runtime Object / Door / Zone / Encounter state does not.</p>
+          <div class="form-actions wrap">
+            <button class="button button-small" type="button" data-runtime-transition="next_scene">Transition to Scene</button>
+            <button class="button button-small button-danger-soft" type="button" data-runtime-transition="complete_scenario">Complete Scenario Run</button>
+          </div>
+        </section>
+
         <section class="panel">
           <h4>Positions</h4>
           <div id="runtime-position-list" class="stack-list"></div>
@@ -140,6 +157,9 @@ function ensurePanel() {
   $('#runtime-map-detail-reload')?.addEventListener('click', () => runtimeDetailState && openRuntimeMap(runtimeDetailState.mapInstance.id));
   $('#runtime-map-detail-close')?.addEventListener('click', closeDetail);
   $('#runtime-map-close-run')?.addEventListener('click', closeRuntimeMap);
+  $('#runtime-transition-scene')?.addEventListener('change', () => loadTransitionSpawns());
+  $('#runtime-transition-carry-characters')?.addEventListener('change', () => loadTransitionSpawns());
+  $('#runtime-scene-transition-card')?.addEventListener('click', handleSceneTransitionClick);
   $('#runtime-map-grid')?.addEventListener('click', handleGridClick);
   $('#runtime-map-entity')?.addEventListener('change', event => {
     selectedEntityKey = event.target.value || '';
@@ -449,6 +469,110 @@ function renderVisibilityControls() {
     : '<p class="muted">No per-viewer overrides; global fallback applies.</p>';
 }
 
+function transitionCandidates() {
+  const map = runtimeDetailState?.mapInstance;
+  if (!map) return [];
+  return (runtimeOverviewState?.boundScenes || []).filter(scene =>
+    scene.scenarioId === map.scenarioId
+    && scene.sceneId !== map.sceneId
+    && scene.sceneStatus === 'active'
+  );
+}
+
+function transitionFlagKeys() {
+  const raw = $('#runtime-transition-flags')?.value || '';
+  return [...new Set(raw.split(/[\s,]+/).map(value => value.trim().toLowerCase()).filter(Boolean))];
+}
+
+async function loadTransitionSpawns() {
+  const sceneSelect = $('#runtime-transition-scene');
+  const spawnSelect = $('#runtime-transition-spawn');
+  const carry = Boolean($('#runtime-transition-carry-characters')?.checked);
+  if (!sceneSelect || !spawnSelect) return;
+  if (!carry) {
+    transitionTargetEditor = null;
+    spawnSelect.innerHTML = '<option value="">Character carry disabled</option>';
+    spawnSelect.disabled = true;
+    return;
+  }
+  const target = transitionCandidates().find(scene => scene.sceneId === sceneSelect.value);
+  if (!target) {
+    transitionTargetEditor = null;
+    spawnSelect.innerHTML = '<option value="">Select an active next Scene</option>';
+    spawnSelect.disabled = true;
+    return;
+  }
+  spawnSelect.disabled = true;
+  spawnSelect.innerHTML = '<option value="">Loading Spawn Points…</option>';
+  try {
+    transitionTargetEditor = await api(`/api/gm/world/maps/${encodeURIComponent(target.mapTemplateId)}/editor`);
+    const spawns = (transitionTargetEditor?.spawnPoints || []).filter(spawn => spawn.spawnType === 'character' || spawn.spawnType === 'any');
+    spawnSelect.innerHTML = spawns.length
+      ? spawns.map(spawn => `<option value="${escapeHtml(spawn.id)}">${escapeHtml(spawn.name)} · (${spawn.x}, ${spawn.y}) · ${escapeHtml(spawn.spawnType)}</option>`).join('')
+      : '<option value="">No Character / any Spawn Point</option>';
+    spawnSelect.disabled = !spawns.length;
+  } catch (error) {
+    transitionTargetEditor = null;
+    spawnSelect.innerHTML = '<option value="">Unable to load Spawn Points</option>';
+    spawnSelect.disabled = true;
+    toast(error.message, 'error');
+  }
+}
+
+function renderTransitionControls() {
+  const map = runtimeDetailState?.mapInstance;
+  const sceneSelect = $('#runtime-transition-scene');
+  const card = $('#runtime-scene-transition-card');
+  if (!map || !sceneSelect || !card) return;
+  const active = map.status === 'active';
+  const candidates = transitionCandidates();
+  sceneSelect.innerHTML = candidates.length
+    ? candidates.map(scene => `<option value="${escapeHtml(scene.sceneId)}">${escapeHtml(scene.sceneName)} · ${escapeHtml(scene.locationName)} · ${escapeHtml(scene.mapTemplateName)}</option>`).join('')
+    : '<option value="">No active next Scene with Map binding</option>';
+  sceneSelect.disabled = !active || !candidates.length;
+  $('#runtime-transition-flags').disabled = !active;
+  $('#runtime-transition-carry-characters').disabled = !active;
+  for (const button of card.querySelectorAll('[data-runtime-transition]')) button.disabled = !active;
+  transitionTargetEditor = null;
+  loadTransitionSpawns().catch(error => toast(error.message, 'error'));
+}
+
+async function handleSceneTransitionClick(event) {
+  const button = event.target.closest?.('[data-runtime-transition]');
+  if (!button || !runtimeDetailState?.mapInstance || runtimeDetailState.mapInstance.status !== 'active') return;
+  const mode = button.dataset.runtimeTransition;
+  const body = { mode, carryFlagKeys: transitionFlagKeys() };
+  if (mode === 'next_scene') {
+    body.nextSceneId = $('#runtime-transition-scene')?.value || '';
+    body.carryCharacters = Boolean($('#runtime-transition-carry-characters')?.checked);
+    if (!body.nextSceneId) return toast('Select an active next Scene first.', 'error');
+    if (body.carryCharacters) {
+      body.targetSourceSpawnPointId = $('#runtime-transition-spawn')?.value || '';
+      if (!body.targetSourceSpawnPointId) return toast('Select a Character entry Spawn Point first.', 'error');
+    }
+  }
+  button.disabled = true;
+  try {
+    const sourceMapId = runtimeDetailState.mapInstance.id;
+    const result = await api(`/api/gm/world/runtime/maps/${encodeURIComponent(sourceMapId)}/transition`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    await loadRuntimeOverview({ quiet: true });
+    if (result?.destinationMap?.id) {
+      await openRuntimeMap(result.destinationMap.id);
+      toast(result.idempotent ? 'Scene transition already completed; destination re-opened.' : 'Scene completed and next Scene Runtime started.', 'success');
+    } else {
+      await openRuntimeMap(sourceMapId);
+      toast(result.idempotent ? 'Scenario Run was already completed.' : 'Scene and Scenario Run completed.', 'success');
+    }
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    if (runtimeDetailState?.mapInstance?.status === 'active') button.disabled = false;
+  }
+}
+
 function renderDetail() {
   if (!runtimeDetailState?.mapInstance) return;
   const map = runtimeDetailState.mapInstance;
@@ -460,6 +584,7 @@ function renderDetail() {
   renderPositions();
   renderRuntimeGrid();
   renderVisibilityControls();
+  renderTransitionControls();
   $('#runtime-map-close-run').disabled = map.status !== 'active';
   $('#runtime-map-unplace').disabled = map.status !== 'active';
   $('#runtime-map-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -599,6 +724,7 @@ function closeDetail() {
   $('#runtime-map-detail')?.classList.add('hidden');
   runtimeDetailState = null;
   selectedEntityKey = '';
+  transitionTargetEditor = null;
 }
 
 const observer = new MutationObserver(() => ensurePanel());
