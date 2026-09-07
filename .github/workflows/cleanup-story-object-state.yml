@@ -1,0 +1,79 @@
+name: Cleanup Story Object State Integration
+
+on:
+  push:
+    branches:
+      - feature/story-object-state-mechanics
+    paths:
+      - .github/workflows/cleanup-story-object-state.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/story-object-state-mechanics
+
+      - name: Clean source formatting and restore Encounter authoring help
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gateway_path = Path('src/story-event-gateway.js')
+          gateway = gateway_path.read_text(encoding='utf-8')
+          old_block = """    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+          throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+            status: 409, code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+          });
+        }
+          """
+          old_block = '\n'.join(line[4:] if line.startswith('    ') else line for line in old_block.splitlines())
+          new_block = """    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+              throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
+                status: 409, code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
+              });
+            }
+          """
+          new_block = '\n'.join(line[4:] if line.startswith('    ') else line for line in new_block.splitlines())
+          if gateway.count(old_block) != 1:
+              raise SystemExit(f'Expected one malformed Object validation block, found {gateway.count(old_block)}')
+          gateway = gateway.replace(old_block, new_block, 1)
+          gateway_path.write_text(gateway, encoding='utf-8')
+
+          ui_path = Path('public/assets/gm-story-events.js')
+          ui = ui_path.read_text(encoding='utf-8')
+          old_help = 'Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code> / <code>sourceObjectId</code>. Object conditions use <code>{type: object_state, sourceObjectId, stateKey}</code>; effects use <code>{type: set_object_state, sourceObjectId, stateKey}</code>. Runtime state stays isolated per Scene Run.'
+          new_help = 'Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code> / <code>sourceObjectId</code>. Encounter effects use the Encounter Definition <code>encounterId</code>. Object conditions use <code>{type: object_state, sourceObjectId, stateKey}</code>; effects use <code>{type: set_object_state, sourceObjectId, stateKey}</code>. Runtime state stays isolated per Scene Run.'
+          if ui.count(old_help) != 1:
+              raise SystemExit(f'Expected one Story authoring help paragraph, found {ui.count(old_help)}')
+          ui = ui.replace(old_help, new_help, 1)
+          ui_path.write_text(ui, encoding='utf-8')
+          PY
+
+      - name: Validate cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          node --check src/story-event-gateway.js
+          node --check public/assets/gm-story-events.js
+          node tests/story-object-state-mechanics-contract.test.mjs
+          node tests/runtime-encounter-state-contract.test.mjs
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/story-event-gateway.js public/assets/gm-story-events.js
+          git commit -m "Polish Story Object state integration"
+          git push origin HEAD:feature/story-object-state-mechanics
