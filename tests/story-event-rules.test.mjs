@@ -15,12 +15,14 @@ assert.ok(STORY_EVENT_TRIGGER_TYPES.includes('manual'));
 assert.ok(STORY_EVENT_TRIGGER_TYPES.includes('enter_zone'));
 assert.ok(STORY_EVENT_CONDITION_TYPES.includes('flag_equals'));
 assert.ok(STORY_EVENT_CONDITION_TYPES.includes('encounter_status'));
+assert.ok(STORY_EVENT_CONDITION_TYPES.includes('object_state'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('show_narrative'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('close_door'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('activate_encounter'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('spawn_monster'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('spawn_boss'));
 assert.ok(STORY_EVENT_EFFECT_TYPES.includes('start_combat'));
+assert.ok(STORY_EVENT_EFFECT_TYPES.includes('set_object_state'));
 
 assert.equal(normalizeStoryFlagKey('Boss.Defeated'), 'boss.defeated');
 assert.throws(() => normalizeStoryFlagKey('bad key'));
@@ -34,11 +36,17 @@ assert.deepEqual(normalizeStoryCondition({ type: 'event_not_fired' }), { type: '
 assert.deepEqual(normalizeStoryCondition({ type: 'door_state', sourceEdgeId: 'edge_1', state: 'CLOSED' }), {
   type: 'door_state', sourceEdgeId: 'edge_1', state: 'closed'
 });
+assert.deepEqual(normalizeStoryCondition({ type: 'object_state', sourceObjectId: 'object_terminal', stateKey: 'LOCKED' }), {
+  type: 'object_state', sourceObjectId: 'object_terminal', stateKey: 'locked'
+});
 assert.deepEqual(normalizeStoryCondition({ type: 'encounter_status', encounterId: 'encounter_1', status: 'PLANNED' }), {
   type: 'encounter_status', encounterId: 'encounter_1', status: 'planned'
 });
 assert.deepEqual(normalizeStoryEffect({ type: 'set_flag', key: 'door.opened', value: true }), {
   type: 'set_flag', key: 'door.opened', value: true
+});
+assert.deepEqual(normalizeStoryEffect({ type: 'set_object_state', sourceObjectId: 'object_terminal', stateKey: 'OPEN' }), {
+  type: 'set_object_state', sourceObjectId: 'object_terminal', stateKey: 'open'
 });
 assert.deepEqual(normalizeStoryEffect({ type: 'open_door', sourceEdgeId: 'edge_2' }), {
   type: 'open_door', sourceEdgeId: 'edge_2'
@@ -206,5 +214,20 @@ const noEventIdentityRetry = evaluateStoryConditions(retryCondition, {
   }]])
 });
 assert.equal(noEventIdentityRetry.ok, false, 'Retry relaxation must require the currently executing Story Event identity.');
+
+
+const objectConditionPass = evaluateStoryConditions([
+  { type: 'object_state', sourceObjectId: 'object_terminal', stateKey: 'open' }
+], {
+  objects: new Map([['object_terminal', 'open']])
+});
+assert.equal(objectConditionPass.ok, true);
+const objectConditionFail = evaluateStoryConditions([
+  { type: 'object_state', sourceObjectId: 'object_terminal', stateKey: 'locked' }
+], {
+  objects: new Map([['object_terminal', 'open']])
+});
+assert.equal(objectConditionFail.ok, false);
+assert.equal(objectConditionFail.failures[0]?.reason, 'object_state_mismatch');
 
 console.log('Structured Story Event rules passed.');

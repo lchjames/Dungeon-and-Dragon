@@ -78,7 +78,7 @@ assert.match(zoneGateway, /encounters: shared\.encounters/);
 assert.match(zoneGateway, /activate_encounter/);
 assert.doesNotMatch(zoneGateway, /UPDATE\s+encounters\s+SET\s+status/i);
 
-assert.match(gmUi, /Manual GM and automatic enter_zone execution are live/);
+assert.match(gmUi, /Manual, Scene-start, zone, Object and durable lifecycle execution are live/);
 assert.match(gmUi, /detail\.runtimeEncounters/);
 assert.match(gmUi, /Encounter · \$\{escapeHtml\(encounter\.encounterId\)\}/);
 assert.match(gmUi, /definition snapshot/);

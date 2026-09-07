@@ -42,7 +42,7 @@ function panelMarkup() {
       <div>
         <p class="eyebrow">STORY RUNTIME</p>
         <h3>Story Events</h3>
-        <p class="muted">Structured Trigger + Conditions + Approved Effects. Manual GM and automatic enter_zone execution are live; no arbitrary JavaScript or SQL.</p>
+        <p class="muted">Structured Trigger + Conditions + Approved Effects. Manual, Scene-start, zone, Object and durable lifecycle execution are live; no arbitrary JavaScript or SQL.</p>
       </div>
       <button id="gm-story-event-refresh" class="button button-small button-ghost" type="button">Refresh</button>
     </div>
@@ -68,7 +68,7 @@ function panelMarkup() {
             <label class="field"><span>Conditions JSON</span><textarea id="gm-story-event-conditions" class="textarea" rows="7">[\n  {"type":"event_not_fired"}\n]</textarea></label>
             <label class="field"><span>Approved Effects JSON</span><textarea id="gm-story-event-effects" class="textarea" rows="10">[\n  {"type":"show_narrative","text":"Something changes in the room."}\n]</textarea></label>
           </div>
-          <p class="muted">Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code>. Encounter effects use the Encounter Definition <code>encounterId</code>; Runtime state stays isolated per Scene Run.</p>
+          <p class="muted">Map targets use stable Template <code>sourceEdgeId</code> / <code>sourceZoneId</code> / <code>sourceObjectId</code>. Encounter effects use the Encounter Definition <code>encounterId</code>. Object conditions use <code>{type: object_state, sourceObjectId, stateKey}</code>; effects use <code>{type: set_object_state, sourceObjectId, stateKey}</code>. Runtime state stays isolated per Scene Run.</p>
           <div class="form-actions wrap">
             <button id="gm-story-event-save" class="button" type="button">Create Event</button>
             <button id="gm-story-event-activate" class="button button-ghost" type="button" disabled>Activate Selected</button>
@@ -296,14 +296,16 @@ function renderReferences() {
   const doors = (detail.edges || []).filter(edge => edge.edgeType === 'door' && edge.sourceEdgeId);
   const zones = (detail.zones || []).filter(zone => zone.sourceZoneId);
   const encounters = detail.runtimeEncounters || [];
+  const objects = detail.runtimeObjects || [];
   const rows = [
     ...doors.map(edge => `<div class="stack-item"><div><strong>Door · ${escapeHtml(edge.sourceEdgeId)}</strong><p>Runtime ${escapeHtml(edge.id)} · (${edge.x}, ${edge.y}) ${escapeHtml(edge.direction)} · ${escapeHtml(edge.doorState || 'closed')}</p></div></div>`),
     ...zones.map(zone => `<div class="stack-item"><div><strong>Zone · ${escapeHtml(zone.sourceZoneId)}</strong><p>${escapeHtml(zone.name)} · ${escapeHtml(zone.zoneType)} · player visible ${zone.playerVisible ? 'yes' : 'no'}</p></div></div>`),
+    ...objects.map(object => `<div class="stack-item"><div><strong>Object · ${escapeHtml(object.sourceObjectId)}</strong><p>${escapeHtml(object.name)} · state ${escapeHtml(object.stateKey || 'ready')} · ${object.interactable ? 'interactable' : 'not interactable'}</p></div></div>`),
     ...encounters.map(encounter => `<div class="stack-item"><div><strong>Encounter · ${escapeHtml(encounter.encounterId)}</strong><p>${escapeHtml(encounter.name || encounter.encounterId)} · runtime ${escapeHtml(encounter.status || 'planned')} · definition snapshot ${escapeHtml(encounter.definitionStatusSnapshot || '')}</p></div></div>`)
   ];
   target.innerHTML = rows.length
     ? rows.join('')
-    : emptyState('No Story Runtime references', 'Add Map targets or an Encounter Definition to this Scene first.');
+    : emptyState('No Story Runtime references', 'Add Map targets, Objects or an Encounter Definition to this Scene first.');
 }
 
 function syncActivateButton() {

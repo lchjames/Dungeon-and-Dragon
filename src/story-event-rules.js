@@ -16,12 +16,14 @@ const CONDITION_TYPES = new Set([
   'flag_not_equals',
   'scene_run_status',
   'door_state',
+  'object_state',
   'encounter_status'
 ]);
 
 const EFFECT_TYPES = new Set([
   'show_narrative',
   'set_flag',
+  'set_object_state',
   'reveal_zone',
   'open_door',
   'close_door',
@@ -35,6 +37,7 @@ const DOOR_STATES = new Set(['open', 'closed', 'locked', 'broken']);
 const SCENE_RUN_STATUSES = new Set(['active', 'completed', 'aborted']);
 const ENCOUNTER_STATUSES = new Set(['planned', 'active', 'resolved', 'skipped']);
 const FLAG_KEY = /^[a-z0-9][a-z0-9._-]{0,79}$/;
+const OBJECT_STATE_KEY = /^[a-z0-9][a-z0-9._-]{0,79}$/;
 
 function text(value, label, max = 4000) {
   const output = String(value ?? '').trim();
@@ -65,6 +68,12 @@ function scalar(value, label = 'value') {
 export function normalizeStoryFlagKey(value) {
   const key = String(value ?? '').trim().toLowerCase();
   if (!FLAG_KEY.test(key)) throw new Error('Story flag key is invalid.');
+  return key;
+}
+
+export function normalizeStoryObjectStateKey(value) {
+  const key = String(value ?? '').trim().toLowerCase();
+  if (!OBJECT_STATE_KEY.test(key)) throw new Error('Story Object stateKey is invalid.');
   return key;
 }
 
@@ -112,6 +121,13 @@ export function normalizeStoryCondition(raw) {
     if (!DOOR_STATES.has(state)) throw new Error('Door state condition is invalid.');
     return { type, sourceEdgeId, state };
   }
+  if (type === 'object_state') {
+    return {
+      type,
+      sourceObjectId: text(raw.sourceObjectId, 'Map Template Object sourceObjectId', 180),
+      stateKey: normalizeStoryObjectStateKey(raw.stateKey)
+    };
+  }
   if (type === 'encounter_status') {
     const encounterId = text(raw.encounterId, 'Encounter ID', 180);
     const status = String(raw.status || '').trim().toLowerCase();
@@ -128,6 +144,11 @@ export function normalizeStoryEffect(raw) {
 
   if (type === 'show_narrative') return { type, text: text(raw.text, 'Narrative text', 4000) };
   if (type === 'set_flag') return { type, key: normalizeStoryFlagKey(raw.key), value: scalar(raw.value, 'Story flag value') };
+  if (type === 'set_object_state') return {
+    type,
+    sourceObjectId: text(raw.sourceObjectId, 'Map Template Object sourceObjectId', 180),
+    stateKey: normalizeStoryObjectStateKey(raw.stateKey)
+  };
   if (type === 'reveal_zone') return { type, sourceZoneId: text(raw.sourceZoneId, 'Map Template Zone sourceZoneId', 160) };
   if (type === 'open_door' || type === 'close_door') return { type, sourceEdgeId: text(raw.sourceEdgeId, 'Map Template Door sourceEdgeId', 160) };
   if (type === 'activate_encounter') return { type, encounterId: text(raw.encounterId, 'Encounter ID', 180) };
@@ -175,6 +196,7 @@ function sameScalar(a, b) { return Object.is(a, b); }
 export function evaluateStoryConditions(conditions, context = {}) {
   const flags = context.flags instanceof Map ? context.flags : new Map(Object.entries(context.flags || {}));
   const doors = context.doors instanceof Map ? context.doors : new Map(Object.entries(context.doors || {}));
+  const objects = context.objects instanceof Map ? context.objects : new Map(Object.entries(context.objects || {}));
   const encounters = context.encounters instanceof Map ? context.encounters : new Map(Object.entries(context.encounters || {}));
   const failures = [];
 
@@ -197,6 +219,16 @@ export function evaluateStoryConditions(conditions, context = {}) {
     }
     if (condition.type === 'door_state') {
       if (String(doors.get(condition.sourceEdgeId) || '') !== condition.state) failures.push({ type: condition.type, sourceEdgeId: condition.sourceEdgeId, reason: 'door_state_mismatch' });
+      continue;
+    }
+    if (condition.type === 'object_state') {
+      if (String(objects.get(condition.sourceObjectId) || '') !== condition.stateKey) {
+        failures.push({
+          type: condition.type,
+          sourceObjectId: condition.sourceObjectId,
+          reason: 'object_state_mismatch'
+        });
+      }
       continue;
     }
     if (condition.type === 'encounter_status') {
