@@ -26,63 +26,43 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           gateway_path = Path('src/story-event-gateway.js')
           gateway = gateway_path.read_text(encoding='utf-8')
 
-          insertion_point = """    if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
-              throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
-                status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
-              });
-            }
-          }
-          return targets;
-          }""".replace('            ', '    ', 1)
-          # Use the exact source spelling rather than relying on YAML visual indentation.
-          insertion_point = """    if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
-              throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
-                status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
-              });
-            }
-          }
-          return targets;
-          }"""
-          insertion_point = '\n'.join(line[8:] if line.startswith('        ') else line for line in insertion_point.splitlines())
-          replacement = """    if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
-              throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
-                status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
-              });
-            }
-            if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
+          start = gateway.index('function validateTargets(')
+          end = gateway.index('\nasync function applyDoorEffect', start)
+          section = gateway[start:end]
+          loop_end = section.rfind('  }\n  return targets;\n}')
+          if loop_end < 0:
+              raise SystemExit('validateTargets effect-loop boundary not found')
+          if "effect.type === 'set_object_state'" in section:
+              raise SystemExit('validateTargets already contains set_object_state validation unexpectedly')
+          validation = """    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
               throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
                 status: 409, code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
               });
             }
-          }
-          return targets;
-          }"""
-          replacement = '\n'.join(line[8:] if line.startswith('        ') else line for line in replacement.splitlines())
-          if gateway.count(insertion_point) != 1:
-              raise SystemExit(f'Expected one validateTargets insertion point, found {gateway.count(insertion_point)}')
-          gateway = gateway.replace(insertion_point, replacement, 1)
-
-          orphan = """    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
-              throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
-                code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
-              });
-            }
           """
-          orphan = '\n'.join(line[4:] if line.startswith('    ') else line for line in orphan.splitlines())
-          # Scope the removal to the tail after the gateway catch; this block is unreachable there.
-          marker = "      return apiError('Story Event runtime service 暫時無法使用。', 500, 'STORY_EVENT_SERVICE_ERROR');\n    }\n"
-          marker_index = gateway.find(marker)
-          if marker_index < 0:
-              raise SystemExit('Gateway catch marker not found')
-          tail = gateway[marker_index + len(marker):]
-          if tail.count(orphan) != 1:
-              raise SystemExit(f'Expected one orphan Object validation block in gateway tail, found {tail.count(orphan)}')
-          tail = tail.replace(orphan, '', 1)
-          gateway = gateway[:marker_index + len(marker)] + tail
+          validation = '\n'.join(line[8:] if line.startswith('        ') else line for line in validation.splitlines()) + '\n'
+          section = section[:loop_end] + validation + section[loop_end:]
+          gateway = gateway[:start] + section + gateway[end:]
+
+          catch_marker = "return apiError('Story Event runtime service 暫時無法使用。', 500, 'STORY_EVENT_SERVICE_ERROR');"
+          tail_start = gateway.index(catch_marker)
+          head, tail = gateway[:tail_start], gateway[tail_start:]
+          orphan_pattern = re.compile(
+              r"\n    if \(effect\.type === 'set_object_state' && !targets\.objectBySource\?\.has\(effect\.sourceObjectId\)\) \{\n"
+              r"      throw Object\.assign\(new Error\(`Runtime Object target not found: \$\{effect\.sourceObjectId\}`\), \{\n"
+              r"        code: 'STORY_EFFECT_OBJECT_NOT_FOUND'\n"
+              r"      \}\);\n"
+              r"    \}\n"
+          )
+          tail, removed = orphan_pattern.subn('\n', tail, count=1)
+          if removed != 1:
+              raise SystemExit(f'Expected one unreachable Object validation block in gateway tail, removed {removed}')
+          gateway = head + tail
           gateway_path.write_text(gateway, encoding='utf-8')
 
           contract_path = Path('tests/story-object-state-mechanics-contract.test.mjs')
