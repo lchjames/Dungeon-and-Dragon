@@ -40,6 +40,6 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/runtime-object-gateway.js public/assets/gm-runtime-map.js scripts/production-alpha-e2e.mjs .github/workflows/mvp-checks.yml docs/STORY_OBJECT_STATE_MECHANICS_ALPHA.md
+          git add src/runtime-object-gateway.js public/assets/gm-runtime-map.js scripts/production-alpha-e2e.mjs docs/STORY_OBJECT_STATE_MECHANICS_ALPHA.md
           git commit -m "Integrate Runtime Scene transition policy"
           git push origin HEAD:feature/scene-transition-policy
