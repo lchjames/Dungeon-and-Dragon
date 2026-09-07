@@ -1,0 +1,44 @@
+name: Apply Story Object State Mechanics
+
+on:
+  push:
+    branches:
+      - feature/story-object-state-mechanics
+    paths:
+      - scripts/apply-story-object-state-mechanics.py
+      - .github/workflows/apply-story-object-state-mechanics.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/story-object-state-mechanics
+
+      - name: Apply deterministic integration patch
+        run: python3 scripts/apply-story-object-state-mechanics.py
+
+      - name: Validate generated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          for file in src/*.js public/assets/*.js scripts/*.mjs; do
+            node --check "$file"
+          done
+
+      - name: Commit generated integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src public/assets tests docs scripts .github/workflows/mvp-checks.yml
+          git commit -m "Integrate Story Object state mechanics"
+          git push origin HEAD:feature/story-object-state-mechanics
