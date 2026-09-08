@@ -13,6 +13,7 @@ import {
   loadRuntimeObjectTargets,
   runtimeObjectStateMap
 } from './runtime-object-state.js';
+import { executeRuntimeStoryEvent } from './story-execution-authority.js';
 import { ensureRuntimeStoryLifecycleAuthoritySchema } from './runtime-story-lifecycle.js';
 
 const LEASE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -703,7 +704,7 @@ async function processOccurrence(env, occurrence) {
     }
     if (trigger.sourceObjectId !== interaction.source_object_id || alreadyDispatched.has(event.id)) continue;
     const firedCount = counts.get(event.id) || 0;
-    const result = await executeEvent(env, shared, event, firedCount);
+    const result = await executeRuntimeStoryEvent(env, { shared, event, firedCount });
     await writeDispatch(env, occurrence.id, event.id, result);
     if (result.status === 'applied') counts.set(event.id, firedCount + 1);
     results.push({ ...result, ...metadata });

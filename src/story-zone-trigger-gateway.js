@@ -14,6 +14,7 @@ import {
   loadRuntimeObjectTargets,
   runtimeObjectStateMap
 } from './runtime-object-state.js';
+import { executeRuntimeStoryEvent } from './story-execution-authority.js';
 
 let autoStorySchemaPromise = null;
 
@@ -571,7 +572,7 @@ async function processEnterZoneTriggers(request, env, payload) {
     }
     if (!enteredSourceIds.has(trigger.sourceZoneId)) continue;
     const firedCount = counts.get(event.id) || 0;
-    const result = await executeEnteredZoneEvent(env, shared, event, firedCount);
+    const result = await executeRuntimeStoryEvent(env, { shared, event, firedCount });
     if (result.status === 'applied') counts.set(event.id, firedCount + 1);
     results.push({ ...result, sourceZoneId: trigger.sourceZoneId });
   }

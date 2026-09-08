@@ -15,6 +15,7 @@ import {
   loadRuntimeObjectTargets,
   runtimeObjectStateMap
 } from './runtime-object-state.js';
+import { executeRuntimeStoryEvent } from './story-execution-authority.js';
 
 const SUPPORTED_TRIGGER_TYPES = Object.freeze(['encounter_activated', 'combat_started', 'combat_ended', 'encounter_resolved', 'flag_changed']);
 const SUPPORTED_TRIGGER_SET = new Set(SUPPORTED_TRIGGER_TYPES);
@@ -879,7 +880,7 @@ async function processOccurrence(env, occurrence) {
     }
     if (!triggerMatchesSubject(occurrence.trigger_type, trigger, subject) || alreadyDispatched.has(event.id)) continue;
     const firedCount = counts.get(event.id) || 0;
-    const result = await executeEvent(env, shared, event, firedCount);
+    const result = await executeRuntimeStoryEvent(env, { shared, event, firedCount });
     await writeDispatch(env, occurrence.id, event.id, result);
     if (result.status === 'applied') counts.set(event.id, firedCount + 1);
     results.push({

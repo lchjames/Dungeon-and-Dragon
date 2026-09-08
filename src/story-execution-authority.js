@@ -14,7 +14,9 @@ function cleanError(error) {
   return {
     code: String(error?.code || 'STORY_EFFECT_EXECUTION_FAILED').slice(0, 120),
     message: String(error?.message || error || 'Story Event effect execution failed.').slice(0, 1000),
-    errorStatus: Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500
+    errorStatus: Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500,
+    ...(error?.missingPositions ? { missingPositions: error.missingPositions } : {}),
+    ...(error?.activeCombatId ? { activeCombatId: error.activeCombatId } : {})
   };
 }
 

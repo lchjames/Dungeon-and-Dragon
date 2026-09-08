@@ -15,6 +15,7 @@ import {
   loadRuntimeObjectTargets,
   runtimeObjectStateMap
 } from './runtime-object-state.js';
+import { executeRuntimeStoryEvent } from './story-execution-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const EVENT_STATUSES = new Set(['active', 'archived']);
@@ -667,85 +668,53 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
 
   const encounters = await loadRuntimeEncounterMap(env, sceneRun.id, event.sceneId);
   const objectBySource = await loadRuntimeObjectTargets(env, mapInstanceId);
-  let targets;
-  try {
-    targets = validateTargets(event, detail, encounters, objectBySource);
-  } catch (error) {
-    return apiError(error.message, error.status || 409, error.code || 'STORY_EVENT_TARGET_INVALID');
-  }
-
+  const targets = runtimeTargets(detail);
+  targets.objectBySource = objectBySource;
   const flags = await loadFlags(env, sceneRun.id);
   const objects = runtimeObjectStateMap(objectBySource);
-  const conditions = evaluateStoryConditions(event.conditions, {
-    flags,
-    eventAlreadyFired: firedCount > 0,
-    storyEventId: event.id,
+  const shared = {
+    actor: gm,
+    sceneRunId: sceneRun.id,
     sceneRunStatus: sceneRun.status,
+    sceneId: event.sceneId,
+    mapInstanceId,
+    targets,
+    flags,
     doors: doorStates(detail),
     objects,
     encounters
-  });
-  if (!conditions.ok) {
-    return apiError('Story Event conditions 未滿足。', 409, 'STORY_EVENT_CONDITIONS_NOT_MET', {
-      failures: conditions.failures
+  };
+
+  const result = await executeRuntimeStoryEvent(env, { shared, event, firedCount });
+  if (result.status === 'skipped') {
+    if (result.code === 'STORY_EVENT_ALREADY_FIRED') {
+      return apiError('Story Event 已經喺呢個 Scene Run 成功執行過。', 409, result.code);
+    }
+    return apiError('Story Event conditions 未滿足。', 409, result.code || 'STORY_EVENT_CONDITIONS_NOT_MET', {
+      failures: result.failures || []
     });
   }
-
-  const effectsApplied = [];
-  try {
-    const context = {
-      event,
-      sceneRunId: sceneRun.id,
-      mapInstanceId,
-      gm,
-      targets,
-      flags,
-      objects,
-      encounters
-    };
-    for (const [effectIndex, effect] of event.effects.entries()) {
-      effectsApplied.push(await applyEffect(request, env, context, effect, effectIndex));
-    }
-    const executionId = await recordExecution(env, {
-      event, sceneRunId: sceneRun.id, mapInstanceId, gm, status: 'applied', effectsApplied
-    });
-    return json({
-      ok: true,
-      executionId,
-      event,
-      effectsApplied,
-      ...(await runtimeStoryState(env, sceneRun.id, event.sceneId, mapInstanceId))
-    });
-  } catch (error) {
-    let executionId = null;
-    try {
-      executionId = await recordExecution(env, {
-        event,
-        sceneRunId: sceneRun.id,
-        mapInstanceId,
-        gm,
-        status: 'failed',
-        effectsApplied,
-        errorCode: error?.code || 'STORY_EFFECT_EXECUTION_FAILED',
-        errorMessage: String(error?.message || error).slice(0, 1000)
-      });
-    } catch (auditError) {
-      console.error('Story Event failed-execution audit write failed', {
-        message: String(auditError?.message || auditError)
-      });
-    }
+  if (result.status === 'failed') {
     return apiError(
-      error?.message || 'Story Event effect execution failed.',
-      error?.status || 500,
-      error?.code || 'STORY_EFFECT_EXECUTION_FAILED',
+      result.message || 'Story Event effect execution failed.',
+      result.errorStatus || 500,
+      result.code || 'STORY_EFFECT_EXECUTION_FAILED',
       {
-        executionId,
-        effectsApplied,
-        ...(error?.missingPositions ? { missingPositions: error.missingPositions } : {}),
-        ...(error?.activeCombatId ? { activeCombatId: error.activeCombatId } : {})
+        executionId: result.executionId || null,
+        effectsApplied: result.effectsApplied || [],
+        ...(result.missingPositions ? { missingPositions: result.missingPositions } : {}),
+        ...(result.activeCombatId ? { activeCombatId: result.activeCombatId } : {})
       }
     );
   }
+
+  return json({
+    ok: true,
+    executionId: result.executionId,
+    event,
+    effectsApplied: result.effectsApplied || [],
+    ...(await runtimeStoryState(env, sceneRun.id, event.sceneId, mapInstanceId))
+  });
 }
 
 export default {
