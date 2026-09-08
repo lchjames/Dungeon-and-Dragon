@@ -5,6 +5,7 @@ import { normalizeStoryTrigger } from '../src/story-event-rules.js';
 const migration = await readFile(new URL('../schema/0027_runtime_object_interaction.sql', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const objectStory = await readFile(new URL('../src/runtime-object-story.js', import.meta.url), 'utf8');
+const storyAuthority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const lifecycle = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-map-objects.js', import.meta.url), 'utf8');
@@ -66,6 +67,7 @@ assert.doesNotMatch(gateway, /UPDATE\s+map_objects\s+SET\s+state/i);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
 
+// Object adapter owns occurrence identity, leasing, historical cutoff and committed Object snapshot.
 assert.match(objectStory, /trigger_type = 'interact_object'/);
 assert.match(objectStory, /subject_type !== 'object_interaction'/);
 assert.match(objectStory, /FROM runtime_object_interaction_log/);
@@ -77,15 +79,27 @@ assert.match(objectStory, /created_at <= \?/);
 assert.match(objectStory, /objectInteractionId:/);
 assert.match(objectStory, /objectStateBefore:/);
 assert.match(objectStory, /objectStateAfter:/);
-assert.match(objectStory, /spawnRuntimeMonster/);
-assert.match(objectStory, /spawnRuntimeBoss/);
-assert.match(objectStory, /startRuntimeEncounterCombat/);
-assert.match(objectStory, /activateRuntimeEncounter/);
+assert.match(objectStory, /shared\.objects\.set\(interaction\.source_object_id, interaction\.to_state_key\)/);
+assert.match(objectStory, /committed interaction/);
+assert.match(objectStory, /story-execution-authority\.js/);
+assert.match(objectStory, /executeRuntimeStoryEvent\(env, \{ shared, event, firedCount \}\)/);
 assert.match(objectStory, /MAX_OBJECT_OCCURRENCES_PER_DRAIN = 50/);
 assert.match(objectStory, /LEASE_TIMEOUT_MS/);
+assert.doesNotMatch(objectStory, /runtime-encounter-service\.js/);
+assert.doesNotMatch(objectStory, /async function applyEffect\(/);
+assert.doesNotMatch(objectStory, /function validateTargets\(/);
 assert.doesNotMatch(objectStory, /\/api\/gm\//);
 assert.doesNotMatch(objectStory, /eval\s*\(/);
 assert.doesNotMatch(objectStory, /new Function\s*\(/);
+
+// Approved effects belong to the one shared execution authority, not this trigger adapter.
+assert.match(storyAuthority, /spawnRuntimeMonster/);
+assert.match(storyAuthority, /spawnRuntimeBoss/);
+assert.match(storyAuthority, /startRuntimeEncounterCombat/);
+assert.match(storyAuthority, /activateRuntimeEncounter/);
+assert.match(storyAuthority, /applyRuntimeObjectStateEffect/);
+assert.match(storyAuthority, /storyEffectIndex: effectIndex/);
+assert.match(storyAuthority, /actorUserId: context\.actor\.id/);
 
 assert.match(lifecycle, /processPendingRuntimeStoryLifecycleEvents/);
 assert.match(gateway, /genericEvents = await processPendingRuntimeStoryLifecycleEvents/);
@@ -123,4 +137,4 @@ assert.match(canonical, /Definition changes after Scene Run creation do not rewr
 assert.match(canonical, /interactObjectStoryEvents/);
 assert.match(canonical, /single_use = true/);
 
-console.log('Runtime Object authority, Action economy, durable interact_object Story dispatch, UI and production coverage contract passed.');
+console.log('Runtime Object authority, Action economy, durable interact_object Story dispatch, shared effect authority, UI and production coverage contract passed.');
