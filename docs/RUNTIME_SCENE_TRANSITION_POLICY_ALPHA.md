@@ -371,4 +371,4 @@ Scenario Definition
         → terminal Scenario Run completion
 ```
 
-The next useful slice after this authority is stable is **Definition-level branching / transition authoring** if needed, followed by broader consolidation of older direct Story processors only when that reduces maintenance without changing Runtime semantics.
+Definition-level branching / transition authoring is now canonical in `SCENE_TRANSITION_AUTHORING_ALPHA.md`. The next major architecture slice is **Story processor consolidation / shared execution authority**, but only where consolidation preserves existing trigger ordering, Runtime audit identity and Definition/Runtime isolation.

@@ -5,6 +5,16 @@ import {
 } from './runtime-story-lifecycle.js';
 import { processPendingObjectStoryEvents } from './runtime-object-story.js';
 import { transitionRuntimeScene } from './runtime-scene-transition.js';
+import {
+  createSceneTransitionDefinition,
+  deleteDraftSceneTransitionDefinition,
+  ensureSceneTransitionDefinitionSchema,
+  listSceneTransitionDefinitions,
+  loadRuntimeSceneTransitionOptions,
+  recordRuntimeSceneTransitionDefinitionLink,
+  resolveRuntimeSceneTransitionDefinition,
+  updateSceneTransitionDefinition
+} from './scene-transition-definition.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const STATE_KEY = /^[a-z0-9][a-z0-9._-]{0,79}$/;
@@ -878,6 +888,99 @@ async function patchRuntimeObject(request, env, mapId, objectId) {
   return json({ ok: true, object: runtimePayload(updated), stateAuditId: existing.state_key === nextState ? null : stateLogId });
 }
 
+async function transitionDefinitionCollection(request, env, sceneId = null) {
+  const actor = await requireGM(request, env);
+  await ensureRuntimeObjectAuthority(env);
+  await ensureSceneTransitionDefinitionSchema(env);
+  if (request.method === 'GET') {
+    return json({ ok: true, definitions: await listSceneTransitionDefinitions(env, { sceneId }) });
+  }
+  if (request.method === 'POST' && sceneId) {
+    if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+    const body = await readBody(request);
+    const definition = await createSceneTransitionDefinition(env, { sceneId, actorUserId: actor.id, body });
+    return json({ ok: true, definition }, 201);
+  }
+  return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+}
+
+async function transitionDefinitionItem(request, env, definitionId) {
+  const actor = await requireGM(request, env);
+  await ensureRuntimeObjectAuthority(env);
+  await ensureSceneTransitionDefinitionSchema(env);
+  if (request.method === 'PATCH') {
+    if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+    const body = await readBody(request);
+    return json({
+      ok: true,
+      definition: await updateSceneTransitionDefinition(env, { definitionId, actorUserId: actor.id, body })
+    });
+  }
+  if (request.method === 'DELETE') {
+    if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+    const body = await readBody(request);
+    return json({
+      ok: true,
+      deleted: await deleteDraftSceneTransitionDefinition(env, { definitionId, expectedVersion: body?.expectedVersion })
+    });
+  }
+  return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+}
+
+async function runtimeTransitionOptions(request, env, mapInstanceId) {
+  if (request.method !== 'GET') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+  await requireGM(request, env);
+  await ensureRuntimeObjectAuthority(env);
+  return json({ ok: true, ...(await loadRuntimeSceneTransitionOptions(env, { mapInstanceId })) });
+}
+
+function authoredTransitionOverrideFields(body) {
+  return ['mode', 'nextSceneId', 'carryFlagKeys', 'carryCharacters', 'targetSourceSpawnPointId']
+    .filter(key => Object.prototype.hasOwnProperty.call(body || {}, key));
+}
+
+function parseTransitionSnapshot(value) {
+  try { return JSON.parse(value || '{}'); } catch { return {}; }
+}
+
+async function priorAuthoredTransition(env, mapInstanceId, definitionId, actor) {
+  await ensureSceneTransitionDefinitionSchema(env);
+  const row = await env.DB.prepare(`
+    SELECT stl.transition_mode, stl.to_scene_id,
+           link.definition_id, link.definition_version, link.definition_snapshot_json,
+           link.linked_by_user_id, link.linked_at
+    FROM runtime_map_instances rmi
+    JOIN runtime_scene_transition_log stl ON stl.from_scene_run_id = rmi.scene_run_id
+    LEFT JOIN runtime_scene_transition_definition_links link ON link.transition_id = stl.id
+    WHERE rmi.id = ? LIMIT 1
+  `).bind(mapInstanceId).first();
+  if (!row) return null;
+  if (row.definition_id && row.definition_id !== definitionId) {
+    throw Object.assign(new Error('呢個 Scene Run 已經由另一個 authored Transition Definition 完成。'), {
+      status: 409,
+      code: 'SCENE_TRANSITION_DEFINITION_IDEMPOTENCY_MISMATCH'
+    });
+  }
+  const body = row.transition_mode === 'complete_scenario'
+    ? { mode: 'complete_scenario', carryFlagKeys: [] }
+    : { mode: 'next_scene', nextSceneId: row.to_scene_id, carryFlagKeys: [], carryCharacters: false };
+  const result = await transitionRuntimeScene(env, { mapInstanceId, actor, body });
+  const snapshot = row.definition_id ? parseTransitionSnapshot(row.definition_snapshot_json) : null;
+  return {
+    ...result,
+    transitionDefinition: snapshot,
+    transitionDefinitionLink: row.definition_id ? {
+      transitionId: result?.transition?.id || null,
+      definitionId: row.definition_id,
+      definitionVersion: Number(row.definition_version),
+      definitionSnapshot: snapshot,
+      linkedByUserId: row.linked_by_user_id,
+      linkedAt: row.linked_at
+    } : null,
+    ...(!row.definition_id ? { transitionDefinitionAuditWarning: { code: 'SCENE_TRANSITION_DEFINITION_LINK_MISSING' } } : {})
+  };
+}
+
 async function enrichRuntimeMapDetail(request, env, mapId) {
   const response = await baseWorker.fetch(request, env);
   if (!response.ok || request.method !== 'GET') return response;
@@ -894,6 +997,20 @@ export default {
     const url = new URL(request.url);
     const pathname = url.pathname;
     try {
+      if (pathname === '/api/gm/scene-transitions') {
+        return await transitionDefinitionCollection(request, env, null);
+      }
+
+      const sceneTransitionDefinitions = pathname.match(/^\/api\/gm\/scenes\/([^/]+)\/transitions$/);
+      if (sceneTransitionDefinitions) {
+        return await transitionDefinitionCollection(request, env, decodeURIComponent(sceneTransitionDefinitions[1]));
+      }
+
+      const sceneTransitionDefinitionItem = pathname.match(/^\/api\/gm\/scene-transitions\/([^/]+)$/);
+      if (sceneTransitionDefinitionItem) {
+        return await transitionDefinitionItem(request, env, decodeURIComponent(sceneTransitionDefinitionItem[1]));
+      }
+
       const definitionCollection = pathname.match(/^\/api\/gm\/world\/maps\/([^/]+)\/objects$/);
       if (definitionCollection) {
         const mapId = decodeURIComponent(definitionCollection[1]);
@@ -932,12 +1049,18 @@ export default {
         return await patchRuntimeObject(request, env, decodeURIComponent(runtimeObjectItem[1]), decodeURIComponent(runtimeObjectItem[2]));
       }
 
+      const sceneTransitionOptions = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/transition-options$/);
+      if (sceneTransitionOptions) {
+        return await runtimeTransitionOptions(request, env, decodeURIComponent(sceneTransitionOptions[1]));
+      }
+
       const sceneTransition = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)\/transition$/);
       if (sceneTransition) {
         if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
         if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
         const actor = await requireGM(request, env);
         await ensureRuntimeObjectAuthority(env);
+        await ensureSceneTransitionDefinitionSchema(env);
         const warmRequest = new Request(new URL('/api/gm/world/runtime', request.url), {
           method: 'GET',
           headers: { Accept: 'application/json', Cookie: request.headers.get('Cookie') || '' }
@@ -945,11 +1068,42 @@ export default {
         const warmResponse = await baseWorker.fetch(warmRequest, env);
         if (!warmResponse.ok) return warmResponse;
         const body = await readBody(request);
-        return json(await transitionRuntimeScene(env, {
-          mapInstanceId: decodeURIComponent(sceneTransition[1]),
-          actor,
-          body
-        }));
+        const mapInstanceId = decodeURIComponent(sceneTransition[1]);
+        if (body?.transitionDefinitionId) {
+          const overrideFields = authoredTransitionOverrideFields(body);
+          if (overrideFields.length) {
+            return apiError('使用 transitionDefinitionId 時不可覆寫 authored Runtime policy。', 400, 'SCENE_TRANSITION_DEFINITION_OVERRIDE_FORBIDDEN');
+          }
+          const definitionId = cleanText(body.transitionDefinitionId, 180);
+          const prior = await priorAuthoredTransition(env, mapInstanceId, definitionId, actor);
+          if (prior) return json(prior);
+          const resolved = await resolveRuntimeSceneTransitionDefinition(env, { mapInstanceId, definitionId });
+          const result = await transitionRuntimeScene(env, { mapInstanceId, actor, body: resolved.transitionBody });
+          let transitionDefinitionLink = null;
+          let transitionDefinitionAuditWarning = null;
+          try {
+            transitionDefinitionLink = await recordRuntimeSceneTransitionDefinitionLink(env, {
+              transitionId: result?.transition?.id,
+              definition: resolved.definition,
+              actorUserId: actor.id
+            });
+          } catch (error) {
+            console.error('Scene Transition Definition provenance link failed after committed Runtime transition', {
+              mapInstanceId,
+              definitionId,
+              transitionId: result?.transition?.id || null,
+              message: String(error?.message || error)
+            });
+            transitionDefinitionAuditWarning = { code: 'SCENE_TRANSITION_DEFINITION_LINK_FAILED' };
+          }
+          return json({
+            ...result,
+            transitionDefinition: resolved.definition,
+            transitionDefinitionLink,
+            ...(transitionDefinitionAuditWarning ? { transitionDefinitionAuditWarning } : {})
+          });
+        }
+        return json(await transitionRuntimeScene(env, { mapInstanceId, actor, body }));
       }
 
       const runtimeMapDetail = pathname.match(/^\/api\/gm\/world\/runtime\/maps\/([^/]+)$/);

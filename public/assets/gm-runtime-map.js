@@ -4,6 +4,7 @@ let runtimeOverviewState = null;
 let runtimeDetailState = null;
 let selectedEntityKey = '';
 let transitionTargetEditor = null;
+let transitionOptionsState = null;
 
 function ensureStylesheet() {
   if (document.querySelector('link[href="/assets/gm-runtime-map.css"]')) return;
@@ -124,6 +125,13 @@ function panelMarkup() {
         <section id="runtime-scene-transition-card" class="panel">
           <h4>Complete Scene / Transition</h4>
           <p class="muted">Canonical progression keeps the same Scenario Run, closes this Runtime Map, and creates a fresh next-Scene snapshot.</p>
+          <div class="form-grid compact-grid">
+            <label class="field" style="grid-column:1/-1"><span>Authored Route</span><select id="runtime-transition-definition" class="input"><option value="">Loading authored routes…</option></select></label>
+          </div>
+          <p id="runtime-transition-definition-note" class="muted">Active authored routes are re-evaluated against current Runtime state before execution.</p>
+          <div class="form-actions"><button class="button button-small" type="button" data-runtime-transition="authored">Use Authored Route</button></div>
+          <hr>
+          <p class="muted"><strong>Manual Override</strong> · Direct Runtime policy bypasses Definition route authoring but not Runtime transition invariants.</p>
           <div class="form-grid compact-grid">
             <label class="field"><span>Next Scene</span><select id="runtime-transition-scene" class="input"></select></label>
             <label class="field"><span>Character entry Spawn</span><select id="runtime-transition-spawn" class="input"></select></label>
@@ -519,6 +527,43 @@ async function loadTransitionSpawns() {
   }
 }
 
+async function loadAuthoredTransitionOptions() {
+  const map = runtimeDetailState?.mapInstance;
+  const select = $('#runtime-transition-definition');
+  const note = $('#runtime-transition-definition-note');
+  if (!map || !select || !note) return;
+  if (map.status !== 'active') {
+    transitionOptionsState = null;
+    select.innerHTML = '<option value="">Runtime closed</option>';
+    select.disabled = true;
+    return;
+  }
+  select.disabled = true;
+  select.innerHTML = '<option value="">Loading authored routes…</option>';
+  try {
+    transitionOptionsState = await api(`/api/gm/world/runtime/maps/${encodeURIComponent(map.id)}/transition-options`);
+    const options = transitionOptionsState?.options || [];
+    select.innerHTML = options.length
+      ? options.map(option => {
+          const definition = option.definition;
+          const target = definition.mode === 'complete_scenario' ? 'Complete Scenario' : `→ ${definition.toSceneId}`;
+          return `<option value="${escapeHtml(definition.id)}" ${option.eligible ? '' : 'disabled'}>${option.eligible ? '✓' : '×'} ${escapeHtml(definition.name)} · ${escapeHtml(target)}</option>`;
+        }).join('')
+      : '<option value="">No active authored routes</option>';
+    select.disabled = !options.some(option => option.eligible);
+    const blockers = transitionOptionsState?.globalBlockers || [];
+    const ineligible = options.filter(option => !option.eligible).length;
+    note.textContent = blockers.length
+      ? `Transition blocked: ${blockers.map(item => item.reason).join(', ')}.`
+      : `${options.filter(option => option.eligible).length} eligible authored route(s)${ineligible ? ` · ${ineligible} currently unavailable` : ''}.`;
+  } catch (error) {
+    transitionOptionsState = null;
+    select.innerHTML = '<option value="">Unable to load authored routes</option>';
+    select.disabled = true;
+    note.textContent = error.message;
+  }
+}
+
 function renderTransitionControls() {
   const map = runtimeDetailState?.mapInstance;
   const sceneSelect = $('#runtime-transition-scene');
@@ -535,13 +580,17 @@ function renderTransitionControls() {
   for (const button of card.querySelectorAll('[data-runtime-transition]')) button.disabled = !active;
   transitionTargetEditor = null;
   loadTransitionSpawns().catch(error => toast(error.message, 'error'));
+  loadAuthoredTransitionOptions().catch(error => toast(error.message, 'error'));
 }
 
 async function handleSceneTransitionClick(event) {
   const button = event.target.closest?.('[data-runtime-transition]');
   if (!button || !runtimeDetailState?.mapInstance || runtimeDetailState.mapInstance.status !== 'active') return;
   const mode = button.dataset.runtimeTransition;
-  const body = { mode, carryFlagKeys: transitionFlagKeys() };
+  const body = mode === 'authored'
+    ? { transitionDefinitionId: $('#runtime-transition-definition')?.value || '' }
+    : { mode, carryFlagKeys: transitionFlagKeys() };
+  if (mode === 'authored' && !body.transitionDefinitionId) return toast('Select an eligible Authored Route first.', 'error');
   if (mode === 'next_scene') {
     body.nextSceneId = $('#runtime-transition-scene')?.value || '';
     body.carryCharacters = Boolean($('#runtime-transition-carry-characters')?.checked);
@@ -725,6 +774,7 @@ function closeDetail() {
   runtimeDetailState = null;
   selectedEntityKey = '';
   transitionTargetEditor = null;
+  transitionOptionsState = null;
 }
 
 const observer = new MutationObserver(() => ensurePanel());
