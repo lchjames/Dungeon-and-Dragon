@@ -31,6 +31,7 @@ for (const effect of [
 assert.match(authority, /EXISTS \(\s*SELECT 1 FROM runtime_map_instances WHERE id = \? AND status = 'active'/s);
 assert.match(authority, /storyEffectIndex: effectIndex/);
 assert.match(authority, /actorUserId: context\.actor\.id/);
+assert.match(authority, /from '\.\/runtime-encounter-service\.js'/);
 
 for (const [name, source] of [
   ['manual', manual],
@@ -42,7 +43,17 @@ for (const [name, source] of [
   assert.match(source, /story-execution-authority\.js/, `${name} must import the shared Story execution authority`);
   assert.match(source, /executeRuntimeStoryEvent\(env, \{\s*shared,\s*event,\s*firedCount\s*\}\)/s,
     `${name} must delegate active condition/effect execution to the shared authority`);
+  assert.doesNotMatch(source, /async function applyEffect\(/, `${name} must not retain a duplicate local effect executor`);
+  assert.doesNotMatch(source, /async function applyDoorEffect\(/, `${name} must not retain a duplicate local Door effect executor`);
+  assert.doesNotMatch(source, /function validateTargets\(/, `${name} must not retain duplicate shared target validation`);
+  assert.doesNotMatch(source, /from '\.\/runtime-encounter-service\.js'/,
+    `${name} must not bypass the shared Story authority for Encounter effect execution`);
 }
+
+assert.doesNotMatch(sceneStart, /async function executeEvent\(/);
+assert.doesNotMatch(enterZone, /async function executeEnteredZoneEvent\(/);
+assert.doesNotMatch(objectStory, /async function executeEvent\(/);
+assert.doesNotMatch(lifecycle, /async function executeEvent\(/);
 
 assert.match(objectStory, /shared\.objects\.set\(interaction\.source_object_id, interaction\.to_state_key\)/);
 assert.match(objectStory, /committed interaction/);
@@ -57,4 +68,4 @@ assert.match(docs, /GM-facing \*\*Script Tool\*\*/);
 assert.match(docs, /does not add arbitrary code execution/i);
 assert.match(docs, /after this consolidation is production-complete/i);
 
-console.log('Shared Story execution authority contract passed.');
+console.log('Shared Story execution authority and adapter de-duplication contract passed.');
