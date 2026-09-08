@@ -7,7 +7,6 @@ import {
 } from './runtime-object-state.js';
 import { executeRuntimeStoryEvent } from './story-execution-authority.js';
 
-
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -120,6 +119,21 @@ async function loadRuntimeTargets(env, mapInstanceId) {
 
 function doorStates(targets) {
   return new Map([...targets.doorBySource].map(([id, edge]) => [id, edge.doorState || 'closed']));
+}
+
+async function loadFlags(env, sceneRunId) {
+  const rows = await env.DB.prepare('SELECT flag_key, value_json FROM runtime_story_flags WHERE scene_run_id = ?').bind(sceneRunId).all();
+  return new Map((rows.results || []).map(row => [row.flag_key, parseJson(row.value_json, null)]));
+}
+
+async function appliedCounts(env, sceneRunId) {
+  const rows = await env.DB.prepare(`
+    SELECT story_event_id, COUNT(*) AS count
+    FROM runtime_story_event_executions
+    WHERE scene_run_id = ? AND status = 'applied'
+    GROUP BY story_event_id
+  `).bind(sceneRunId).all();
+  return new Map((rows.results || []).map(row => [row.story_event_id, Number(row.count || 0)]));
 }
 
 async function processEnterZoneTriggers(request, env, payload) {
