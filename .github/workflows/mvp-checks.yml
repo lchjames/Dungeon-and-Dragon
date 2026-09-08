@@ -75,6 +75,7 @@ jobs:
           node tests/runtime-encounter-spawn-combat-contract.test.mjs
           node tests/runtime-encounter-resolution-contract.test.mjs
           node tests/runtime-scene-transition-contract.test.mjs
+          node tests/scene-transition-definition-contract.test.mjs
 
       - name: Movement and control contracts
         run: |
