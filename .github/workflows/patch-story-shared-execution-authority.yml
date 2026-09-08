@@ -1,4 +1,4 @@
-name: Patch Story Shared Execution Authority
+name: Patch Story Shared Execution Authority Cleanup
 
 on:
   push:
@@ -19,13 +19,13 @@ jobs:
         with:
           ref: feature/story-shared-execution-authority
 
-      - name: Apply shared execution integration
+      - name: Remove duplicate Story executors
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/patch-story-shared-execution-authority.py
 
-      - name: Validate integration
+      - name: Validate cleanup
         shell: bash
         run: |
           set -euo pipefail
@@ -37,19 +37,19 @@ jobs:
           node --check src/runtime-object-story.js
           node --check src/runtime-story-lifecycle.js
           node tests/story-shared-execution-authority-contract.test.mjs
+          node tests/story-runtime-spawn-combat-effects-contract.test.mjs
 
-      - name: Commit integration
+      - name: Commit cleanup
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            src/story-execution-authority.js \
             src/story-event-gateway.js \
             src/scene-run-start-story.js \
             src/story-zone-trigger-gateway.js \
             src/runtime-object-story.js \
             src/runtime-story-lifecycle.js
-          git commit -m "Route Story execution through shared authority"
+          git commit -m "Remove duplicate Story execution implementations"
           git push origin HEAD:feature/story-shared-execution-authority
