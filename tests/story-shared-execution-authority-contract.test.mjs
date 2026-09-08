@@ -7,6 +7,7 @@ const sceneStart = fs.readFileSync('src/scene-run-start-story.js', 'utf8');
 const enterZone = fs.readFileSync('src/story-zone-trigger-gateway.js', 'utf8');
 const objectStory = fs.readFileSync('src/runtime-object-story.js', 'utf8');
 const lifecycle = fs.readFileSync('src/runtime-story-lifecycle.js', 'utf8');
+const legacyResolved = fs.readFileSync('src/encounter-resolved-story.js', 'utf8');
 const docs = fs.readFileSync('docs/STORY_SHARED_EXECUTION_AUTHORITY_ALPHA.md', 'utf8');
 
 assert.match(authority, /export async function executeRuntimeStoryEvent/);
@@ -55,6 +56,11 @@ assert.doesNotMatch(enterZone, /async function executeEnteredZoneEvent\(/);
 assert.doesNotMatch(objectStory, /async function executeEvent\(/);
 assert.doesNotMatch(lifecycle, /async function executeEvent\(/);
 
+assert.match(legacyResolved, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(legacyResolved, /Compatibility shim only/);
+assert.doesNotMatch(legacyResolved, /async function applyEffect\(/);
+assert.doesNotMatch(legacyResolved, /runtime-encounter-service\.js/);
+
 assert.match(objectStory, /shared\.objects\.set\(interaction\.source_object_id, interaction\.to_state_key\)/);
 assert.match(objectStory, /committed interaction/);
 assert.match(lifecycle, /if \(subject\.flagKey\) flags\.set\(subject\.flagKey, subject\.flagToValue\)/);
@@ -68,4 +74,4 @@ assert.match(docs, /GM-facing \*\*Script Tool\*\*/);
 assert.match(docs, /does not add arbitrary code execution/i);
 assert.match(docs, /after this consolidation is production-complete/i);
 
-console.log('Shared Story execution authority and adapter de-duplication contract passed.');
+console.log('Shared Story execution authority, adapter de-duplication and legacy shim contract passed.');
