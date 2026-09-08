@@ -29,9 +29,11 @@ assert.match(definition, /resolveRuntimeSceneTransitionDefinition/);
 assert.match(definition, /recordRuntimeSceneTransitionDefinitionLink/);
 assert.match(definition, /evaluateStoryConditions/);
 assert.match(definition, /targetSourceSpawnPointId/);
+assert.match(definition, /ensureRuntimeSceneTransitionSchema/);
 
 assert.match(gateway, /\/api\/gm\/scene-transitions/);
-assert.match(gateway, /\/api\/gm\/scenes\/\(\[\^\/\]\+\)\/transitions/);
+assert.match(gateway, /sceneTransitionDefinitions/);
+assert.match(gateway, /transitionDefinitionCollection\(request, env, decodeURIComponent\(sceneTransitionDefinitions\[1\]\)\)/);
 assert.match(gateway, /transition-options/);
 assert.match(gateway, /transitionDefinitionId/);
 assert.match(gateway, /SCENE_TRANSITION_DEFINITION_OVERRIDE_FORBIDDEN/);
