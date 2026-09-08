@@ -4,7 +4,10 @@ import {
   loadRuntimeObjectTargets,
   runtimeObjectStateMap
 } from './runtime-object-state.js';
-import { executeRuntimeStoryEvent } from './story-execution-authority.js';
+import {
+  executeRuntimeStoryEvent,
+  failRuntimeStoryEvent
+} from './story-execution-authority.js';
 
 let schemaPromise = null;
 
@@ -183,7 +186,17 @@ export async function processSceneRunStartStoryEvents(env, {
   for (const row of eventRows.results || []) {
     const event = eventPayload(row);
     const firedCount = counts.get(event.id) || 0;
-    const result = await executeRuntimeStoryEvent(env, { shared, event, firedCount });
+    let triggerError = null;
+    if (!(event.oncePerSceneRun && firedCount > 0)) {
+      try {
+        normalizeStoryTrigger('scene_run_start', event.trigger);
+      } catch (error) {
+        triggerError = error;
+      }
+    }
+    const result = triggerError
+      ? await failRuntimeStoryEvent(env, { shared, event, error: triggerError })
+      : await executeRuntimeStoryEvent(env, { shared, event, firedCount });
     if (result.status === 'applied') counts.set(event.id, firedCount + 1);
     results.push(result);
   }

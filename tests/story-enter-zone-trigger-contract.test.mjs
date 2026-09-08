@@ -6,6 +6,7 @@ const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-
 const runtimeEncounterGateway = await readFile(new URL('../src/runtime-encounter-gateway.js', import.meta.url), 'utf8');
 const resolutionGateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
+const authority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0016_story_event_runtime.sql', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-story-zone-e2e.mjs', import.meta.url), 'utf8');
@@ -18,24 +19,29 @@ assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-re
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);
 assert.match(runtimeEncounterGateway, /import baseWorker from '\.\/story-zone-trigger-gateway\.js'/);
 assert.match(gateway, /import baseWorker from '\.\/story-event-gateway\.js'/);
-assert.match(gateway, /import \{ evaluateStoryConditions, normalizeStoryTrigger \} from '\.\/story-event-rules\.js'/);
+assert.match(gateway, /import \{ normalizeStoryTrigger \} from '\.\/story-event-rules\.js'/);
+assert.match(gateway, /story-execution-authority\.js/);
+assert.match(gateway, /executeRuntimeStoryEvent\(env, \{ shared, event, firedCount \}\)/);
 assert.match(gateway, /\/api\\\/player\\\/world\\\/characters\\\/\(\[\^\/\]\+\)\\\/move/);
 assert.match(gateway, /trigger_type = 'enter_zone'/);
 assert.match(gateway, /runtime_map_zone_cells/);
 assert.match(gateway, /origin\.runtime_zone_id IS NULL/);
 assert.match(gateway, /source_zone_id/);
 assert.match(gateway, /normalizeStoryTrigger\('enter_zone'/);
-assert.match(gateway, /STORY_EVENT_ALREADY_FIRED/);
-assert.match(gateway, /STORY_EVENT_CONDITIONS_NOT_MET/);
 assert.match(gateway, /runtime_story_event_executions/);
+assert.match(gateway, /async function loadFlags/);
+assert.match(gateway, /async function appliedCounts/);
 assert.match(gateway, /storyEventsTriggered/);
 assert.match(gateway, /STORY_ENTER_ZONE_TRIGGER_ERROR/);
 assert.match(gateway, /Automatic enter-zone Story Event processing failed after committed Player movement/);
-assert.match(gateway, /runtime_door_state_log/);
-assert.match(gateway, /updated_by_user_id/);
-assert.match(gateway, /activated_by_user_id/);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
+assert.doesNotMatch(gateway, /async function applyEffect\(/);
+assert.doesNotMatch(gateway, /from '\.\/runtime-encounter-service\.js'/);
+
+assert.match(authority, /STORY_EVENT_ALREADY_FIRED/);
+assert.match(authority, /STORY_EVENT_CONDITIONS_NOT_MET/);
+assert.match(authority, /runtime_door_state_log/);
 
 assert.match(rules, /export function normalizeStoryTrigger/);
 assert.match(rules, /type === 'enter_zone'/);

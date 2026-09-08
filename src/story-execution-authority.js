@@ -433,6 +433,36 @@ async function recordExecution(env, context, status, effectsApplied, error = nul
   return executionId;
 }
 
+
+export async function failRuntimeStoryEvent(env, {
+  shared,
+  event,
+  error,
+  effectsApplied = []
+}) {
+  if (!shared?.actor?.id || !shared.sceneRunId || !shared.sceneId || !shared.mapInstanceId) {
+    throw Object.assign(new Error('Story execution context is incomplete.'), {
+      status: 500,
+      code: 'STORY_EXECUTION_CONTEXT_INVALID'
+    });
+  }
+  await ensureStoryExecutionAuthoritySchema(env);
+  const executionId = await recordExecution(
+    env,
+    { ...shared, event },
+    'failed',
+    effectsApplied,
+    error
+  ).catch(() => null);
+  return {
+    eventId: event.id,
+    name: event.name,
+    status: 'failed',
+    executionId,
+    effectsApplied,
+    ...cleanError(error)
+  };
+}
 export async function executeRuntimeStoryEvent(env, {
   shared,
   event,
