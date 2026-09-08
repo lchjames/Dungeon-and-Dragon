@@ -280,7 +280,7 @@ After an authored transition commits, its canonical Runtime transition ID is lin
 
 The Definition snapshot preserves the route policy that was selected even if the Definition is edited or later removed while still draft.
 
-The Runtime transition itself remains authoritative even if supplemental provenance linking reports a warning after commit. Retrying the same authored route is idempotent and can repair the missing link because the core Runtime transition returns its existing transition audit.
+The Runtime transition itself remains authoritative even if supplemental provenance linking reports a warning after commit. Retrying the same authored route remains idempotent because the core Runtime transition audit is authoritative. If the supplemental Definition link is missing, the retry reports that missing provenance rather than manufacturing a historical Definition snapshot that can no longer be proven exact.
 
 ---
 
