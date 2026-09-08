@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const service = await readFile(new URL('../src/runtime-encounter-service.js', import.meta.url), 'utf8');
+const authority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const manualGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
-const resolvedStory = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 const monsterMigration = await readFile(new URL('../schema/0019_story_runtime_spawn_effects.sql', import.meta.url), 'utf8');
 const bossMigration = await readFile(new URL('../schema/0021_story_runtime_boss_spawn_effects.sql', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-story-combat-e2e.mjs', import.meta.url), 'utf8');
@@ -71,34 +71,37 @@ assert.doesNotMatch(service, /INSERT INTO encounter_participants/);
 assert.doesNotMatch(service, /INSERT INTO encounter_combats/);
 assert.doesNotMatch(service, /UPDATE\s+encounters\s+SET\s+status/i);
 
-for (const gateway of [manualGateway, zoneGateway, resolvedStory]) {
-  assert.match(gateway, /from '\.\/runtime-encounter-service\.js'/);
-  assert.match(gateway, /spawnRuntimeMonster\(/);
-  assert.match(gateway, /spawnRuntimeBoss\(/);
-  assert.match(gateway, /startRuntimeEncounterCombat\(/);
-  assert.match(gateway, /spawnBySource/);
-  assert.match(gateway, /STORY_EFFECT_SPAWN_POINT_NOT_FOUND/);
-  assert.match(gateway, /\.entries\(\)/, 'Story effect execution must preserve a stable effect index for spawn provenance.');
-  assert.match(gateway, /context\.event\.oncePerSceneRun \? context\.event\.id : null/);
-  assert.match(gateway, /context\.event\.oncePerSceneRun \? effectIndex : null/);
-  assert.match(gateway, /storyEventId:\s*event\.id/, 'Retry-aware condition evaluation must receive the current Story Event identity.');
-  assert.match(gateway, /effect\.type === 'spawn_boss'/);
-  assert.match(gateway, /profileId:\s*effect\.profileId/);
+// Spawn/Boss/Combat execution invariants now live once in the shared Story authority.
+assert.match(authority, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(authority, /spawnRuntimeMonster\(/);
+assert.match(authority, /spawnRuntimeBoss\(/);
+assert.match(authority, /startRuntimeEncounterCombat\(/);
+assert.match(authority, /spawnBySource/);
+assert.match(authority, /STORY_EFFECT_SPAWN_POINT_NOT_FOUND/);
+assert.match(authority, /\.entries\(\)/, 'Story effect execution must preserve a stable effect index for spawn provenance.');
+assert.match(authority, /context\.event\.oncePerSceneRun \? context\.event\.id : null/);
+assert.match(authority, /context\.event\.oncePerSceneRun \? effectIndex : null/);
+assert.match(authority, /storyEventId:\s*event\.id/, 'Retry-aware condition evaluation must receive the current Story Event identity.');
+assert.match(authority, /effect\.type === 'spawn_boss'/);
+assert.match(authority, /profileId:\s*effect\.profileId/);
+assert.match(authority, /actorUserId:\s*context\.actor\.id/);
+assert.doesNotMatch(authority, /INSERT INTO encounter_participants/);
+assert.doesNotMatch(authority, /INSERT INTO encounter_combats/);
+assert.doesNotMatch(authority, /UPDATE\s+encounters\s+SET\s+status/i);
+
+for (const gateway of [manualGateway, zoneGateway]) {
+  assert.match(gateway, /from '\.\/story-execution-authority\.js'/);
+  assert.match(gateway, /executeRuntimeStoryEvent\(/);
   assert.doesNotMatch(gateway, /INSERT INTO encounter_participants/);
   assert.doesNotMatch(gateway, /INSERT INTO encounter_combats/);
   assert.doesNotMatch(gateway, /UPDATE\s+encounters\s+SET\s+status/i);
 }
 
 assert.match(zoneGateway, /runtime_map_spawn_points/);
-assert.match(zoneGateway, /effect\.type === 'spawn_monster'/);
-assert.match(zoneGateway, /effect\.type === 'spawn_boss'/);
-assert.match(zoneGateway, /effect\.type === 'start_combat'/);
-assert.match(zoneGateway, /actorUserId:\s*context\.actor\.id/);
-assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/monsters/, 'Player-triggered Story must call the service directly, not a GM HTTP route.');
-assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/bosses/, 'Player-triggered Story Boss spawn must call the service directly, not a GM HTTP route.');
-assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/start-combat/, 'Player-triggered Story must call the service directly, not a GM HTTP route.');
-
-assert.match(manualGateway, /actorUserId:\s*context\.gm\.id/);
+assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/monsters/, 'Player-triggered Story must call the shared service authority, not a GM HTTP route.');
+assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/bosses/, 'Player-triggered Story Boss spawn must call the shared service authority, not a GM HTTP route.');
+assert.doesNotMatch(zoneGateway, /\/api\/gm\/world\/runtime\/maps\/.*\/start-combat/, 'Player-triggered Story must call the shared service authority, not a GM HTTP route.');
+assert.match(manualGateway, /actor:\s*gm/);
 
 assert.match(hostileLoader, /import '\.\/gm-story-runtime-action-help\.js'/);
 assert.match(authoringHelp, /<h4>Runtime Spawn & Combat<\/h4>/);
@@ -148,4 +151,4 @@ assert.match(bossLiveRunner, /bestEffortFailureCleanup/);
 assert.match(orchestrator, /production-alpha-story-boss-e2e\.mjs/);
 assert.match(orchestrator, /'story-runtime-spawn-boss-retry'/);
 
-console.log('Story Runtime Monster/Boss spawn + Combat effects, replay identity, GM authoring and production vertical contract passed.');
+console.log('Story Runtime Monster/Boss spawn + Combat effects, shared execution provenance, GM authoring and production vertical contract passed.');

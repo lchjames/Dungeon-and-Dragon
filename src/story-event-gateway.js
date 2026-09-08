@@ -1,20 +1,14 @@
 import baseWorker from './runtime-visibility-gateway.js';
-import { evaluateStoryConditions, normalizeStoryEventStructure } from './story-event-rules.js';
+import { normalizeStoryEventStructure } from './story-event-rules.js';
 import {
-  activateRuntimeEncounter,
   loadRuntimeEncounterMap,
   loadRuntimeEncounterRows
 } from './runtime-encounter-state.js';
 import {
-  spawnRuntimeBoss,
-  spawnRuntimeMonster,
-  startRuntimeEncounterCombat
-} from './runtime-encounter-service.js';
-import {
-  applyRuntimeObjectStateEffect,
   loadRuntimeObjectTargets,
   runtimeObjectStateMap
 } from './runtime-object-state.js';
+import { executeRuntimeStoryEvent } from './story-execution-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 const EVENT_STATUSES = new Set(['active', 'archived']);
@@ -391,251 +385,6 @@ function doorStates(detail) {
     .map(edge => [edge.sourceEdgeId, edge.doorState || 'closed']));
 }
 
-function validateTargets(event, detail, encounters, objectBySource) {
-  const targets = runtimeTargets(detail);
-  targets.objectBySource = objectBySource;
-  for (const condition of event.conditions || []) {
-    if (condition.type === 'encounter_status' && !encounters.has(condition.encounterId)) {
-      throw Object.assign(new Error(`Runtime Encounter target not found: ${condition.encounterId}`), {
-        status: 409, code: 'STORY_CONDITION_ENCOUNTER_NOT_FOUND'
-      });
-    }
-    if (condition.type === 'door_state' && !targets.doorBySource.has(condition.sourceEdgeId)) {
-      throw Object.assign(new Error(`Runtime Door source target not found: ${condition.sourceEdgeId}`), {
-        status: 409, code: 'STORY_CONDITION_DOOR_NOT_FOUND'
-      });
-    }
-    if (condition.type === 'object_state' && !targets.objectBySource?.has(condition.sourceObjectId)) {
-      throw Object.assign(new Error(`Runtime Object target not found: ${condition.sourceObjectId}`), {
-        code: 'STORY_CONDITION_OBJECT_NOT_FOUND'
-      });
-    }
-  }
-  for (const effect of event.effects || []) {
-    if ((effect.type === 'activate_encounter' || effect.type === 'spawn_monster' || effect.type === 'spawn_boss' || effect.type === 'start_combat') && !encounters.has(effect.encounterId)) {
-      throw Object.assign(new Error(`Runtime Encounter target not found: ${effect.encounterId}`), {
-        status: 409, code: 'STORY_EFFECT_ENCOUNTER_NOT_FOUND'
-      });
-    }
-    if ((effect.type === 'spawn_monster' || effect.type === 'spawn_boss') && !targets.spawnBySource.has(effect.sourceSpawnPointId)) {
-      throw Object.assign(new Error(`Runtime Spawn Point source target not found: ${effect.sourceSpawnPointId}`), {
-        status: 409, code: 'STORY_EFFECT_SPAWN_POINT_NOT_FOUND'
-      });
-    }
-    if (effect.type === 'reveal_zone' && !targets.zoneBySource.has(effect.sourceZoneId)) {
-      throw Object.assign(new Error(`Runtime Zone source target not found: ${effect.sourceZoneId}`), {
-        status: 409, code: 'STORY_EFFECT_ZONE_NOT_FOUND'
-      });
-    }
-    if ((effect.type === 'open_door' || effect.type === 'close_door') && !targets.doorBySource.has(effect.sourceEdgeId)) {
-      throw Object.assign(new Error(`Runtime Door source target not found: ${effect.sourceEdgeId}`), {
-        status: 409, code: 'STORY_EFFECT_DOOR_NOT_FOUND'
-      });
-    }
-    if (effect.type === 'set_object_state' && !targets.objectBySource?.has(effect.sourceObjectId)) {
-    throw Object.assign(new Error(`Runtime Object target not found: ${effect.sourceObjectId}`), {
-      status: 409, code: 'STORY_EFFECT_OBJECT_NOT_FOUND'
-    });
-  }
-  }
-  return targets;
-}
-
-async function applyDoorEffect(request, env, mapInstanceId, edge, state) {
-  const response = await baseWorker.fetch(new Request(new URL(
-    `/api/gm/world/runtime/maps/${encodeURIComponent(mapInstanceId)}/edges/${encodeURIComponent(edge.id)}/door-state`,
-    request.url
-  ), {
-    method: 'PATCH',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Cookie: request.headers.get('Cookie') || ''
-    },
-    body: JSON.stringify({ state })
-  }), env);
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw Object.assign(new Error(payload?.error?.message || 'Runtime Door effect failed.'), {
-      status: response.status,
-      code: payload?.error?.code || 'STORY_EFFECT_DOOR_FAILED'
-    });
-  }
-  return {
-    sourceEdgeId: edge.sourceEdgeId,
-    runtimeEdgeId: edge.id,
-    state: payload?.door?.state || state,
-    unchanged: Boolean(payload?.unchanged)
-  };
-}
-
-async function applyEffect(request, env, context, effect, effectIndex) {
-  const now = Date.now();
-  if (effect.type === 'show_narrative') {
-    const id = `story_narrative_${crypto.randomUUID()}`;
-    await env.DB.prepare(`
-      INSERT INTO runtime_story_narratives (id, scene_run_id, story_event_id, narrative_text, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(id, context.sceneRunId, context.event.id, effect.text, now).run();
-    return { type: effect.type, narrativeId: id };
-  }
-  if (effect.type === 'set_flag') {
-    await env.DB.prepare(`
-      INSERT INTO runtime_story_flags (scene_run_id, flag_key, value_json, updated_by_user_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(scene_run_id, flag_key) DO UPDATE SET
-        value_json = excluded.value_json,
-        updated_by_user_id = excluded.updated_by_user_id,
-        updated_at = excluded.updated_at
-    `).bind(context.sceneRunId, effect.key, JSON.stringify(effect.value), context.gm.id, now, now).run();
-    context.flags.set(effect.key, effect.value);
-    return { type: effect.type, key: effect.key, value: effect.value };
-  }
-  if (effect.type === 'set_object_state') {
-    const target = context.targets.objectBySource.get(effect.sourceObjectId);
-    return {
-      type: effect.type,
-      ...(await applyRuntimeObjectStateEffect(env, {
-        sceneRunId: context.sceneRunId,
-        mapInstanceId: context.mapInstanceId,
-        target,
-        sourceObjectId: effect.sourceObjectId,
-        nextStateKey: effect.stateKey,
-        actorUserId: context.gm.id,
-        storyEventId: context.event.id,
-        storyEffectIndex: effectIndex,
-        objectStates: context.objects
-      }))
-    };
-  }
-  if (effect.type === 'reveal_zone') {
-    const zone = context.targets.zoneBySource.get(effect.sourceZoneId);
-    const result = await env.DB.prepare(`
-      UPDATE runtime_map_zones
-      SET player_visible = 1, updated_at = ?
-      WHERE id = ? AND map_instance_id = ?
-    `).bind(now, zone.id, context.mapInstanceId).run();
-    if (Number(result?.meta?.changes || 0) !== 1) {
-      throw Object.assign(new Error('Runtime Zone reveal target changed before Story Event effect execution.'), {
-        status: 409, code: 'STORY_EFFECT_ZONE_CHANGED'
-      });
-    }
-    return { type: effect.type, sourceZoneId: effect.sourceZoneId, runtimeZoneId: zone.id };
-  }
-  if (effect.type === 'open_door' || effect.type === 'close_door') {
-    const edge = context.targets.doorBySource.get(effect.sourceEdgeId);
-    const state = effect.type === 'open_door' ? 'open' : 'closed';
-    return { type: effect.type, ...(await applyDoorEffect(request, env, context.mapInstanceId, edge, state)) };
-  }
-  if (effect.type === 'activate_encounter') {
-    const activated = await activateRuntimeEncounter(env, {
-      sceneRunId: context.sceneRunId,
-      sceneId: context.event.sceneId,
-      encounterId: effect.encounterId,
-      actorUserId: context.gm.id,
-      storyEventId: context.event.id
-    });
-    context.encounters.set(effect.encounterId, activated);
-    return {
-      type: effect.type,
-      encounterId: effect.encounterId,
-      runtimeEncounterId: activated.id,
-      status: activated.status,
-      unchanged: Boolean(activated.unchanged)
-    };
-  }
-  if (effect.type === 'spawn_monster') {
-    const spawned = await spawnRuntimeMonster(env, {
-      mapInstanceId: context.mapInstanceId,
-      sceneRunId: context.sceneRunId,
-      sceneId: context.event.sceneId,
-      encounterId: effect.encounterId,
-      templateId: effect.templateId,
-      level: effect.level,
-      sourceSpawnPointId: effect.sourceSpawnPointId,
-      displayName: effect.displayName || '',
-      actorUserId: context.gm.id,
-      storyEventId: context.event.oncePerSceneRun ? context.event.id : null,
-      storyEffectIndex: context.event.oncePerSceneRun ? effectIndex : null
-    });
-    if (spawned.runtimeEncounter) context.encounters.set(effect.encounterId, spawned.runtimeEncounter);
-    return {
-      type: effect.type,
-      encounterId: effect.encounterId,
-      monsterId: spawned.monster.id,
-      templateId: spawned.monster.templateId,
-      displayName: spawned.monster.displayName,
-      sourceSpawnPointId: spawned.spawnPoint.sourceSpawnPointId,
-      x: spawned.position.x,
-      y: spawned.position.y,
-      unchanged: Boolean(spawned.unchanged)
-    };
-  }
-  if (effect.type === 'spawn_boss') {
-    const spawned = await spawnRuntimeBoss(env, {
-      mapInstanceId: context.mapInstanceId,
-      sceneRunId: context.sceneRunId,
-      sceneId: context.event.sceneId,
-      encounterId: effect.encounterId,
-      profileId: effect.profileId,
-      sourceSpawnPointId: effect.sourceSpawnPointId,
-      displayName: effect.displayName || '',
-      actorUserId: context.gm.id,
-      storyEventId: context.event.oncePerSceneRun ? context.event.id : null,
-      storyEffectIndex: context.event.oncePerSceneRun ? effectIndex : null
-    });
-    if (spawned.runtimeEncounter) context.encounters.set(effect.encounterId, spawned.runtimeEncounter);
-    return {
-      type: effect.type,
-      encounterId: effect.encounterId,
-      bossId: spawned.boss.id,
-      profileId: spawned.boss.profileId,
-      displayName: spawned.boss.displayName,
-      sourceSpawnPointId: spawned.spawnPoint.sourceSpawnPointId,
-      x: spawned.position.x,
-      y: spawned.position.y,
-      unchanged: Boolean(spawned.unchanged)
-    };
-  }
-  if (effect.type === 'start_combat') {
-    const started = await startRuntimeEncounterCombat(env, {
-      mapInstanceId: context.mapInstanceId,
-      sceneRunId: context.sceneRunId,
-      sceneId: context.event.sceneId,
-      encounterId: effect.encounterId,
-      actorUserId: context.gm.id
-    });
-    if (started.runtimeEncounter) context.encounters.set(effect.encounterId, started.runtimeEncounter);
-    return {
-      type: effect.type,
-      encounterId: effect.encounterId,
-      combatId: started.combat?.id || started.runtimeEncounter?.combat?.combatId || null,
-      mapInstanceId: started.mapInstanceId,
-      unchanged: Boolean(started.unchanged)
-    };
-  }
-  throw Object.assign(new Error(`Unsupported approved Story Effect: ${effect.type}`), {
-    status: 500, code: 'STORY_EFFECT_UNSUPPORTED'
-  });
-}
-
-async function recordExecution(env, {
-  event, sceneRunId, mapInstanceId, gm, status, effectsApplied,
-  errorCode = null, errorMessage = null
-}) {
-  const id = `story_exec_${crypto.randomUUID()}`;
-  await env.DB.prepare(`
-    INSERT INTO runtime_story_event_executions (
-      id, story_event_id, scene_run_id, map_instance_id, status, trigger_type,
-      effects_applied_json, error_code, error_message, activated_by_user_id, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, event.id, sceneRunId, mapInstanceId, status, event.triggerType,
-    JSON.stringify(effectsApplied), errorCode, errorMessage, gm.id, Date.now()
-  ).run();
-  return id;
-}
-
 async function activateStoryEvent(request, env, mapInstanceId, eventId) {
   if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
@@ -667,85 +416,53 @@ async function activateStoryEvent(request, env, mapInstanceId, eventId) {
 
   const encounters = await loadRuntimeEncounterMap(env, sceneRun.id, event.sceneId);
   const objectBySource = await loadRuntimeObjectTargets(env, mapInstanceId);
-  let targets;
-  try {
-    targets = validateTargets(event, detail, encounters, objectBySource);
-  } catch (error) {
-    return apiError(error.message, error.status || 409, error.code || 'STORY_EVENT_TARGET_INVALID');
-  }
-
+  const targets = runtimeTargets(detail);
+  targets.objectBySource = objectBySource;
   const flags = await loadFlags(env, sceneRun.id);
   const objects = runtimeObjectStateMap(objectBySource);
-  const conditions = evaluateStoryConditions(event.conditions, {
-    flags,
-    eventAlreadyFired: firedCount > 0,
-    storyEventId: event.id,
+  const shared = {
+    actor: gm,
+    sceneRunId: sceneRun.id,
     sceneRunStatus: sceneRun.status,
+    sceneId: event.sceneId,
+    mapInstanceId,
+    targets,
+    flags,
     doors: doorStates(detail),
     objects,
     encounters
-  });
-  if (!conditions.ok) {
-    return apiError('Story Event conditions 未滿足。', 409, 'STORY_EVENT_CONDITIONS_NOT_MET', {
-      failures: conditions.failures
+  };
+
+  const result = await executeRuntimeStoryEvent(env, { shared, event, firedCount });
+  if (result.status === 'skipped') {
+    if (result.code === 'STORY_EVENT_ALREADY_FIRED') {
+      return apiError('Story Event 已經喺呢個 Scene Run 成功執行過。', 409, result.code);
+    }
+    return apiError('Story Event conditions 未滿足。', 409, result.code || 'STORY_EVENT_CONDITIONS_NOT_MET', {
+      failures: result.failures || []
     });
   }
-
-  const effectsApplied = [];
-  try {
-    const context = {
-      event,
-      sceneRunId: sceneRun.id,
-      mapInstanceId,
-      gm,
-      targets,
-      flags,
-      objects,
-      encounters
-    };
-    for (const [effectIndex, effect] of event.effects.entries()) {
-      effectsApplied.push(await applyEffect(request, env, context, effect, effectIndex));
-    }
-    const executionId = await recordExecution(env, {
-      event, sceneRunId: sceneRun.id, mapInstanceId, gm, status: 'applied', effectsApplied
-    });
-    return json({
-      ok: true,
-      executionId,
-      event,
-      effectsApplied,
-      ...(await runtimeStoryState(env, sceneRun.id, event.sceneId, mapInstanceId))
-    });
-  } catch (error) {
-    let executionId = null;
-    try {
-      executionId = await recordExecution(env, {
-        event,
-        sceneRunId: sceneRun.id,
-        mapInstanceId,
-        gm,
-        status: 'failed',
-        effectsApplied,
-        errorCode: error?.code || 'STORY_EFFECT_EXECUTION_FAILED',
-        errorMessage: String(error?.message || error).slice(0, 1000)
-      });
-    } catch (auditError) {
-      console.error('Story Event failed-execution audit write failed', {
-        message: String(auditError?.message || auditError)
-      });
-    }
+  if (result.status === 'failed') {
     return apiError(
-      error?.message || 'Story Event effect execution failed.',
-      error?.status || 500,
-      error?.code || 'STORY_EFFECT_EXECUTION_FAILED',
+      result.message || 'Story Event effect execution failed.',
+      result.errorStatus || 500,
+      result.code || 'STORY_EFFECT_EXECUTION_FAILED',
       {
-        executionId,
-        effectsApplied,
-        ...(error?.missingPositions ? { missingPositions: error.missingPositions } : {}),
-        ...(error?.activeCombatId ? { activeCombatId: error.activeCombatId } : {})
+        executionId: result.executionId || null,
+        effectsApplied: result.effectsApplied || [],
+        ...(result.missingPositions ? { missingPositions: result.missingPositions } : {}),
+        ...(result.activeCombatId ? { activeCombatId: result.activeCombatId } : {})
       }
     );
   }
+
+  return json({
+    ok: true,
+    executionId: result.executionId,
+    event,
+    effectsApplied: result.effectsApplied || [],
+    ...(await runtimeStoryState(env, sceneRun.id, event.sceneId, mapInstanceId))
+  });
 }
 
 export default {

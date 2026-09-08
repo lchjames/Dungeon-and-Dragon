@@ -10,6 +10,7 @@ import {
 } from '../src/story-event-rules.js';
 
 const helper = await readFile(new URL('../src/runtime-object-state.js', import.meta.url), 'utf8');
+const storyAuthority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0028_story_object_state_mechanics.sql', import.meta.url), 'utf8');
 const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const objectStory = await readFile(new URL('../src/runtime-object-story.js', import.meta.url), 'utf8');
@@ -82,6 +83,17 @@ assert.match(objectGateway, /story_event_id TEXT/);
 assert.match(objectGateway, /story_effect_index INTEGER/);
 assert.match(objectGateway, /NEW\.id, NULL, NULL, NEW\.created_at/);
 
+// Canonical Story target validation/effect execution now exists once in the shared authority.
+assert.match(storyAuthority, /condition\.type === 'object_state'/);
+assert.match(storyAuthority, /STORY_CONDITION_OBJECT_NOT_FOUND/);
+assert.match(storyAuthority, /effect\.type === 'set_object_state'/);
+assert.match(storyAuthority, /STORY_EFFECT_OBJECT_NOT_FOUND/);
+assert.match(storyAuthority, /applyRuntimeObjectStateEffect\(/);
+assert.match(storyAuthority, /objects:\s*shared\.objects/);
+assert.match(storyAuthority, /storyEffectIndex:\s*effectIndex/);
+assert.match(storyAuthority, /storyEventId:\s*context\.event\.id/);
+assert.match(storyAuthority, /actorUserId:\s*context\.actor\.id/);
+
 for (const [label, source] of [
   ['manual', manual],
   ['scene_run_start', sceneStart],
@@ -89,14 +101,15 @@ for (const [label, source] of [
   ['interact_object', objectStory],
   ['generic lifecycle', lifecycle]
 ]) {
-  assert.match(source, /from '\.\/runtime-object-state\.js'/, `${label} must use shared Runtime Object state authority.`);
+  assert.match(source, /from '\.\/runtime-object-state\.js'/, `${label} must load shared Runtime Object state context.`);
   assert.match(source, /loadRuntimeObjectTargets\(/, `${label} must resolve Runtime Object targets.`);
   assert.match(source, /runtimeObjectStateMap\(/, `${label} must build Object condition context.`);
-  assert.match(source, /condition\.type === 'object_state'/, `${label} must validate object_state targets.`);
-  assert.match(source, /effect\.type === 'set_object_state'/, `${label} must validate/execute set_object_state.`);
-  assert.match(source, /applyRuntimeObjectStateEffect\(/, `${label} must use shared Object mutation authority.`);
-  assert.match(source, /objects(?:\s*:|\s*,)/, `${label} must pass Object states into condition evaluation.`);
-  assert.match(source, /storyEffectIndex:\s*effectIndex/, `${label} must preserve Story effect provenance.`);
+  assert.match(source, /from '\.\/story-execution-authority\.js'/, `${label} must delegate execution to shared Story authority.`);
+  assert.match(source, /executeRuntimeStoryEvent\(/, `${label} must execute through shared Story authority.`);
+  assert.match(source, /objects(?:\s*:|\s*,)/, `${label} must pass Object states into shared execution context.`);
+  assert.doesNotMatch(source, /applyRuntimeObjectStateEffect\(/, `${label} must not duplicate Object mutation execution.`);
+  assert.doesNotMatch(source, /condition\.type === 'object_state'/, `${label} must not duplicate shared object_state target validation.`);
+  assert.doesNotMatch(source, /effect\.type === 'set_object_state'/, `${label} must not duplicate shared set_object_state execution.`);
 }
 
 assert.match(objectStory, /shared\.objects\.set\(interaction\.source_object_id, interaction\.to_state_key\)/);
@@ -123,4 +136,4 @@ assert.match(canonical, /change_reason = story_effect/);
 assert.match(canonical, /does \*\*not\*\* introduce a new lifecycle trigger named `object_state_changed`/);
 assert.match(canonical, /Scene completion \/ Scene transition policy/);
 
-console.log('Story Object state condition/effect, shared authority, audit provenance and production verification contract passed.');
+console.log('Story Object state condition/effect, shared Story execution authority, audit provenance and production verification contract passed.');

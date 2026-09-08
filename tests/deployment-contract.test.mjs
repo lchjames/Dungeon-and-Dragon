@@ -18,6 +18,7 @@ const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-
 const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const resolutionService = await readFile(new URL('../src/runtime-encounter-resolution.js', import.meta.url), 'utf8');
 const lifecycleService = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
+const storyExecutionAuthority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const resolvedStory = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 
 assert.match(workflow, /deploy-production:/);
@@ -118,12 +119,19 @@ assert.match(lifecycleService, /runtime_encounter_resolution_log/);
 assert.match(lifecycleService, /encounter\.status !== 'resolved'/);
 assert.match(lifecycleService, /runtime_story_lifecycle_dispatches/);
 
-// Kept as a legacy source module for compatibility/reference; production resolution routing must not call it.
-assert.match(resolvedStory, /trigger_type = 'encounter_resolved'/);
-assert.match(resolvedStory, /normalizeStoryTrigger\('encounter_resolved'/);
-assert.match(resolvedStory, /trigger\.encounterId !== encounterId/);
-assert.match(resolvedStory, /runtime_story_event_executions/);
-assert.match(resolvedStory, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(storyExecutionAuthority, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(storyExecutionAuthority, /activateRuntimeEncounter\(/);
+assert.match(storyExecutionAuthority, /spawnRuntimeMonster\(/);
+assert.match(storyExecutionAuthority, /spawnRuntimeBoss\(/);
+assert.match(storyExecutionAuthority, /startRuntimeEncounterCombat\(/);
+
+// Compatibility-only export: production encounter_resolved matching/execution lives in runtime-story-lifecycle.js.
+assert.match(resolvedStory, /processEncounterResolvedStoryEvents/);
+assert.match(resolvedStory, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(resolvedStory, /from '\.\/runtime-story-lifecycle\.js'/);
+assert.doesNotMatch(resolvedStory, /trigger_type = 'encounter_resolved'/);
+assert.doesNotMatch(resolvedStory, /runtime_story_event_executions/);
+assert.doesNotMatch(resolvedStory, /runtime-encounter-service\.js/);
 assert.doesNotMatch(resolvedStory, /eval\s*\(/);
 assert.doesNotMatch(resolvedStory, /new Function\s*\(/);
 
@@ -154,7 +162,8 @@ assert.match(storyZoneTriggerGateway, /import baseWorker from '\.\/story-event-g
 assert.match(storyZoneTriggerGateway, /trigger_type = 'enter_zone'/);
 assert.match(storyZoneTriggerGateway, /runtime_map_zone_cells/);
 assert.match(storyZoneTriggerGateway, /storyEventsTriggered/);
-assert.match(storyZoneTriggerGateway, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(storyZoneTriggerGateway, /story-execution-authority\.js/);
+assert.doesNotMatch(storyZoneTriggerGateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.doesNotMatch(storyZoneTriggerGateway, /eval\s*\(/, 'Story zone trigger gateway must not execute arbitrary code.');
 assert.doesNotMatch(storyZoneTriggerGateway, /new Function\s*\(/, 'Story zone trigger gateway must not execute arbitrary functions.');
 
@@ -164,7 +173,8 @@ assert.match(storyEventGateway, /activateStoryEvent/);
 assert.match(storyEventGateway, /STORY_EVENT_TRIGGER_NOT_MANUAL/);
 assert.match(storyEventGateway, /sourceEdgeId/);
 assert.match(storyEventGateway, /sourceZoneId/);
-assert.match(storyEventGateway, /from '\.\/runtime-encounter-service\.js'/);
+assert.match(storyEventGateway, /story-execution-authority\.js/);
+assert.doesNotMatch(storyEventGateway, /from '\.\/runtime-encounter-service\.js'/);
 assert.doesNotMatch(storyEventGateway, /eval\s*\(/, 'Story Event gateway must not execute arbitrary code.');
 assert.doesNotMatch(storyEventGateway, /new Function\s*\(/, 'Story Event gateway must not execute arbitrary functions.');
 

@@ -7,6 +7,8 @@ const service = await readFile(new URL('../src/runtime-encounter-resolution.js',
 const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-gateway.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/runtime-encounter-resolution-gateway.js', import.meta.url), 'utf8');
+const lifecycle = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
+const authority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const story = await readFile(new URL('../src/encounter-resolved-story.js', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../public/assets/gm-runtime-resolution.js', import.meta.url), 'utf8');
 const loader = await readFile(new URL('../public/assets/gm-hostile-movement.js', import.meta.url), 'utf8');
@@ -53,6 +55,8 @@ assert.match(gateway, /runtimeEncounterResolutionWarning/);
 assert.match(gateway, /storyTriggerWarning/);
 assert.match(gateway, /enrichRuntimeDetail/);
 assert.match(gateway, /resolution:\s*\{/);
+assert.match(gateway, /processPendingRuntimeStoryLifecycleEvents/);
+assert.doesNotMatch(gateway, /processEncounterResolvedStoryEvents/);
 assert.doesNotMatch(gateway, /UPDATE\s+encounters\s+SET\s+status/i);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
@@ -70,16 +74,35 @@ const resolvedStructure = normalizeStoryEventStructure({
 assert.deepEqual(resolvedStructure.trigger, { encounterId: 'encounter_alpha' });
 assert.equal(resolvedStructure.triggerType, 'encounter_resolved');
 
-assert.match(story, /trigger_type = 'encounter_resolved'/);
-assert.match(story, /normalizeStoryTrigger\('encounter_resolved'/);
-assert.match(story, /trigger\.encounterId !== encounterId/);
-assert.match(story, /evaluateStoryConditions/);
-assert.match(story, /runtime_story_event_executions/);
-assert.match(story, /spawnRuntimeMonster/);
-assert.match(story, /spawnRuntimeBoss/);
-assert.match(story, /effect\.type === 'spawn_boss'/);
-assert.match(story, /profileId:\s*effect\.profileId/);
-assert.match(story, /startRuntimeEncounterCombat/);
+// Canonical durable lifecycle adapter owns encounter_resolved occurrence matching.
+assert.match(lifecycle, /'encounter_resolved'/);
+assert.match(lifecycle, /subject_type !== 'encounter_resolution'/);
+assert.match(lifecycle, /runtime_encounter_resolution_log/);
+assert.match(lifecycle, /normalizeStoryTrigger\(occurrence\.trigger_type/);
+assert.match(lifecycle, /function triggerMatchesSubject\(triggerType, trigger, subject\)/);
+assert.match(lifecycle, /return trigger\.encounterId === subject\.encounterId/);
+assert.match(lifecycle, /story-execution-authority\.js/);
+assert.match(lifecycle, /executeRuntimeStoryEvent\(env, \{\s*shared,\s*event,\s*firedCount\s*\}\)/s);
+assert.match(lifecycle, /runtime_story_lifecycle_dispatches/);
+
+// Approved post-resolution effects are executed only by the shared Story authority.
+assert.match(authority, /spawnRuntimeMonster/);
+assert.match(authority, /spawnRuntimeBoss/);
+assert.match(authority, /effect\.type === 'spawn_boss'/);
+assert.match(authority, /profileId:\s*effect\.profileId/);
+assert.match(authority, /startRuntimeEncounterCombat/);
+assert.match(authority, /runtime_story_event_executions/);
+
+// Legacy module remains a compatibility shim and must not grow another executor.
+assert.match(story, /processEncounterResolvedStoryEvents/);
+assert.match(story, /processPendingRuntimeStoryLifecycleEvents/);
+assert.match(story, /from '\.\/runtime-story-lifecycle\.js'/);
+assert.doesNotMatch(story, /trigger_type = 'encounter_resolved'/);
+assert.doesNotMatch(story, /evaluateStoryConditions/);
+assert.doesNotMatch(story, /runtime_story_event_executions/);
+assert.doesNotMatch(story, /spawnRuntimeMonster/);
+assert.doesNotMatch(story, /spawnRuntimeBoss/);
+assert.doesNotMatch(story, /startRuntimeEncounterCombat/);
 assert.doesNotMatch(story, /eval\s*\(/);
 assert.doesNotMatch(story, /new Function\s*\(/);
 
@@ -117,4 +140,4 @@ assert.match(canonical, /Manual resolution intentionally does \*\*not\*\* requir
 assert.match(canonical, /encounter_resolved/);
 assert.match(canonical, /Definition \/ Runtime isolation/);
 
-console.log('Runtime Encounter resolution, post-Combat Story continuation including Boss spawn, GM control and production runner contract passed behind Runtime Object and Runtime Story lifecycle routing.');
+console.log('Runtime Encounter resolution, durable post-Combat Story continuation, shared effect authority, GM control and production runner contract passed.');

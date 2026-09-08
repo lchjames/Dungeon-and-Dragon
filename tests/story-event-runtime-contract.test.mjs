@@ -11,6 +11,7 @@ const lifecycleGateway = await readFile(new URL('../src/runtime-story-lifecycle-
 const objectGateway = await readFile(new URL('../src/runtime-object-gateway.js', import.meta.url), 'utf8');
 const runtimeLifecycle = await readFile(new URL('../src/runtime-story-lifecycle.js', import.meta.url), 'utf8');
 const sceneRunStartStory = await readFile(new URL('../src/scene-run-start-story.js', import.meta.url), 'utf8');
+const storyExecutionAuthority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const encounterActivatedStory = await readFile(new URL('../src/encounter-activated-story.js', import.meta.url), 'utf8');
 const lifecycleMigration = await readFile(new URL('../schema/0022_story_lifecycle_dispatches.sql', import.meta.url), 'utf8');
 const combatStartedMigration = await readFile(new URL('../schema/0023_story_combat_started_trigger.sql', import.meta.url), 'utf8');
@@ -48,12 +49,38 @@ assert.ok(
   gateway.includes("pathname.match(/^\\/api\\/gm\\/world\\/runtime\\/maps\\/([^/]+)\\/story-events\\/([^/]+)\\/activate$/)"),
   'Story Event gateway must expose the GM manual activation route for a Runtime Map and Event.'
 );
-assert.match(gateway, /\/door-state/);
+assert.match(gateway, /story-execution-authority\.js/);
+assert.match(gateway, /executeRuntimeStoryEvent\(env, \{\s*shared,\s*event,\s*firedCount\s*\}\)/s);
 assert.match(gateway, /sourceEdgeId/);
 assert.match(gateway, /sourceZoneId/);
 assert.match(gateway, /runtime_story_narratives/);
+assert.doesNotMatch(gateway, /\/door-state/);
+assert.doesNotMatch(gateway, /from '\.\/runtime-encounter-service\.js'/);
+assert.doesNotMatch(gateway, /async function applyEffect\(/);
 assert.doesNotMatch(gateway, /eval\s*\(/);
 assert.doesNotMatch(gateway, /new Function\s*\(/);
+
+// Approved condition/effect execution is centralized here rather than duplicated in trigger adapters.
+assert.match(storyExecutionAuthority, /evaluateStoryConditions/);
+assert.match(storyExecutionAuthority, /runtime_story_event_executions/);
+assert.match(storyExecutionAuthority, /runtime_story_narratives/);
+assert.match(storyExecutionAuthority, /runtime_door_state_log/);
+assert.match(storyExecutionAuthority, /effect\.type === 'show_narrative'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'set_flag'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'reveal_zone'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'open_door'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'close_door'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'activate_encounter'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'spawn_monster'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'spawn_boss'/);
+assert.match(storyExecutionAuthority, /effect\.type === 'start_combat'/);
+assert.match(storyExecutionAuthority, /spawnRuntimeMonster/);
+assert.match(storyExecutionAuthority, /spawnRuntimeBoss/);
+assert.match(storyExecutionAuthority, /startRuntimeEncounterCombat/);
+assert.match(storyExecutionAuthority, /activateRuntimeEncounter/);
+assert.match(storyExecutionAuthority, /\.entries\(\)/, 'Shared Story effects must retain stable authored effect indexes.');
+assert.doesNotMatch(storyExecutionAuthority, /eval\s*\(/);
+assert.doesNotMatch(storyExecutionAuthority, /new Function\s*\(/);
 
 for (const value of [
   'manual',
@@ -68,8 +95,10 @@ for (const value of [
   'event_not_fired',
   'flag_equals',
   'door_state',
+  'object_state',
   'show_narrative',
   'set_flag',
+  'set_object_state',
   'reveal_zone',
   'open_door',
   'close_door'
@@ -103,6 +132,7 @@ assert.match(gmUi, /id="gm-story-event-conditions"/);
 assert.match(gmUi, /id="gm-story-event-effects"/);
 assert.match(gmUi, /sourceEdgeId/);
 assert.match(gmUi, /sourceZoneId/);
+assert.match(gmUi, /sourceObjectId/);
 assert.match(gmUi, /Activate Selected/);
 assert.match(gmUi, /\/story-events\/\$\{encodeURIComponent\(event\.id\)\}\/activate/);
 
@@ -133,12 +163,14 @@ assert.match(resolutionGateway, /pathname === '\/api\/gm\/world\/runtime\/scene-
 
 assert.match(sceneRunStartStory, /trigger_type = 'scene_run_start'/);
 assert.match(sceneRunStartStory, /normalizeStoryTrigger\('scene_run_start'/);
-assert.match(sceneRunStartStory, /evaluateStoryConditions/);
-assert.match(sceneRunStartStory, /runtime_story_event_executions/);
-assert.match(sceneRunStartStory, /spawnRuntimeMonster/);
-assert.match(sceneRunStartStory, /spawnRuntimeBoss/);
-assert.match(sceneRunStartStory, /startRuntimeEncounterCombat/);
-assert.match(sceneRunStartStory, /\.entries\(\)/, 'Lifecycle Story effects must retain stable authored effect indexes.');
+assert.match(sceneRunStartStory, /story-execution-authority\.js/);
+assert.match(sceneRunStartStory, /executeRuntimeStoryEvent\(env, \{\s*shared,\s*event,\s*firedCount\s*\}\)/s);
+assert.doesNotMatch(sceneRunStartStory, /evaluateStoryConditions/);
+assert.doesNotMatch(sceneRunStartStory, /spawnRuntimeMonster/);
+assert.doesNotMatch(sceneRunStartStory, /spawnRuntimeBoss/);
+assert.doesNotMatch(sceneRunStartStory, /startRuntimeEncounterCombat/);
+assert.doesNotMatch(sceneRunStartStory, /from '\.\/runtime-encounter-service\.js'/);
+assert.doesNotMatch(sceneRunStartStory, /async function applyEffect\(/);
 assert.doesNotMatch(sceneRunStartStory, /INSERT INTO encounter_participants/);
 assert.doesNotMatch(sceneRunStartStory, /INSERT INTO encounter_combats/);
 assert.doesNotMatch(sceneRunStartStory, /UPDATE\s+encounters\s+SET\s+status/i);
@@ -222,14 +254,18 @@ assert.match(runtimeLifecycle, /runtime_encounter_resolution_log/);
 assert.match(runtimeLifecycle, /encounter\.status !== 'resolved'/);
 assert.match(runtimeLifecycle, /occurrence\.trigger_type === 'flag_changed'/);
 assert.match(runtimeLifecycle, /flagKey: change\.flag_key/);
-assert.match(runtimeLifecycle, /spawnRuntimeMonster/);
-assert.match(runtimeLifecycle, /spawnRuntimeBoss/);
-assert.match(runtimeLifecycle, /startRuntimeEncounterCombat/);
-assert.match(runtimeLifecycle, /activateRuntimeEncounter/);
+assert.match(runtimeLifecycle, /story-execution-authority\.js/);
+assert.match(runtimeLifecycle, /executeRuntimeStoryEvent\(env, \{\s*shared,\s*event,\s*firedCount\s*\}\)/s);
 assert.match(runtimeLifecycle, /triggerType: occurrence\.trigger_type/);
 assert.match(runtimeLifecycle, /combatId: subject\.combatId/);
 assert.match(runtimeLifecycle, /resolutionId: subject\.resolutionId/);
 assert.match(runtimeLifecycle, /flagChangeId: subject\.flagChangeId \|\| null/);
+assert.doesNotMatch(runtimeLifecycle, /spawnRuntimeMonster/);
+assert.doesNotMatch(runtimeLifecycle, /spawnRuntimeBoss/);
+assert.doesNotMatch(runtimeLifecycle, /startRuntimeEncounterCombat/);
+assert.doesNotMatch(runtimeLifecycle, /activateRuntimeEncounter/);
+assert.doesNotMatch(runtimeLifecycle, /from '\.\/runtime-encounter-service\.js'/);
+assert.doesNotMatch(runtimeLifecycle, /async function applyEffect\(/);
 assert.doesNotMatch(runtimeLifecycle, /INSERT INTO encounter_participants/);
 assert.doesNotMatch(runtimeLifecycle, /INSERT INTO encounter_combats/);
 assert.doesNotMatch(runtimeLifecycle, /UPDATE\s+encounters\s+SET\s+status/i);
@@ -324,4 +360,4 @@ assert.match(gmRoot, /import '\.\/gm-map-objects\.js'/);
 assert.match(gmRoot, /gm-create-attack-profile/);
 assert.match(gmRoot, /data-profile-save/);
 
-console.log('Story Event manual + scene_run_start + enter_zone + durable interact_object + encounter_activated + combat_started + combat_ended + encounter_resolved + flag_changed runtime integration contract passed.');
+console.log('Story Event manual + scene_run_start + enter_zone + durable interact_object + durable lifecycle runtime integration contract passed through the shared execution authority.');

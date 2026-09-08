@@ -6,6 +6,7 @@ const participantMigration = await readFile(new URL('../schema/0018_runtime_enco
 const helper = await readFile(new URL('../src/runtime-encounter-state.js', import.meta.url), 'utf8');
 const manualGateway = await readFile(new URL('../src/story-event-gateway.js', import.meta.url), 'utf8');
 const zoneGateway = await readFile(new URL('../src/story-zone-trigger-gateway.js', import.meta.url), 'utf8');
+const storyAuthority = await readFile(new URL('../src/story-execution-authority.js', import.meta.url), 'utf8');
 const rules = await readFile(new URL('../src/story-event-rules.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-story-events.js', import.meta.url), 'utf8');
 const liveRunner = await readFile(new URL('../scripts/production-alpha-story-zone-e2e.mjs', import.meta.url), 'utf8');
@@ -60,12 +61,18 @@ assert.match(rules, /'encounter_status'/);
 assert.match(rules, /'activate_encounter'/);
 assert.match(rules, /encounter_status_mismatch/);
 
+assert.match(storyAuthority, /from '\.\/runtime-encounter-state\.js'/);
+assert.match(storyAuthority, /activateRuntimeEncounter/);
+assert.match(storyAuthority, /effect\.type === 'activate_encounter'/);
+assert.match(storyAuthority, /context\.encounters\.set\(effect\.encounterId, activated\)/);
+assert.doesNotMatch(storyAuthority, /UPDATE\s+encounters\s+SET\s+status/i);
+
 assert.match(manualGateway, /from '\.\/runtime-encounter-state\.js'/);
 assert.match(manualGateway, /loadRuntimeEncounterRows/);
 assert.match(manualGateway, /runtimeEncounters/);
-assert.match(manualGateway, /activateRuntimeEncounter/);
 assert.match(manualGateway, /encounters/);
-assert.match(manualGateway, /activate_encounter/);
+assert.match(manualGateway, /story-execution-authority\.js/);
+assert.doesNotMatch(manualGateway, /activateRuntimeEncounter/);
 assert.match(manualGateway, /pathname === '\/api\/gm\/world\/runtime\/scene-runs'/);
 assert.match(manualGateway, /enrichStartedRuntime/);
 assert.match(manualGateway, /RUNTIME_ENCOUNTER_SNAPSHOT_DELAYED/);
@@ -73,9 +80,9 @@ assert.doesNotMatch(manualGateway, /UPDATE\s+encounters\s+SET\s+status/i);
 
 assert.match(zoneGateway, /from '\.\/runtime-encounter-state\.js'/);
 assert.match(zoneGateway, /loadRuntimeEncounterMap/);
-assert.match(zoneGateway, /activateRuntimeEncounter/);
-assert.match(zoneGateway, /encounters: shared\.encounters/);
-assert.match(zoneGateway, /activate_encounter/);
+assert.match(zoneGateway, /encounters/);
+assert.match(zoneGateway, /story-execution-authority\.js/);
+assert.doesNotMatch(zoneGateway, /activateRuntimeEncounter/);
 assert.doesNotMatch(zoneGateway, /UPDATE\s+encounters\s+SET\s+status/i);
 
 assert.match(gmUi, /Manual, Scene-start, zone, Object and durable lifecycle execution are live/);
@@ -92,4 +99,4 @@ assert.match(liveRunner, /Runtime Encounter did not persist active/);
 assert.match(liveRunner, /Encounter Definition status was polluted by Runtime activation/);
 assert.match(liveRunner, /definitionRuntimeIsolation/);
 
-console.log('Per-Scene-Run Encounter state, participant and Combat-link contract passed.');
+console.log('Per-Scene-Run Encounter state, participant, Combat-link and shared Story activation contract passed.');
