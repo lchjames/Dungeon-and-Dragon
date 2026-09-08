@@ -3,6 +3,7 @@ import {
   normalizeStoryCondition,
   normalizeStoryFlagKey
 } from './story-event-rules.js';
+import { ensureRuntimeSceneTransitionSchema } from './runtime-scene-transition.js';
 
 const STATUSES = new Set(['draft', 'active', 'archived']);
 const MODES = new Set(['next_scene', 'complete_scenario']);
@@ -107,6 +108,7 @@ function definitionPayload(row) {
 
 export async function ensureSceneTransitionDefinitionSchema(env) {
   if (!env?.DB) throw new Error('D1 binding DB is unavailable.');
+  await ensureRuntimeSceneTransitionSchema(env);
   if (!schemaPromise) {
     schemaPromise = env.DB.batch([
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS scene_transition_definitions (

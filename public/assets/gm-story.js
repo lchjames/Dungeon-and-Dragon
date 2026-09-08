@@ -2,6 +2,7 @@ import { $, $$, escapeHtml, toast, emptyState } from './common.js';
 
 let storyState = null;
 let storyLoaded = false;
+let transitionDefinitions = [];
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -97,7 +98,7 @@ function scenarioHtml(scenario) {
       </div>
       <div class="form-actions"><button class="button button-small" type="button" data-story-action="save-scenario" data-scenario-id="${escapeHtml(scenario.id)}">Save Scenario</button></div>
     </details>
-    <div class="stack-list">${(scenario.scenes || []).map(scene => sceneHtml(scene)).join('')}</div>
+    <div class="stack-list">${(scenario.scenes || []).map(scene => sceneHtml(scene, scenario)).join('')}</div>
     <div class="row-inline">
       <input class="input" data-new-scene-name="${escapeHtml(scenario.id)}" maxlength="120" placeholder="New Scene name" ${scenario.status === 'archived' ? 'disabled' : ''}>
       <button class="button button-small button-ghost" type="button" data-story-action="add-scene" data-scenario-id="${escapeHtml(scenario.id)}" ${scenario.status === 'archived' ? 'disabled' : ''}>+ Scene</button>
@@ -105,7 +106,65 @@ function scenarioHtml(scenario) {
   </article>`;
 }
 
-function sceneHtml(scene) {
+function routeTargetOptions(scenario, sourceSceneId, selectedId = '') {
+  const scenes = (scenario?.scenes || []).filter(item => item.id !== sourceSceneId);
+  return '<option value="">Select target Scene</option>' + scenes.map(item =>
+    `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? 'selected' : ''}>${escapeHtml(item.name)} · ${escapeHtml(item.status)}</option>`
+  ).join('');
+}
+
+function transitionConditionsText(definition) {
+  return escapeHtml(JSON.stringify(definition?.conditions || [], null, 2));
+}
+
+function transitionDefinitionHtml(definition, scene, scenario) {
+  const terminal = definition.mode === 'complete_scenario';
+  return `<article class="stack-item" style="display:block" data-transition-definition="${escapeHtml(definition.id)}">
+    <div class="panel-heading"><div><div class="row-inline"><strong>${escapeHtml(definition.name)}</strong><span class="status-pill">${escapeHtml(definition.status)}</span><span class="tag">${escapeHtml(definition.mode)}</span><span class="tag">v${definition.version}</span></div><p>${terminal ? 'Terminal Scenario completion' : `→ ${escapeHtml((scenario.scenes || []).find(item => item.id === definition.toSceneId)?.name || definition.toSceneId || 'No target')}`}</p></div></div>
+    <div class="form-grid compact-grid">
+      <label class="field"><span>Name</span><input class="input" data-transition-name value="${escapeHtml(definition.name)}" maxlength="120"></label>
+      <label class="field"><span>Status</span><select class="input" data-transition-status><option value="draft" ${selected(definition.status, 'draft')}>draft</option><option value="active" ${selected(definition.status, 'active')}>active</option><option value="archived" ${selected(definition.status, 'archived')}>archived</option></select></label>
+      <label class="field"><span>Mode</span><select class="input" data-transition-mode><option value="next_scene" ${selected(definition.mode, 'next_scene')}>next_scene</option><option value="complete_scenario" ${selected(definition.mode, 'complete_scenario')}>complete_scenario</option></select></label>
+      <label class="field"><span>Target Scene</span><select class="input" data-transition-target>${routeTargetOptions(scenario, scene.id, definition.toSceneId || '')}</select></label>
+      <label class="field"><span>Carry Story flags</span><input class="input" data-transition-carry-flags value="${escapeHtml((definition.carryFlagKeys || []).join(', '))}" placeholder="quest.key_found, route.alpha"></label>
+      <label class="field"><span>Character entry sourceSpawnPointId</span><input class="input" data-transition-spawn value="${escapeHtml(definition.targetSourceSpawnPointId || '')}" placeholder="spawn_..."></label>
+      <label class="check-field"><input type="checkbox" data-transition-carry-characters ${definition.carryCharacters ? 'checked' : ''}> Carry positioned Characters</label>
+      <label class="field"><span>Sort order</span><input class="input" data-transition-sort type="number" step="1" value="${definition.sortOrder || 0}"></label>
+      <label class="field" style="grid-column:1/-1"><span>Conditions JSON</span><textarea class="textarea" data-transition-conditions rows="5">${transitionConditionsText(definition)}</textarea></label>
+      <label class="field" style="grid-column:1/-1"><span>GM Notes</span><textarea class="textarea" data-transition-notes rows="2">${escapeHtml(definition.gmNotes || '')}</textarea></label>
+    </div>
+    <div class="form-actions wrap">
+      <button class="button button-small" type="button" data-story-action="save-transition" data-transition-id="${escapeHtml(definition.id)}" data-transition-version="${definition.version}">Save Route</button>
+      ${definition.status === 'draft' ? `<button class="button button-small button-danger-soft" type="button" data-story-action="delete-transition" data-transition-id="${escapeHtml(definition.id)}" data-transition-version="${definition.version}">Delete Draft</button>` : ''}
+    </div>
+  </article>`;
+}
+
+function transitionDefinitionsHtml(scene, scenario) {
+  const definitions = scene.transitions || [];
+  return `<details>
+    <summary>Transition Definitions (${definitions.length})</summary>
+    <p class="muted">Authored routes never auto-transition. Runtime GM explicitly selects one eligible active route.</p>
+    <div class="stack-list">${definitions.length ? definitions.map(definition => transitionDefinitionHtml(definition, scene, scenario)).join('') : '<p class="muted">No authored routes yet.</p>'}</div>
+    <article class="stack-item" style="display:block" data-new-transition-definition="${escapeHtml(scene.id)}">
+      <div class="form-grid compact-grid">
+        <label class="field"><span>New route name</span><input class="input" data-new-transition-name maxlength="120" placeholder="e.g. Take the hidden passage"></label>
+        <label class="field"><span>Status</span><select class="input" data-new-transition-status><option value="draft">draft</option><option value="active">active</option></select></label>
+        <label class="field"><span>Mode</span><select class="input" data-new-transition-mode><option value="next_scene">next_scene</option><option value="complete_scenario">complete_scenario</option></select></label>
+        <label class="field"><span>Target Scene</span><select class="input" data-new-transition-target>${routeTargetOptions(scenario, scene.id)}</select></label>
+        <label class="field"><span>Carry Story flags</span><input class="input" data-new-transition-carry-flags placeholder="quest.key_found"></label>
+        <label class="field"><span>Character entry sourceSpawnPointId</span><input class="input" data-new-transition-spawn placeholder="spawn_..."></label>
+        <label class="check-field"><input type="checkbox" data-new-transition-carry-characters checked> Carry positioned Characters</label>
+        <label class="field"><span>Sort order</span><input class="input" data-new-transition-sort type="number" step="1" value="0"></label>
+        <label class="field" style="grid-column:1/-1"><span>Conditions JSON</span><textarea class="textarea" data-new-transition-conditions rows="4" placeholder='[{"type":"flag_equals","key":"quest.key_found","value":true}]'>[]</textarea></label>
+        <label class="field" style="grid-column:1/-1"><span>GM Notes</span><textarea class="textarea" data-new-transition-notes rows="2"></textarea></label>
+      </div>
+      <div class="form-actions"><button class="button button-small button-ghost" type="button" data-story-action="add-transition" data-scene-id="${escapeHtml(scene.id)}">+ Transition Definition</button></div>
+    </article>
+  </details>`;
+}
+
+function sceneHtml(scene, scenario) {
   const mapSummary = [scene.map?.name, scene.map?.assetRef].filter(Boolean).join(' · ');
   return `<article class="stack-item" style="display:block" data-scene-row="${escapeHtml(scene.id)}">
     <div class="panel-heading">
@@ -124,6 +183,7 @@ function sceneHtml(scene) {
       </div>
       <div class="form-actions"><button class="button button-small" type="button" data-story-action="save-scene" data-scene-id="${escapeHtml(scene.id)}">Save Scene</button></div>
     </details>
+    ${transitionDefinitionsHtml(scene, scenario)}
     <div class="stack-list">${(scene.encounters || []).map(encounter => encounterHtml(encounter)).join('')}</div>
     <div class="row-inline">
       <input class="input" data-new-encounter-name="${escapeHtml(scene.id)}" maxlength="120" placeholder="New Encounter name" ${scene.status === 'completed' ? 'disabled' : ''}>
@@ -179,7 +239,20 @@ function renderStory() {
 async function loadStory({ quiet = false } = {}) {
   if (!quiet) setStatus('Loading Scenario structure…');
   try {
-    storyState = await api('/api/gm/story');
+    const [story, transitionPayload] = await Promise.all([
+      api('/api/gm/story'),
+      api('/api/gm/scene-transitions')
+    ]);
+    transitionDefinitions = transitionPayload?.definitions || [];
+    const byScene = new Map();
+    for (const definition of transitionDefinitions) {
+      if (!byScene.has(definition.fromSceneId)) byScene.set(definition.fromSceneId, []);
+      byScene.get(definition.fromSceneId).push(definition);
+    }
+    for (const scenario of story?.scenarios || []) {
+      for (const scene of scenario.scenes || []) scene.transitions = byScene.get(scene.id) || [];
+    }
+    storyState = story;
     storyLoaded = true;
     renderStory();
     setStatus('');
@@ -219,13 +292,63 @@ function row(selector, id) {
   return document.querySelector(`${selector}[data-${selector.includes('scenario') ? 'scenario' : selector.includes('scene') ? 'scene' : 'encounter'}-row="${CSS.escape(id)}"]`);
 }
 
+function transitionFlagValues(value) {
+  return [...new Set(String(value || '').split(/[\s,]+/).map(item => item.trim().toLowerCase()).filter(Boolean))];
+}
+
+function transitionConditions(value) {
+  let parsed;
+  try { parsed = JSON.parse(String(value || '[]')); }
+  catch { throw new Error('Transition Conditions 必須係有效 JSON。'); }
+  if (!Array.isArray(parsed)) throw new Error('Transition Conditions 必須係 JSON array。');
+  return parsed;
+}
+
+function transitionBodyFromContainer(container, prefix = '') {
+  const attr = name => `[data-${prefix ? `${prefix}-` : ''}transition-${name}]`;
+  const mode = $(attr('mode'), container)?.value || 'next_scene';
+  return {
+    name: $(attr('name'), container)?.value || '',
+    status: $(attr('status'), container)?.value || 'draft',
+    mode,
+    toSceneId: mode === 'next_scene' ? ($(attr('target'), container)?.value || '') : '',
+    carryFlagKeys: mode === 'next_scene' ? transitionFlagValues($(attr('carry-flags'), container)?.value) : [],
+    carryCharacters: mode === 'next_scene' && Boolean($(attr('carry-characters'), container)?.checked),
+    targetSourceSpawnPointId: mode === 'next_scene' ? ($(attr('spawn'), container)?.value || '') : '',
+    conditions: transitionConditions($(attr('conditions'), container)?.value),
+    sortOrder: Number($(attr('sort'), container)?.value || 0),
+    gmNotes: $(attr('notes'), container)?.value || ''
+  };
+}
+
 async function handleStoryClick(event) {
   const button = event.target.closest?.('[data-story-action]');
   if (!button) return;
   const action = button.dataset.storyAction;
   button.disabled = true;
   try {
-    if (action === 'save-scenario') {
+    if (action === 'add-transition') {
+      const sceneId = button.dataset.sceneId;
+      const container = document.querySelector(`[data-new-transition-definition="${CSS.escape(sceneId)}"]`);
+      const body = transitionBodyFromContainer(container, 'new');
+      if (!body.name.trim()) throw new Error('Transition Definition Name is required.');
+      await api(`/api/gm/scenes/${encodeURIComponent(sceneId)}/transitions`, { method: 'POST', body: JSON.stringify(body) });
+      toast('Transition Definition created.', 'success');
+    } else if (action === 'save-transition') {
+      const id = button.dataset.transitionId;
+      const container = document.querySelector(`[data-transition-definition="${CSS.escape(id)}"]`);
+      const body = transitionBodyFromContainer(container);
+      body.expectedVersion = Number(button.dataset.transitionVersion);
+      await api(`/api/gm/scene-transitions/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+      toast('Transition Definition updated.', 'success');
+    } else if (action === 'delete-transition') {
+      const id = button.dataset.transitionId;
+      await api(`/api/gm/scene-transitions/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ expectedVersion: Number(button.dataset.transitionVersion) })
+      });
+      toast('Draft Transition Definition deleted.', 'success');
+    } else if (action === 'save-scenario') {
       const id = button.dataset.scenarioId;
       const container = document.querySelector(`[data-scenario-row="${CSS.escape(id)}"]`);
       await api(`/api/gm/scenarios/${encodeURIComponent(id)}`, {
