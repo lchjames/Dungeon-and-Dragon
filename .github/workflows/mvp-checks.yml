@@ -36,6 +36,7 @@ jobs:
           node tests/rest-rules.test.mjs
           node tests/runtime-token-visibility.test.mjs
           node tests/story-event-rules.test.mjs
+          node tests/story-script-compiler.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
@@ -50,6 +51,7 @@ jobs:
           node tests/story-interact-object-trigger-contract.test.mjs
           node tests/story-object-state-mechanics-contract.test.mjs
           node tests/story-shared-execution-authority-contract.test.mjs
+          node tests/story-script-tool-contract.test.mjs
 
       - name: General static contracts
         run: |
