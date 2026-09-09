@@ -30,7 +30,7 @@ const encounterActivatedCanonical = await readFile(new URL('../docs/STORY_ENCOUN
 const combatStartedCanonical = await readFile(new URL('../docs/STORY_COMBAT_STARTED_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/runtime-object-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-script-gateway\.js"\s*,?\s*$/m);
 assert.match(objectGateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
 assert.match(lifecycleGateway, /import baseWorker from '\.\/runtime-encounter-resolution-gateway\.js'/);
 assert.match(resolutionGateway, /import baseWorker from '\.\/runtime-encounter-gateway\.js'/);

@@ -103,8 +103,8 @@ async function downstreamJson(request, env, path, options = {}) {
 }
 
 function compileBody(body) {
-  const source = cleanText(body?.script, 24000);
-  if (!source) throw Object.assign(new Error('Story script is required.'), { status: 400, code: 'STORY_SCRIPT_EMPTY' });
+  const source = String(body?.script ?? '').replace(/\r\n?/g, '\n');
+  if (!source.trim()) throw Object.assign(new Error('Story script is required.'), { status: 400, code: 'STORY_SCRIPT_EMPTY' });
   try {
     return { source, compiled: compileStoryScript(source) };
   } catch (error) {
