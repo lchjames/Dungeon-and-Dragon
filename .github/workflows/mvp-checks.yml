@@ -37,6 +37,7 @@ jobs:
           node tests/runtime-token-visibility.test.mjs
           node tests/story-event-rules.test.mjs
           node tests/story-script-compiler.test.mjs
+          node tests/story-script-gateway-contract.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
