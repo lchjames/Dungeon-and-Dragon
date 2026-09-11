@@ -399,13 +399,9 @@ export async function updateWeaponDefinition(env, itemId, body) {
       WHERE item_definition_id = ?`)
       .bind(value.weaponGroup, value.linkedSkillId, value.damageFormula, value.damageType,
         value.rangeValue, value.attacksPerRound, value.hitModifier, value.resourceCost, value.properties, itemId),
-    env.DB.prepare(`UPDATE character_inventory SET name = ?, updated_at = COALESCE(updated_at, ?)
-      WHERE item_definition_id = ? AND custom_name IS NULL`).bind(value.name, now, itemId)
-  ]).catch(async error => {
-    // Older compatibility tables do not have updated_at. Retry the display mirror only.
-    if (!String(error?.message || error).includes('updated_at')) throw error;
-    await env.DB.prepare('UPDATE character_inventory SET name = ? WHERE item_definition_id = ? AND custom_name IS NULL').bind(value.name, itemId).run();
-  });
+    env.DB.prepare(`UPDATE character_inventory SET name = ?
+      WHERE item_definition_id = ? AND custom_name IS NULL`).bind(value.name, itemId)
+  ]);
   return (await listWeaponDefinitions(env, { includeInactive: true })).find(item => item.id === itemId) || null;
 }
 

@@ -62,7 +62,7 @@ assert.doesNotMatch(liveWorkflow, /\npull_request:/, 'Production-writing Alpha w
 assert.match(wrangler, /"name"\s*:\s*"dnd"/);
 assert.match(
   wrangler,
-  /^\s*"main"\s*:\s*"\.\/src\/story-script-gateway\.js"\s*,?\s*$/m,
+  /^\s*"main"\s*:\s*"\.\/src\/inventory-weapon-gateway\.js"\s*,?\s*$/m,
   'Deployment contract must validate the actual Wrangler main property, not a historical gateway marker inside a comment.'
 );
 assert.match(wrangler, /"binding"\s*:\s*"DB"/);

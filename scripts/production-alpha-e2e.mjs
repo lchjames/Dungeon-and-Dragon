@@ -20,6 +20,7 @@ try {
   runComponent('Production Per-viewer Visibility E2E', './production-alpha-visibility-e2e.mjs');
   runComponent('Production Story Event E2E', './production-alpha-story-event-e2e.mjs');
   runComponent('Production GM Story Script Tool E2E', './production-alpha-story-script-tool-e2e.mjs');
+  runComponent('Production Inventory / Weapon Foundation E2E', './production-alpha-inventory-weapon-e2e.mjs');
   runComponent('Production Scene Run Start Story E2E', './production-alpha-story-scene-run-start-e2e.mjs');
   runComponent('Production Encounter Activated Story E2E', './production-alpha-story-encounter-activated-e2e.mjs');
   runComponent('Production Combat Started Story E2E', './production-alpha-story-combat-started-e2e.mjs');
@@ -45,6 +46,7 @@ try {
       'per-viewer-visibility',
       'story-event',
       'gm-story-script-tool',
+      'inventory-weapon-foundation',
       'story-scene-run-start',
       'story-encounter-activated',
       'story-combat-started',
