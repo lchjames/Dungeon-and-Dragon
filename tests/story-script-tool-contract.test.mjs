@@ -57,7 +57,7 @@ assert.doesNotMatch(ui, /eval\s*\(/);
 assert.doesNotMatch(ui, /new Function\s*\(/);
 
 assert.match(gmHtml, /gm-story-script-tool\.js/);
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-script-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/inventory-weapon-gateway\.js"\s*,?\s*$/m);
 
 assert.match(runner, /DND_ALPHA_EXECUTE === '1'/);
 assert.match(runner, /production-writing GM Story Script Tool E2E/);

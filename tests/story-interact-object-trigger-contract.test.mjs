@@ -46,7 +46,7 @@ assert.match(migration, /'object_interaction'/);
 assert.doesNotMatch(migration, /UPDATE\s+map_objects\s+SET/i);
 assert.doesNotMatch(migration, /DROP TABLE/i);
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-script-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/inventory-weapon-gateway\.js"\s*,?\s*$/m);
 assert.match(gateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
 assert.match(gateway, /ensureRuntimeStoryLifecycleAuthoritySchema/);
 assert.match(gateway, /processPendingObjectStoryEvents/);

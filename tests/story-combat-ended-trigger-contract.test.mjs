@@ -14,7 +14,7 @@ const orchestrator = await readFile(new URL('../scripts/production-alpha-e2e.mjs
 const canonical = await readFile(new URL('../docs/STORY_COMBAT_ENDED_TRIGGER_ALPHA.md', import.meta.url), 'utf8');
 const wrangler = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
 
-assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/story-script-gateway\.js"\s*,?\s*$/m);
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/inventory-weapon-gateway\.js"\s*,?\s*$/m);
 assert.match(objectGateway, /import baseWorker from '\.\/runtime-story-lifecycle-gateway\.js'/);
 
 assert.match(migration, /CREATE TABLE IF NOT EXISTS runtime_combat_end_audit/);
