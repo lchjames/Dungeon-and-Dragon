@@ -174,9 +174,9 @@ Currency is Inventory authority. A Character marked locked/dead by `character_li
 
 Read-only balances remain available.
 
-## 13. UI contract
+## 13. UI contract and current wiring
 
-The Currency slice includes a GM UI module for:
+The Currency slice includes a GM UI module implementing:
 
 - current ACTIVE rates;
 - DRAFT preview/editing;
@@ -187,7 +187,9 @@ The Currency slice includes a GM UI module for:
 - recent Rate Set history;
 - Character Bronze/Silver/Gold correction.
 
-The Player Inventory surface is wired to expose:
+The GM module is **not wired into the root GM HTML in this release**. The GM HTTP authority is live and test-covered; root-dashboard loading of `gm-currency-exchange.js` remains a separate UI integration task and must not be reported as completed.
+
+The Player Inventory surface **is wired** to expose:
 
 - separate Coin balances;
 - current ACTIVE enabled rates;
