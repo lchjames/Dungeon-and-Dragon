@@ -22,11 +22,24 @@ Player Currency quantity may change only through:
 1. a committed Currency Exchange transaction; or
 2. explicit GM Currency correction.
 
-The top-level Currency gateway rejects generic `/inventory/:inventoryId` quantity/qty PATCH operations when the target definition subtype is `CURRENCY`.
+The stable top-level Inventory gateway rejects generic `/inventory/:inventoryId` quantity/qty PATCH operations when the target definition subtype is `CURRENCY`, before the normal Inventory mutation resolver can run.
 
 The Player Inventory UI also removes Currency rows from the generic quantity editor. This UI rule is defence-in-depth; the server gate is authoritative.
 
-## 3. Exchange Rate Sets
+## 3. Gateway chain
+
+The Worker keeps the established Inventory entrypoint stable:
+
+```text
+inventory-weapon-gateway
+→ currency-exchange-gateway
+→ story-script-gateway
+→ existing Runtime / Combat / World chain
+```
+
+Inventory-owned routes remain at the outer layer. Currency-specific routes delegate one layer inward. This prevents Currency from forcing unrelated Story/Runtime contracts to depend on a changing outer wrapper while still making Currency authority available through the production Worker.
+
+## 4. Exchange Rate Sets
 
 Rate configuration is Campaign-scoped under Alpha campaign identity `alpha`.
 
@@ -40,7 +53,7 @@ Only one normal ACTIVE set may exist. A partial unique index enforces that invar
 
 Activating a DRAFT archives the previous ACTIVE set and activates the selected DRAFT through one D1 batch. The action is written to `currency_exchange_admin_log`.
 
-## 4. Directional rates
+## 5. Directional rates
 
 Alpha supports exactly four directions:
 
@@ -59,7 +72,7 @@ The reverse rate is independent and is never inferred as a reciprocal.
 
 Direct Bronze ↔ Gold is out of scope for this Alpha slice.
 
-## 5. Random generation
+## 6. Random generation
 
 Default references:
 
@@ -86,13 +99,13 @@ high_to_low_receive < low_to_high_required
 
 for each adjacent pair before exposing the DRAFT. Randomising never publishes immediately; the GM must explicitly activate the DRAFT.
 
-## 6. Manual Drafts
+## 7. Manual Drafts
 
 GM may edit all four directional bundles and enable/disable each direction before saving a manual DRAFT.
 
 All four direction records must remain present even if one is disabled. Quantities must be positive integers.
 
-## 7. Whole-bundle Player exchange
+## 8. Whole-bundle Player exchange
 
 Player submits:
 
@@ -110,7 +123,7 @@ exchange_units = source_quantity / quoted_from_quantity
 destination_total = exchange_units × quoted_to_quantity
 ```
 
-## 8. Stale-rate protection
+## 9. Stale-rate protection
 
 The HTTP authority first loads the requested quote, but that is not the final trust boundary.
 
@@ -125,7 +138,7 @@ The HTTP authority first loads the requested quote, but that is not the final tr
 
 A changed or replaced quote aborts with `CURRENCY_RATE_STALE`. No balance mutation persists.
 
-## 9. Atomic balance mutation
+## 10. Atomic balance mutation
 
 A successful insert into `currency_exchange_transactions` is the transaction boundary.
 
@@ -142,7 +155,7 @@ Before the immutable transaction row commits, the trigger:
 
 If any step aborts, SQLite rolls back the statement including trigger side-effects. The system cannot persist only the debit or only the credit.
 
-## 10. Audit
+## 11. Audit
 
 Three audit surfaces exist:
 
@@ -152,7 +165,7 @@ Three audit surfaces exist:
 
 Historical exchange transactions preserve the exact quoted bundle even after later Rate Sets are archived.
 
-## 11. Character lock policy
+## 12. Character lock policy
 
 Currency is Inventory authority. A Character marked locked/dead by `character_life_states.character_locked = 1` cannot:
 
@@ -161,9 +174,9 @@ Currency is Inventory authority. A Character marked locked/dead by `character_li
 
 Read-only balances remain available.
 
-## 12. UI contract
+## 13. UI contract
 
-GM Dashboard exposes:
+The Currency slice includes a GM UI module for:
 
 - current ACTIVE rates;
 - DRAFT preview/editing;
@@ -171,11 +184,10 @@ GM Dashboard exposes:
 - Randomise Today's Rates;
 - manual Draft save;
 - explicit activation;
-- recent Rate Set history.
+- recent Rate Set history;
+- Character Bronze/Silver/Gold correction.
 
-GM Character detail exposes Bronze/Silver/Gold correction controls.
-
-Player Inventory exposes:
+The Player Inventory surface is wired to expose:
 
 - separate Coin balances;
 - current ACTIVE enabled rates;
@@ -183,7 +195,9 @@ Player Inventory exposes:
 - Pay / Receive / After preview;
 - Max and bundle increment controls.
 
-## 13. Explicitly out of scope
+Browser UI is not an authority boundary. All writes remain revalidated by the Worker.
+
+## 14. Explicitly out of scope
 
 This slice does not add:
 
@@ -195,15 +209,18 @@ This slice does not add:
 - Weapon-derived combat formula changes;
 - Armour combat maths.
 
-## 14. Production verification
+## 15. Verification policy
 
-`scripts/production-alpha-currency-exchange-e2e.mjs` is plan-only unless both are supplied:
+There is no dedicated automated production-credential Currency writer in this slice.
 
-```text
-DND_ALPHA_EXECUTE=1
-DND_ALPHA_GM_PASSWORD=<operator credential>
-```
+Normal CI verifies:
 
-The live runner deliberately does **not** activate or replace the global Campaign Rate Set. It requires an already ACTIVE enabled quote, creates temporary Player/Character audit data, gives the test Character source Currency through GM correction, executes one real Player exchange, verifies balances, and confirms generic Player Inventory Currency quantity editing is rejected.
+- JavaScript syntax;
+- Currency generation/unit rules;
+- routing and anti-generic-write contracts;
+- migration/trigger atomicity contracts;
+- Player surface contract;
+- all existing Story/Runtime/Combat regressions;
+- the normal Cloudflare deployment smoke after merge to `main`.
 
-Normal CI executes only the plan/safety path. A green CI run must never be reported as a live D1-writing Currency Exchange run.
+Any live D1-writing Currency verification must be an explicit operator-controlled authenticated API/browser flow. A green CI or deployment smoke must never be reported as proof that a live Currency balance exchange was executed against production D1.
