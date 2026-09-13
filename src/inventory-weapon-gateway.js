@@ -1,4 +1,4 @@
-import baseWorker from './story-script-gateway.js';
+import baseWorker from './currency-exchange-gateway.js';
 import {
   createWeaponDefinition,
   enrichProfilesWithWeaponSource,
@@ -13,6 +13,7 @@ import {
   updateInventoryEntry,
   updateWeaponDefinition
 } from './inventory-weapon-authority.js';
+import { ensureCurrencyExchangeAuthority } from './currency-exchange-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -86,6 +87,19 @@ async function assertCharacterUnlocked(env, characterId) {
   if (Number(row?.character_locked || 0) === 1) {
     throw Object.assign(new Error('死亡 Character 已鎖定，不能修改 Inventory / Equipment。'), { status: 423, code: 'CHARACTER_LOCKED_DEAD' });
   }
+}
+
+async function blockCurrencyQuantityMutation(request, env, characterId, inventoryId, gmMode) {
+  if (request.method !== 'PATCH' || !inventoryId) return null;
+  const user = gmMode ? await requireGM(request, env) : await requireUser(request, env);
+  await requireCharacter(env, characterId, user, gmMode);
+  const body = await request.clone().json().catch(() => ({}));
+  const attemptsQuantity = Object.prototype.hasOwnProperty.call(body || {}, 'quantity') || Object.prototype.hasOwnProperty.call(body || {}, 'qty');
+  if (!attemptsQuantity) return null;
+  await ensureCurrencyExchangeAuthority(env);
+  const item = await loadInventoryEntry(env, characterId, inventoryId);
+  if (String(item?.itemSubtype || '').toUpperCase() !== 'CURRENCY') return null;
+  return apiError('Currency quantity is controlled only by Currency Exchange / GM Currency authority.', 409, 'CURRENCY_GENERIC_INVENTORY_WRITE_BLOCKED');
 }
 
 async function handleGmItems(request, env, itemId = '') {
@@ -250,10 +264,22 @@ export default {
       if (gmItems) return await handleGmItems(request, env, gmItems[1] ? decodeURIComponent(gmItems[1]) : '');
 
       const gmInventory = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/inventory(?:\/([^/]+))?$/);
-      if (gmInventory) return await handleInventory(request, env, decodeURIComponent(gmInventory[1]), gmInventory[2] ? decodeURIComponent(gmInventory[2]) : '', true);
+      if (gmInventory) {
+        const characterId = decodeURIComponent(gmInventory[1]);
+        const inventoryId = gmInventory[2] ? decodeURIComponent(gmInventory[2]) : '';
+        const blocked = await blockCurrencyQuantityMutation(request, env, characterId, inventoryId, true);
+        if (blocked) return blocked;
+        return await handleInventory(request, env, characterId, inventoryId, true);
+      }
 
       const playerInventory = pathname.match(/^\/api\/player\/characters\/([^/]+)\/inventory(?:\/([^/]+))?$/);
-      if (playerInventory) return await handleInventory(request, env, decodeURIComponent(playerInventory[1]), playerInventory[2] ? decodeURIComponent(playerInventory[2]) : '', false);
+      if (playerInventory) {
+        const characterId = decodeURIComponent(playerInventory[1]);
+        const inventoryId = playerInventory[2] ? decodeURIComponent(playerInventory[2]) : '';
+        const blocked = await blockCurrencyQuantityMutation(request, env, characterId, inventoryId, false);
+        if (blocked) return blocked;
+        return await handleInventory(request, env, characterId, inventoryId, false);
+      }
 
       const gmProfiles = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/attack-profiles(?:\/([^/]+))?$/);
       if (gmProfiles) return await handleGmAttackProfiles(request, env, decodeURIComponent(gmProfiles[1]), gmProfiles[2] ? decodeURIComponent(gmProfiles[2]) : '');
