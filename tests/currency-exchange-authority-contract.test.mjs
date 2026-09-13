@@ -16,7 +16,7 @@ for (const coin of ['coin_bronze', 'coin_silver', 'coin_gold']) {
   assert.match(authority, new RegExp(coin));
   assert.match(migration, new RegExp(coin));
 }
-assert.match(authority, /item_subtype[^\n]*'CURRENCY'/);
+assert.match(authority, /VALUES \(\?, \?, 'ITEM', 'CURRENCY'/);
 assert.match(migration, /'ITEM', 'CURRENCY'/);
 assert.doesNotMatch(authority, /wallet|base_money/i, 'Currency must remain canonical Inventory ownership rather than a parallel wallet.');
 
@@ -39,10 +39,10 @@ assert.match(authority, /highToLowSpreadMinPct: 0/);
 assert.match(authority, /highToLowSpreadMaxPct: 3/);
 assert.match(authority, /Math\.ceil\(reference \* \(1 \+ premium \/ 100\)\)/);
 assert.match(authority, /Math\.floor\(reference \* \(1 - haircut \/ 100\)\)/);
-assert.match(authority, /down >= up/);
+assert.match(authority, /highToLowReceive < lowToHighRequired/);
 assert.doesNotMatch(authority, /coin_bronze[^\n]*coin_gold[^\n]*direction/i, 'Alpha generator must not introduce direct Bronze/Gold direction.');
 
-assert.match(authority, /CREATE TRIGGER IF NOT EXISTS trg_currency_exchange_apply/);
+assert.match(authority, /CREATE TRIGGER trg_currency_exchange_apply/);
 assert.match(migration, /CREATE TRIGGER trg_currency_exchange_apply/);
 for (const token of ['CURRENCY_RATE_STALE', 'CURRENCY_BUNDLE_INVALID', 'CURRENCY_INSUFFICIENT_FUNDS', 'CURRENCY_DESTINATION_STACK_MISSING']) {
   assert.match(authority, new RegExp(token));
