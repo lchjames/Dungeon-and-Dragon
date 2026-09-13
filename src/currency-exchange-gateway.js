@@ -1,4 +1,4 @@
-import baseWorker from './inventory-weapon-gateway.js';
+import baseWorker from './story-script-gateway.js';
 import {
   activateDraft,
   ensureCurrencyExchangeAuthority,
@@ -10,7 +10,6 @@ import {
   setCharacterCurrencyQuantity,
   updateGenerationSettings
 } from './currency-exchange-authority.js';
-import { loadInventoryEntry } from './inventory-weapon-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -134,19 +133,6 @@ async function handleCharacterCurrency(request, env, characterId, coinId = '', g
   return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
 }
 
-async function blockGenericCurrencyQuantityWrite(request, env, characterId, inventoryId, gmMode) {
-  if (request.method !== 'PATCH') return null;
-  const user = gmMode ? await requireGM(request, env) : await requireUser(request, env);
-  await requireCharacter(env, characterId, user, gmMode);
-  await ensureCurrencyExchangeAuthority(env);
-  const body = await request.clone().json().catch(() => ({}));
-  const attemptsQuantity = Object.prototype.hasOwnProperty.call(body || {}, 'quantity') || Object.prototype.hasOwnProperty.call(body || {}, 'qty');
-  if (!attemptsQuantity) return null;
-  const item = await loadInventoryEntry(env, characterId, inventoryId);
-  if (String(item?.itemSubtype || '').toUpperCase() !== 'CURRENCY') return null;
-  return apiError('Currency quantity is controlled only by Currency Exchange / GM Currency authority.', 409, 'CURRENCY_GENERIC_INVENTORY_WRITE_BLOCKED');
-}
-
 export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
@@ -162,17 +148,6 @@ export default {
       if (playerCurrency) return await handleCharacterCurrency(request, env, decodeURIComponent(playerCurrency[1]), '', false, false);
       const playerExchange = pathname.match(/^\/api\/player\/characters\/([^/]+)\/currency\/exchange$/);
       if (playerExchange) return await handleCharacterCurrency(request, env, decodeURIComponent(playerExchange[1]), '', false, true);
-
-      const gmInventoryWrite = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/inventory\/([^/]+)$/);
-      if (gmInventoryWrite) {
-        const blocked = await blockGenericCurrencyQuantityWrite(request, env, decodeURIComponent(gmInventoryWrite[1]), decodeURIComponent(gmInventoryWrite[2]), true);
-        if (blocked) return blocked;
-      }
-      const playerInventoryWrite = pathname.match(/^\/api\/player\/characters\/([^/]+)\/inventory\/([^/]+)$/);
-      if (playerInventoryWrite) {
-        const blocked = await blockGenericCurrencyQuantityWrite(request, env, decodeURIComponent(playerInventoryWrite[1]), decodeURIComponent(playerInventoryWrite[2]), false);
-        if (blocked) return blocked;
-      }
 
       return baseWorker.fetch(request, env);
     } catch (error) {
