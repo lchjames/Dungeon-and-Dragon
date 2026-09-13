@@ -56,8 +56,8 @@ const delegateIndex = gateway.indexOf('const response = await baseWorker.fetch(r
 assert.ok(gateIndex >= 0 && delegateIndex > gateIndex, 'Weapon source gate must happen before the delegated attack can consume Action.');
 assert.match(gateway, /onlyAvailable: true/);
 
-// Thin top-level gateway over the existing Story / Runtime chain.
-assert.match(gateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
+// Stable top-level Inventory gateway now delegates through Currency before the existing Story / Runtime chain.
+assert.match(gateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
 assert.match(gateway, /\/api\\\/gm\\\/items/);
 assert.match(gateway, /\/api\\\/gm\\\/characters/);
 assert.match(gateway, /\/api\\\/player\\\/characters/);
