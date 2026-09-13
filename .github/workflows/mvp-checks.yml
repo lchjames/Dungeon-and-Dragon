@@ -39,6 +39,7 @@ jobs:
           node tests/story-script-compiler.test.mjs
           node tests/story-script-gateway-contract.test.mjs
           node tests/inventory-weapon-authority.test.mjs
+          node tests/currency-exchange-authority.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
@@ -64,6 +65,7 @@ jobs:
           node tests/admin-auth-contract.test.mjs
           node tests/deployment-contract.test.mjs
           node tests/inventory-weapon-foundation-contract.test.mjs
+          node tests/currency-exchange-authority-contract.test.mjs
 
       - name: World Map static contracts
         run: |
