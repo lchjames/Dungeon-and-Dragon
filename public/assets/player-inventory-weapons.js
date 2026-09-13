@@ -35,11 +35,12 @@ function isInventoryTabVisible() {
 function renderInventory(items = []) {
   const target = $('#inventory-list');
   if (!target) return;
-  if (!items.length) {
-    target.innerHTML = emptyState('Inventory is empty', 'No canonical Items have been added yet.');
+  const visibleItems = items.filter(item => String(item.itemSubtype || '').toUpperCase() !== 'CURRENCY');
+  if (!visibleItems.length) {
+    target.innerHTML = emptyState('Inventory is empty', 'No non-Currency canonical Items have been added yet. Coins are managed in the Currency panel above.');
     return;
   }
-  target.innerHTML = items.map(item => `<article class="stack-item" data-canonical-inventory-row="${escapeHtml(item.id)}">
+  target.innerHTML = visibleItems.map(item => `<article class="stack-item" data-canonical-inventory-row="${escapeHtml(item.id)}">
     <div style="flex:1;min-width:0">
       <div class="row-inline">
         <h4>${escapeHtml(item.name)}</h4>
@@ -54,7 +55,7 @@ function renderInventory(items = []) {
     <div class="quantity-editor">
       ${item.itemType === 'WEAPON'
         ? `<span class="muted">Qty 1</span><button class="button button-small ${item.isEquipped ? 'button-ghost' : ''}" type="button" data-player-toggle-equip="${escapeHtml(item.id)}" data-revision="${escapeHtml(item.revision)}" data-next="${item.isEquipped ? 'false' : 'true'}" ${!item.active ? 'disabled' : ''}>${item.isEquipped ? 'Unequip' : 'Equip'}</button>`
-        : `<span class="muted">Qty</span><input class="input input-compact" type="number" min="0" step="1" value="${escapeHtml(item.quantity)}" data-player-item-qty="${escapeHtml(item.id)}"><button class="button button-small button-ghost" type="button" data-player-item-save="${escapeHtml(item.id)}" data-revision="${escapeHtml(item.revision)}">Save</button>`}
+        : `<span class="muted">Qty</span><input class="input input-compact" type="number" min="0" value="${escapeHtml(item.quantity)}" data-player-item-qty="${escapeHtml(item.id)}"><button class="button button-small button-ghost" type="button" data-player-item-save="${escapeHtml(item.id)}" data-revision="${escapeHtml(item.revision)}">Save</button>`}
     </div>
   </article>`).join('');
 }
