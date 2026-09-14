@@ -1,4 +1,5 @@
 export const ABILITY_ATTRIBUTE_TYPES = Object.freeze(['PHYSICAL', 'LIGHT', 'DARK', 'FIRE', 'WATER', 'WIND', 'EARTH', 'LIGHTNING', 'WOOD']);
+export const MAGIC_ABILITY_ATTRIBUTE_TYPES = Object.freeze(['LIGHT', 'DARK', 'FIRE', 'WATER', 'WIND', 'EARTH', 'LIGHTNING', 'WOOD']);
 const ATTRIBUTE_SET = new Set(ABILITY_ATTRIBUTE_TYPES);
 const RANK_CODES = new Set(['1','2','3','4','5','6','7','8','9','SPECIAL']);
 const TARGET_PATTERNS = new Set(['SELF','SINGLE','MULTI_TARGET','AREA','LINE','CONE']);
@@ -57,7 +58,7 @@ export function normalizeAbilityDefinition(input, { allowUnclassified = false } 
     rankCode: rank(input?.rankCode ?? input?.rank_code ?? input?.rank, !unclassified),
     abilityType: text(input?.abilityType ?? input?.ability_type ?? 'ABILITY', 80, 'Ability type', { required: true, upper: true }),
     targetPattern: target(input?.targetPattern ?? input?.target_pattern),
-    physicalSourceCategory: text(input?.physicalSourceCategory ?? input?.physical_source_category, 80, 'Physical source category', { upper: true }) || null,
+    physicalSourceCategory: text(input?.physicalSourceCategory ?? input?.physical_source_category ?? input?.requiredMasteryType, 80, 'Physical mastery type', { upper: true }) || null,
     descriptionZh: text(input?.descriptionZh ?? input?.description_zh ?? input?.description, 8000, 'Ability description'),
     mechanicalProfile,
     prerequisites,
@@ -67,24 +68,35 @@ export function normalizeAbilityDefinition(input, { allowUnclassified = false } 
   };
   if (!['CAMPAIGN','PRIVATE'].includes(result.libraryVisibility)) throw abilityRuleError('Ability visibility is invalid.', 'ABILITY_VISIBILITY_INVALID');
   if (!['active','inactive'].includes(result.status)) throw abilityRuleError('Ability status is invalid.', 'ABILITY_STATUS_INVALID');
-  if (result.attributeType !== 'PHYSICAL' && result.physicalSourceCategory) throw abilityRuleError('Physical source category requires PHYSICAL Attribute.', 'ABILITY_PHYSICAL_SOURCE_INVALID');
+  if (result.attributeType !== 'PHYSICAL' && result.physicalSourceCategory) throw abilityRuleError('Physical mastery type requires PHYSICAL Ability classification.', 'ABILITY_PHYSICAL_SOURCE_INVALID');
+  if (!unclassified && result.attributeType === 'PHYSICAL' && !result.physicalSourceCategory) throw abilityRuleError('PHYSICAL Ability requires a physical mastery type.', 'ABILITY_PHYSICAL_MASTERY_REQUIRED');
   return result;
 }
 
-export function resolveAbilityUsability(definition, character, currentAttributeRank = 0) {
+export function resolveAbilityUsability(definition, character, currentAttributeRank = 0, currentMasteryRank = null) {
   const blockers = [];
   const unresolved = [];
   if (!definition || definition.status !== 'active') blockers.push({ code: 'ABILITY_DEFINITION_INACTIVE', message: '能力定義目前未啟用。' });
   if (String(character?.status || '').toLowerCase() !== 'active') blockers.push({ code: 'CHARACTER_NOT_ACTIVE', message: '角色目前不是 Active 狀態。' });
 
   if (definition?.classificationStatus !== 'CLASSIFIED' || !definition?.attributeType || !definition?.rankCode) {
-    unresolved.push({ code: 'ABILITY_CLASSIFICATION_REQUIRED', message: '此舊能力尚未完成九屬性／階級分類，需要 GM 重新分類。' });
+    unresolved.push({ code: 'ABILITY_CLASSIFICATION_REQUIRED', message: '此舊能力尚未完成屬性／階級分類，需要 GM 重新分類。' });
   } else if (definition.rankCode === 'SPECIAL') {
     unresolved.push({ code: 'ABILITY_SPECIAL_USAGE_POLICY_PENDING', message: 'SPECIAL 能力需要獨立使用資格規則；SPECIAL 不是 Rank 10。' });
   } else {
     const requiredRank = Number(definition.rankCode);
-    const currentRank = Number(currentAttributeRank || 0);
-    if (currentRank < requiredRank) blockers.push({ code: 'ATTRIBUTE_RANK_INSUFFICIENT', message: `${definition.attributeType} 階級不足：目前 ${currentRank} 階，需要 ${requiredRank} 階。`, currentRank, requiredRank, attributeType: definition.attributeType });
+    if (definition.attributeType === 'PHYSICAL') {
+      const masteryType = String(definition.physicalSourceCategory || '').trim().toUpperCase();
+      if (!masteryType) {
+        unresolved.push({ code: 'ABILITY_PHYSICAL_MASTERY_REQUIRED', message: '物理 Ability 未指定所需武器／戰鬥方式專精，需要 GM 修正。' });
+      } else {
+        const masteryRank = Number(currentMasteryRank || 0);
+        if (masteryRank < requiredRank) blockers.push({ code: 'PHYSICAL_MASTERY_RANK_INSUFFICIENT', message: `${masteryType} 專精階級不足：目前 ${masteryRank} 階，需要 ${requiredRank} 階。`, currentRank: masteryRank, requiredRank, masteryType });
+      }
+    } else {
+      const currentRank = Number(currentAttributeRank || 0);
+      if (currentRank < requiredRank) blockers.push({ code: 'ATTRIBUTE_RANK_INSUFFICIENT', message: `${definition.attributeType} 階級不足：目前 ${currentRank} 階，需要 ${requiredRank} 階。`, currentRank, requiredRank, attributeType: definition.attributeType });
+    }
   }
 
   const prerequisites = parseObject(definition?.prerequisites, {});
@@ -97,5 +109,13 @@ export function resolveAbilityUsability(definition, character, currentAttributeR
   if (pendingKeys.length) unresolved.push({ code: 'ABILITY_ADDITIONAL_PREREQUISITES_PENDING', message: `尚未由本 Alpha resolver 支援的前置條件：${pendingKeys.join(', ')}。`, keys: pendingKeys });
 
   const status = unresolved.length ? 'UNRESOLVED' : (blockers.length ? 'UNUSABLE' : 'USABLE');
-  return { status, usable: status === 'USABLE', blockers, unresolved, currentAttributeRank: definition?.attributeType ? Number(currentAttributeRank || 0) : null };
+  return {
+    status,
+    usable: status === 'USABLE',
+    blockers,
+    unresolved,
+    currentAttributeRank: definition?.attributeType && definition.attributeType !== 'PHYSICAL' ? Number(currentAttributeRank || 0) : null,
+    currentMasteryRank: definition?.attributeType === 'PHYSICAL' ? Number(currentMasteryRank || 0) : null,
+    requiredMasteryType: definition?.attributeType === 'PHYSICAL' ? (definition.physicalSourceCategory || null) : null
+  };
 }
