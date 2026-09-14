@@ -35,7 +35,7 @@ const gmUi = await readFile(new URL('../public/assets/gm-abilities.js', import.m
 
 assert.match(authority, /MAGIC_ABILITY_ATTRIBUTE_TYPES\.map/);
 assert.match(authority, /attribute_type <> 'PHYSICAL'/);
-assert.doesNotMatch(authority, /ABILITY_ATTRIBUTE_TYPES\.map/);
+assert.doesNotMatch(authority, /(?:^|[^A-Z_])ABILITY_ATTRIBUTE_TYPES\.map\(/m);
 assert.match(gateway, /PHYSICAL_PROGRESSION_REMOVED/);
 assert.match(gateway, /physical-masteries/);
 assert.match(gateway, /abilityProgression: rawProgression\.filter\(row => row\.attributeType !== 'PHYSICAL'\)/);
