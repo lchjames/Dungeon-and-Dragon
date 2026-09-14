@@ -28,6 +28,20 @@ export const ABILITY_SCHEMA = [
   )`,
   'CREATE INDEX IF NOT EXISTS idx_ability_definitions_attribute_rank ON ability_definitions(attribute_type, rank_code, status, canonical_name_zh)',
   'CREATE INDEX IF NOT EXISTS idx_ability_definitions_visibility ON ability_definitions(library_visibility, status, canonical_name_zh)',
+  `CREATE TABLE IF NOT EXISTS ability_resource_profiles (
+    ability_definition_id TEXT PRIMARY KEY,
+    mp_cost INTEGER NOT NULL,
+    approved_by_user_id TEXT,
+    approved_at INTEGER NOT NULL,
+    updated_by_user_id TEXT,
+    updated_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    CHECK (mp_cost >= 1),
+    FOREIGN KEY (ability_definition_id) REFERENCES ability_definitions(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_ability_resource_profiles_cost ON ability_resource_profiles(mp_cost, ability_definition_id)',
   `CREATE TABLE IF NOT EXISTS character_element_progression (
     character_id TEXT NOT NULL,
     attribute_type TEXT NOT NULL,

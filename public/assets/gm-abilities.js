@@ -3,12 +3,14 @@ import { $, escapeHtml, toast } from './common.js';
 const ATTRIBUTES = ['PHYSICAL','LIGHT','DARK','FIRE','WATER','WIND','EARTH','LIGHTNING','WOOD'];
 const MAGIC_ATTRIBUTES = ['LIGHT','DARK','FIRE','WATER','WIND','EARTH','LIGHTNING','WOOD'];
 const LABELS = { PHYSICAL:'物理', LIGHT:'光', DARK:'暗', FIRE:'火', WATER:'水', WIND:'風', EARTH:'土', LIGHTNING:'雷', WOOD:'木' };
+const DEFAULT_MP_COSTS = { '1':1, '2':5, '3':10, '4':20, '5':40, '6':80, '7':160, '8':320, '9':640 };
 let selectedCharacterId = '';
 let definitions = [];
 let progression = [];
 let progressionAudit = [];
 let physicalMasteries = [];
 let physicalMasteryAudit = [];
+let abilityResource = { currentMp:null, maxMp:null };
 let editingId = '';
 
 async function api(url, options = {}) {
@@ -28,7 +30,7 @@ function ensurePanel() {
   panel.id = 'gm-ability-authority-panel';
   panel.className = 'panel';
   panel.innerHTML = `
-    <div class="panel-heading"><div><h3>Ability Definition / Grant Authority</h3><span class="muted">建立能力、編輯正式定義、授予角色。授予不等於可使用；使用資格按角色當前資料動態判定。</span></div></div>
+    <div class="panel-heading"><div><h3>Ability Definition / Grant Authority</h3><span class="muted">建立能力、編輯正式定義、授予角色。授予不等於可使用；實際 MP 成本係批准後 Definition authority，Rank cost 只係 reference。</span></div></div>
     <div class="split-grid">
       <section>
         <h4 id="gm-ability-editor-title">建立 Ability Definition</h4>
@@ -36,6 +38,7 @@ function ensurePanel() {
           <label class="field"><span>繁體中文名稱</span><input id="gm-ability-name" class="input" maxlength="120"></label>
           <label class="field"><span>屬性／分類</span><select id="gm-ability-attribute" class="input">${ATTRIBUTES.map(x => `<option value="${x}">${LABELS[x]}</option>`).join('')}</select></label>
           <label class="field"><span>階級</span><select id="gm-ability-rank" class="input">${[1,2,3,4,5,6,7,8,9].map(x => `<option value="${x}">${x}階</option>`).join('')}<option value="SPECIAL">SPECIAL</option></select></label>
+          <label class="field"><span>Approved MP Cost</span><input id="gm-ability-mp-cost" class="input" type="number" min="1" step="1" value="1"><small id="gm-ability-mp-reference">Rank 1 Reference：1 MP。可按批准後Power Package調整。</small></label>
           <label class="field"><span>能力類型</span><input id="gm-ability-type" class="input" value="ABILITY" maxlength="80"></label>
           <label class="field"><span>Target Pattern</span><select id="gm-ability-target" class="input"><option value="">未指定</option><option>SELF</option><option>SINGLE</option><option>MULTI_TARGET</option><option>AREA</option><option>LINE</option><option>CONE</option></select></label>
           <label class="field"><span>Required Physical Mastery</span><input id="gm-ability-physical-source" class="input" maxlength="80" placeholder="例如 SWORD；PHYSICAL Ability 必填"><small>PHYSICAL 只係 Ability 分類，唔係角色總階級。物理 Ability 由此專精階級控制使用資格。</small></label>
@@ -53,12 +56,12 @@ function ensurePanel() {
         <label class="field"><span>來源名稱</span><input id="gm-grant-ability-source-name" class="input" maxlength="160"></label>
         <label class="field"><span>GM 備註</span><textarea id="gm-grant-ability-note" class="textarea" rows="3"></textarea></label>
         <div class="form-actions"><button id="gm-grant-ability" class="button" type="button" disabled>授予 Ability</button></div>
-        <p class="muted">GM Grant 可以越過一般取得流程，但不會自動越過元素 Rank、Physical Mastery Rank、Level 或其他使用條件。</p>
+        <p class="muted">GM Grant 可以越過一般取得流程，但不會自動越過元素 Rank、Physical Mastery Rank、Level 或其他使用條件。今個slice只顯示MP affordability，唔會扣MP或消耗Action。</p>
       </section>
     </div>
     <div class="split-grid">
-      <section><div class="panel-heading"><h4>Ability Library</h4><span class="muted">Legacy entries會標示待分類。</span></div><div id="gm-ability-library" class="stack-list"></div></section>
-      <section><div class="panel-heading"><h4>Character 已取得 Ability</h4><span class="muted">只讀取得關係；本slice不提供 ungrant。</span></div><div id="gm-character-ability-list" class="stack-list"><p class="muted">Open a Character to load Abilities.</p></div></section>
+      <section><div class="panel-heading"><h4>Ability Library</h4><span class="muted">舊Definition若未有批准成本會標示 MP pending；唔會自動套用Rank reference。</span></div><div id="gm-ability-library" class="stack-list"></div></section>
+      <section><div class="panel-heading"><div><h4>Character 已取得 Ability</h4><span class="muted">只讀取得關係；本slice不提供 ungrant。</span></div><span id="gm-character-ability-resource" class="muted">Open a Character to load MP.</span></div><div id="gm-character-ability-list" class="stack-list"><p class="muted">Open a Character to load Abilities.</p></div></section>
     </div>
     <section id="gm-element-progression-section">
       <div class="panel-heading"><div><h4>八元素 Rank / 修習進度</h4><span class="muted">光、暗、火、水、風、土、雷、木各自 Rank 0–9；PHYSICAL 已由專精取代。沒有自動升階或固定門檻。</span></div></div>
@@ -88,6 +91,18 @@ function ensurePanel() {
   attack.parentNode.insertBefore(panel, attack);
 }
 
+function syncMpReference({ applyDefault = false } = {}) {
+  const rank = $('#gm-ability-rank')?.value || '1';
+  const reference = DEFAULT_MP_COSTS[rank] ?? null;
+  const hint = $('#gm-ability-mp-reference');
+  const input = $('#gm-ability-mp-cost');
+  if (hint) hint.textContent = reference == null
+    ? 'SPECIAL 沒有固定Rank Reference；必須輸入已批准整數 MP Cost。'
+    : `Rank ${rank} Reference：${reference} MP。Reference 唔係硬公式，可按批准後Power Package調整。`;
+  if (applyDefault && input && reference != null) input.value = String(reference);
+  if (applyDefault && input && reference == null) input.value = '';
+}
+
 function resetEditor() {
   editingId = '';
   $('#gm-ability-editor-title').textContent = '建立 Ability Definition';
@@ -103,6 +118,7 @@ function resetEditor() {
   $('#gm-ability-visibility').value = 'CAMPAIGN';
   $('#gm-ability-status-select').value = 'active';
   $('#gm-ability-description').value = '';
+  syncMpReference({ applyDefault: true });
 }
 
 function renderDefinitions() {
@@ -110,25 +126,29 @@ function renderDefinitions() {
   const select = $('#gm-grant-ability-definition');
   if (!library || !select) return;
   library.innerHTML = definitions.length ? definitions.map(item => `<article class="stack-item">
-    <div><div class="row-inline"><h4>${escapeHtml(item.canonicalNameZh)}</h4><span class="tag">${escapeHtml(item.attributeType || '待分類')}</span><span class="tag">${escapeHtml(item.rankCode || '—')}</span>${item.attributeType === 'PHYSICAL' && item.requiredMasteryType ? `<span class="tag">${escapeHtml(item.requiredMasteryType)} mastery</span>` : ''}${item.classificationStatus === 'NEEDS_CLASSIFICATION' ? '<span class="status-pill">needs classification</span>' : ''}${item.status !== 'active' ? '<span class="status-pill">inactive</span>' : ''}</div><p>${escapeHtml(item.descriptionZh || '暫無說明')}</p></div>
+    <div><div class="row-inline"><h4>${escapeHtml(item.canonicalNameZh)}</h4><span class="tag">${escapeHtml(item.attributeType || '待分類')}</span><span class="tag">${escapeHtml(item.rankCode || '—')}</span><span class="tag">${item.mpCost == null ? 'MP pending' : `MP ${escapeHtml(item.mpCost)}`}</span>${item.attributeType === 'PHYSICAL' && item.requiredMasteryType ? `<span class="tag">${escapeHtml(item.requiredMasteryType)} mastery</span>` : ''}${item.classificationStatus === 'NEEDS_CLASSIFICATION' ? '<span class="status-pill">needs classification</span>' : ''}${item.status !== 'active' ? '<span class="status-pill">inactive</span>' : ''}</div><p>${escapeHtml(item.descriptionZh || '暫無說明')}</p>${item.referenceMpCost != null && item.mpCost !== item.referenceMpCost ? `<small class="muted">Rank Reference ${escapeHtml(item.referenceMpCost)} MP · approved ${item.mpCost == null ? 'pending' : escapeHtml(item.mpCost)}</small>` : ''}</div>
     <button class="button button-small button-ghost" type="button" data-edit-ability="${escapeHtml(item.id)}">Edit</button>
   </article>`).join('') : '<p class="muted">Ability Library is empty.</p>';
   const active = definitions.filter(item => item.status === 'active' && item.classificationStatus === 'CLASSIFIED');
   const previous = select.value;
-  select.innerHTML = '<option value="">Select Ability</option>' + active.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.canonicalNameZh)} · ${escapeHtml(item.attributeType)} ${escapeHtml(item.rankCode)}</option>`).join('');
+  select.innerHTML = '<option value="">Select Ability</option>' + active.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.canonicalNameZh)} · ${escapeHtml(item.attributeType)} ${escapeHtml(item.rankCode)} · ${item.mpCost == null ? 'MP pending' : `MP ${escapeHtml(item.mpCost)}`}</option>`).join('');
   if (active.some(item => item.id === previous)) select.value = previous;
   $('#gm-grant-ability').disabled = !selectedCharacterId || !select.value;
 }
 
 function renderCharacterAbilities(items = []) {
   const target = $('#gm-character-ability-list');
+  const resourceTarget = $('#gm-character-ability-resource');
+  if (resourceTarget) resourceTarget.textContent = !selectedCharacterId ? 'Open a Character to load MP.' : (abilityResource.currentMp == null ? 'MP resource unavailable.' : `Current MP ${abilityResource.currentMp} / ${abilityResource.maxMp}`);
   if (!target) return;
   if (!selectedCharacterId) { target.innerHTML = '<p class="muted">Open a Character to load Abilities.</p>'; return; }
   if (!items.length) { target.innerHTML = '<p class="muted">Character 尚未取得 Ability。</p>'; return; }
   target.innerHTML = items.map(item => {
     const reasons = [...(item.usability?.blockers || []), ...(item.usability?.unresolved || [])].map(x => x.message).join(' · ');
     const mastery = item.attributeType === 'PHYSICAL' && item.requiredMasteryType ? ` · ${item.requiredMasteryType} ${item.currentMasteryRank ?? 0}階` : '';
-    return `<article class="stack-item"><div><div class="row-inline"><h4>${escapeHtml(item.canonicalNameZh)}</h4><span class="tag">${escapeHtml(item.attributeType || '待分類')}</span><span class="tag">${escapeHtml(item.rankCode || '—')}</span><span class="status-pill">${escapeHtml(item.usability?.status || 'UNRESOLVED')}</span></div><p>${escapeHtml(reasons || item.descriptionZh || '')}</p><small class="muted">${escapeHtml(item.acquisitionMode)}${item.grantSourceName ? ` · ${escapeHtml(item.grantSourceName)}` : ''}${escapeHtml(mastery)}</small></div></article>`;
+    const resource = item.activationResource || {};
+    const resourceText = resource.status === 'PENDING_PROFILE' ? 'MP pending' : (resource.mpCost == null ? 'MP —' : `MP ${resource.mpCost} · ${resource.status}`);
+    return `<article class="stack-item"><div><div class="row-inline"><h4>${escapeHtml(item.canonicalNameZh)}</h4><span class="tag">${escapeHtml(item.attributeType || '待分類')}</span><span class="tag">${escapeHtml(item.rankCode || '—')}</span><span class="tag">${escapeHtml(resourceText)}</span><span class="status-pill">${escapeHtml(item.usability?.status || 'UNRESOLVED')}</span></div><p>${escapeHtml(reasons || item.descriptionZh || '')}</p><small class="muted">${escapeHtml(item.acquisitionMode)}${item.grantSourceName ? ` · ${escapeHtml(item.grantSourceName)}` : ''}${escapeHtml(mastery)}</small></div></article>`;
   }).join('');
 }
 
@@ -187,6 +207,7 @@ async function loadCharacterAbilityData() {
     progressionAudit = [];
     physicalMasteries = [];
     physicalMasteryAudit = [];
+    abilityResource = { currentMp:null, maxMp:null };
     renderCharacterAbilities([]);
     renderProgression();
     renderProgressionAudit();
@@ -201,6 +222,7 @@ async function loadCharacterAbilityData() {
   ]);
   progression = payload.abilityProgression || [];
   physicalMasteries = payload.physicalMasteries || [];
+  abilityResource = payload.abilityResource || { currentMp:null, maxMp:null };
   progressionAudit = auditPayload.audit || [];
   physicalMasteryAudit = masteryAuditPayload.audit || [];
   renderCharacterAbilities(payload.abilities || []);
@@ -215,6 +237,9 @@ async function saveAbility() {
   button.disabled = true;
   try {
     const minLevelRaw = $('#gm-ability-min-level').value;
+    const mpCostRaw = $('#gm-ability-mp-cost').value;
+    const mpCost = Number(mpCostRaw);
+    if (!Number.isSafeInteger(mpCost) || mpCost < 1) throw new Error('Approved MP Cost 必須係至少 1 嘅整數。');
     const wasEditing = Boolean(editingId);
     const endpoint = wasEditing ? `/api/gm/abilities/${encodeURIComponent(editingId)}` : '/api/gm/abilities';
     const method = wasEditing ? 'PATCH' : 'POST';
@@ -222,6 +247,7 @@ async function saveAbility() {
       canonicalNameZh: $('#gm-ability-name').value,
       attributeType: $('#gm-ability-attribute').value,
       rankCode: $('#gm-ability-rank').value,
+      mpCost,
       abilityType: $('#gm-ability-type').value,
       targetPattern: $('#gm-ability-target').value || null,
       physicalSourceCategory: $('#gm-ability-physical-source').value || null,
@@ -248,6 +274,7 @@ function editAbility(id) {
   $('#gm-ability-name').value = item.canonicalNameZh || '';
   $('#gm-ability-attribute').value = item.attributeType || 'PHYSICAL';
   $('#gm-ability-rank').value = item.rankCode || '1';
+  $('#gm-ability-mp-cost').value = item.mpCost ?? '';
   $('#gm-ability-type').value = item.abilityType || 'ABILITY';
   $('#gm-ability-target').value = item.targetPattern || '';
   $('#gm-ability-physical-source').value = item.physicalSourceCategory || '';
@@ -255,6 +282,7 @@ function editAbility(id) {
   $('#gm-ability-visibility').value = item.libraryVisibility || 'CAMPAIGN';
   $('#gm-ability-status-select').value = item.status || 'active';
   $('#gm-ability-description').value = item.descriptionZh || '';
+  syncMpReference();
 }
 
 async function grantAbility() {
@@ -271,6 +299,7 @@ async function grantAbility() {
     }) });
     progression = payload.abilityProgression || progression;
     physicalMasteries = payload.physicalMasteries || physicalMasteries;
+    abilityResource = payload.abilityResource || abilityResource;
     renderCharacterAbilities(payload.abilities || []);
     renderProgression();
     renderPhysicalMasteries();
@@ -356,9 +385,11 @@ async function mutatePhysicalMastery(mode, button) {
 }
 
 ensurePanel();
+resetEditor();
 Promise.all([loadDefinitions(), loadCharacterAbilityData()]).catch(error => toast(error.message, 'error'));
 $('#gm-save-ability')?.addEventListener('click', saveAbility);
 $('#gm-cancel-ability-edit')?.addEventListener('click', resetEditor);
+$('#gm-ability-rank')?.addEventListener('change', () => syncMpReference({ applyDefault: !editingId }));
 $('#gm-grant-ability-definition')?.addEventListener('change', renderDefinitions);
 $('#gm-grant-ability')?.addEventListener('click', grantAbility);
 $('#gm-physical-mastery-set')?.addEventListener('click', event => mutatePhysicalMastery('set', event.currentTarget));
@@ -381,6 +412,7 @@ document.addEventListener('click', event => {
     progressionAudit = [];
     physicalMasteries = [];
     physicalMasteryAudit = [];
+    abilityResource = { currentMp:null, maxMp:null };
     renderCharacterAbilities([]);
     renderProgression();
     renderProgressionAudit();

@@ -1,5 +1,6 @@
 export const ABILITY_ATTRIBUTE_TYPES = Object.freeze(['PHYSICAL', 'LIGHT', 'DARK', 'FIRE', 'WATER', 'WIND', 'EARTH', 'LIGHTNING', 'WOOD']);
 export const MAGIC_ABILITY_ATTRIBUTE_TYPES = Object.freeze(['LIGHT', 'DARK', 'FIRE', 'WATER', 'WIND', 'EARTH', 'LIGHTNING', 'WOOD']);
+export const ABILITY_DEFAULT_MP_COSTS = Object.freeze({ '1': 1, '2': 5, '3': 10, '4': 20, '5': 40, '6': 80, '7': 160, '8': 320, '9': 640 });
 const ATTRIBUTE_SET = new Set(ABILITY_ATTRIBUTE_TYPES);
 const RANK_CODES = new Set(['1','2','3','4','5','6','7','8','9','SPECIAL']);
 const TARGET_PATTERNS = new Set(['SELF','SINGLE','MULTI_TARGET','AREA','LINE','CONE']);
@@ -16,6 +17,41 @@ export function parseObject(value, fallback = {}) {
   } catch {
     return fallback;
   }
+}
+
+export function defaultAbilityMpCost(rankCode) {
+  const key = String(rankCode ?? '').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(ABILITY_DEFAULT_MP_COSTS, key) ? ABILITY_DEFAULT_MP_COSTS[key] : null;
+}
+
+export function normalizeAbilityMpCost(value, { required = false } = {}) {
+  if (value === null || value === undefined || String(value).trim() === '') {
+    if (required) throw abilityRuleError('Approved Ability MP cost is required.', 'ABILITY_MP_COST_REQUIRED');
+    return null;
+  }
+  const cost = Number(value);
+  if (!Number.isSafeInteger(cost) || cost < 1) {
+    throw abilityRuleError('Ability MP cost must be a positive integer.', 'ABILITY_MP_COST_INVALID');
+  }
+  return cost;
+}
+
+export function resolveAbilityResourceAffordability(definition, currentMp = null, maxMp = null) {
+  const mpCost = normalizeAbilityMpCost(definition?.mpCost, { required: false });
+  const referenceMpCost = defaultAbilityMpCost(definition?.rankCode);
+  if (mpCost === null) {
+    return { status: 'PENDING_PROFILE', affordable: null, mpCost: null, referenceMpCost, currentMp: currentMp == null ? null : Number(currentMp), maxMp: maxMp == null ? null : Number(maxMp) };
+  }
+  if (currentMp === null || currentMp === undefined || maxMp === null || maxMp === undefined) {
+    return { status: 'MP_RESOURCE_MISSING', affordable: false, mpCost, referenceMpCost, currentMp: null, maxMp: null };
+  }
+  const current = Number(currentMp);
+  const maximum = Number(maxMp);
+  if (!Number.isFinite(current) || !Number.isFinite(maximum) || current < 0 || maximum < 0 || current > maximum) {
+    return { status: 'MP_RESOURCE_INVALID', affordable: false, mpCost, referenceMpCost, currentMp: current, maxMp: maximum };
+  }
+  const affordable = current >= mpCost;
+  return { status: affordable ? 'AFFORDABLE' : 'INSUFFICIENT_MP', affordable, mpCost, referenceMpCost, currentMp: current, maxMp: maximum };
 }
 
 function text(value, max, field, { required = false, upper = false } = {}) {

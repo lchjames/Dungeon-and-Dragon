@@ -9,7 +9,7 @@ import {
   loadAbilityDefinition,
   updateAbilityDefinition
 } from './ability-authority.js';
-import { resolveAbilityUsability } from './ability-rules.js';
+import { resolveAbilityResourceAffordability, resolveAbilityUsability } from './ability-rules.js';
 import {
   ensureElementProgressionAuthority,
   getCharacterElementProgressionState,
@@ -80,18 +80,30 @@ async function handleDefinitions(request, env, abilityId = '') {
   return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
 }
 
+async function characterMpState(env, characterId) {
+  const row = await env.DB.prepare(`SELECT current_value, max_value
+    FROM character_resources
+    WHERE character_id=? AND UPPER(key)='MP'
+    ORDER BY sort_order, id
+    LIMIT 1`).bind(characterId).first();
+  if (!row) return null;
+  return { currentMp: Number(row.current_value), maxMp: Number(row.max_value) };
+}
+
 async function characterAbilityPayload(env, characterId) {
   await Promise.all([ensureAbilityAuthority(env), ensurePhysicalMasteryAuthority(env)]);
   const character = await env.DB.prepare('SELECT id, name, level, status FROM characters WHERE id=? LIMIT 1').bind(characterId).first();
   if (!character) throw Object.assign(new Error('找不到 Character。'), { status: 404, code: 'CHARACTER_NOT_FOUND' });
-  const [abilities, rawProgression, physicalMasteries] = await Promise.all([
+  const [abilities, rawProgression, physicalMasteries, mpState] = await Promise.all([
     listCharacterAbilities(env, characterId),
     listCharacterElementProgression(env, characterId),
-    listCharacterPhysicalMasteries(env, characterId)
+    listCharacterPhysicalMasteries(env, characterId),
+    characterMpState(env, characterId)
   ]);
   const masteryMap = new Map(physicalMasteries.map(row => [String(row.masteryType || '').toUpperCase(), row]));
   const corrected = abilities.map(ability => {
-    if (ability.attributeType !== 'PHYSICAL') return ability;
+    const activationResource = resolveAbilityResourceAffordability(ability, mpState?.currentMp ?? null, mpState?.maxMp ?? null);
+    if (ability.attributeType !== 'PHYSICAL') return { ...ability, activationResource };
     const masteryType = String(ability.physicalSourceCategory || '').toUpperCase();
     const mastery = masteryType ? masteryMap.get(masteryType) : null;
     return {
@@ -101,13 +113,15 @@ async function characterAbilityPayload(env, characterId) {
       currentMasteryRank: mastery ? Number(mastery.rank || 0) : 0,
       currentMasteryProgressionExp: mastery ? Number(mastery.progressionExp || 0) : 0,
       requiredMasteryType: masteryType || null,
-      usability: resolveAbilityUsability(ability, character, 0, mastery ? Number(mastery.rank || 0) : 0)
+      usability: resolveAbilityUsability(ability, character, 0, mastery ? Number(mastery.rank || 0) : 0),
+      activationResource
     };
   });
   return {
     abilities: corrected,
     abilityProgression: rawProgression.filter(row => row.attributeType !== 'PHYSICAL'),
-    physicalMasteries
+    physicalMasteries,
+    abilityResource: mpState || { currentMp: null, maxMp: null }
   };
 }
 
