@@ -21,6 +21,7 @@ try {
   runComponent('Production Story Event E2E', './production-alpha-story-event-e2e.mjs');
   runComponent('Production GM Story Script Tool E2E', './production-alpha-story-script-tool-e2e.mjs');
   runComponent('Production Inventory / Weapon Foundation E2E', './production-alpha-inventory-weapon-e2e.mjs');
+  runComponent('Production Ability Definition / Grant Authority', './production-alpha-ability-e2e.mjs');
   runComponent('Production Scene Run Start Story E2E', './production-alpha-story-scene-run-start-e2e.mjs');
   runComponent('Production Encounter Activated Story E2E', './production-alpha-story-encounter-activated-e2e.mjs');
   runComponent('Production Combat Started Story E2E', './production-alpha-story-combat-started-e2e.mjs');
@@ -47,6 +48,7 @@ try {
       'story-event',
       'gm-story-script-tool',
       'inventory-weapon-foundation',
+      'ability-definition-grant-authority',
       'story-scene-run-start',
       'story-encounter-activated',
       'story-combat-started',

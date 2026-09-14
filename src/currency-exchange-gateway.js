@@ -1,4 +1,4 @@
-import baseWorker from './story-script-gateway.js';
+import baseWorker from './ability-gateway.js';
 import {
   activateDraft,
   ensureCurrencyExchangeAuthority,

@@ -10,6 +10,7 @@
   <script type="module" src="/assets/gm-combat.js"></script>
   <script type="module" src="/assets/gm-attack-profiles.js"></script>
   <script type="module" src="/assets/gm-inventory-weapons.js"></script>
+  <script type="module" src="/assets/gm-abilities.js"></script>
   <script type="module" src="/assets/gm-story-script-tool.js"></script>
 </head>
 <body class="admin-body">
@@ -61,7 +62,7 @@
                 <div><dt>User</dt><dd id="dashboard-gm-name">GM</dd></div>
                 <div><dt>Role</dt><dd id="dashboard-gm-role">gm</dd></div>
                 <div><dt>Storage</dt><dd>Cloudflare D1</dd></div>
-                <div><dt>Current MVP writes</dt><dd>EXP + Current HP/MP + Attack Profiles</dd></div>
+                <div><dt>Current MVP writes</dt><dd>EXP + Current HP/MP + Attack Profiles + Inventory + Ability Definitions/Grants</dd></div>
               </dl>
             </section>
           </div>
@@ -73,7 +74,7 @@
         </section>
 
         <section class="admin-view hidden" id="view-characters">
-          <div class="section-heading"><div><p class="eyebrow">D1 ROSTER</p><h2>Characters</h2><p class="muted">Attributes and Creation Skills are read-only. GM may adjust EXP, correct Current HP/MP, and author temporary MVP Attack Profiles.</p></div></div>
+          <div class="section-heading"><div><p class="eyebrow">D1 ROSTER</p><h2>Characters</h2><p class="muted">Attributes and Creation Skills are read-only. GM may adjust EXP, correct Current HP/MP, manage Inventory, and author/grant Abilities.</p></div></div>
           <div class="toolbar">
             <input id="character-search" class="input" type="search" placeholder="Search name, owner or role…">
             <select id="character-owner-filter" class="input"><option value="">All owners</option></select>

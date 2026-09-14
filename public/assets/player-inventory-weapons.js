@@ -1,3 +1,4 @@
+import './player-abilities.js';
 import { $, escapeHtml, toast, emptyState } from './common.js';
 
 let activeCharacterId = '';
