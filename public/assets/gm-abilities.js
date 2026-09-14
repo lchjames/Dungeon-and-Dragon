@@ -117,6 +117,9 @@ async function saveAbility() {
   button.disabled = true;
   try {
     const minLevelRaw = $('#gm-ability-min-level').value;
+    const wasEditing = Boolean(editingId);
+    const endpoint = wasEditing ? `/api/gm/abilities/${encodeURIComponent(editingId)}` : '/api/gm/abilities';
+    const method = wasEditing ? 'PATCH' : 'POST';
     const body = {
       canonicalNameZh: $('#gm-ability-name').value,
       attributeType: $('#gm-ability-attribute').value,
@@ -129,10 +132,10 @@ async function saveAbility() {
       status: $('#gm-ability-status-select').value,
       prerequisites: minLevelRaw ? { minimumCharacterLevel: Number(minLevelRaw) } : {}
     };
-    await api(editingId ? `/api/gm/abilities/${encodeURIComponent(editingId)}` : '/api/gm/abilities', { method: editingId ? 'PATCH' : 'POST', body: JSON.stringify(body) });
+    await api(endpoint, { method, body: JSON.stringify(body) });
     resetEditor();
     await Promise.all([loadDefinitions(), loadCharacterAbilities()]);
-    toast(editingId ? 'Ability updated.' : 'Ability created.', 'success');
+    toast(wasEditing ? 'Ability updated.' : 'Ability created.', 'success');
   } catch (error) { toast(error.message, 'error'); }
   finally { button.disabled = false; }
 }
