@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const authority = await readFile(new URL('../src/currency-exchange-authority.js', import.meta.url), 'utf8');
 const currencyGateway = await readFile(new URL('../src/currency-exchange-gateway.js', import.meta.url), 'utf8');
+const abilityGateway = await readFile(new URL('../src/ability-gateway.js', import.meta.url), 'utf8');
 const inventoryGateway = await readFile(new URL('../src/inventory-weapon-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0031_currency_exchange_authority.sql', import.meta.url), 'utf8');
 const playerUi = await readFile(new URL('../public/assets/player-currency-exchange.js', import.meta.url), 'utf8');
@@ -56,7 +57,8 @@ assert.match(migration, /quantity = quantity \+ NEW\.to_quantity_total/);
 assert.match(doc, /If any step aborts, SQLite rolls back the statement/);
 
 assert.match(inventoryGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
-assert.match(currencyGateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
+assert.match(currencyGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
+assert.match(abilityGateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
 assert.match(inventoryGateway, /CURRENCY_GENERIC_INVENTORY_WRITE_BLOCKED/);
 assert.match(inventoryGateway, /itemSubtype/);
 assert.match(inventoryGateway, /ensureCurrencyExchangeAuthority/);
