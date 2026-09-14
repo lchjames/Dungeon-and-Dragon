@@ -41,6 +41,18 @@ export const ABILITY_SCHEMA = [
     CHECK (progression_exp >= 0),
     FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
   )`,
+  `CREATE TABLE IF NOT EXISTS character_physical_masteries (
+    character_id TEXT NOT NULL,
+    mastery_type TEXT NOT NULL,
+    rank INTEGER NOT NULL DEFAULT 0,
+    progression_exp INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (character_id, mastery_type),
+    CHECK (rank BETWEEN 0 AND 9),
+    CHECK (progression_exp >= 0),
+    FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+  )`,
   `CREATE TABLE IF NOT EXISTS character_acquired_abilities (
     id TEXT PRIMARY KEY,
     character_id TEXT NOT NULL,
