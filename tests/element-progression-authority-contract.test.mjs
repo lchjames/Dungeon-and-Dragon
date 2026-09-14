@@ -16,9 +16,14 @@ assert.match(migration, /CREATE TRIGGER IF NOT EXISTS trg_character_element_prog
 assert.match(migration, /RAISE\(ABORT, 'ELEMENT_PROGRESSION_STALE'\)/);
 assert.match(migration, /CREATE TRIGGER IF NOT EXISTS trg_character_element_progression_log_apply/);
 assert.match(migration, /UPDATE character_element_progression/);
+assert.match(migration, /trg_character_element_progression_log_no_update/);
+assert.match(migration, /trg_character_element_progression_log_no_delete/);
+assert.match(migration, /ELEMENT_PROGRESSION_AUDIT_IMMUTABLE/);
 
 assert.match(authority, /INSERT INTO character_element_progression_log/);
 assert.match(authority, /ELEMENT_PROGRESSION_STALE/);
+assert.match(authority, /trg_character_element_progression_log_no_update/);
+assert.match(authority, /trg_character_element_progression_log_no_delete/);
 assert.match(authority, /progressionDelta/);
 assert.match(authority, /integer\(input\.progressionDelta, 'Progression award', 1,/);
 assert.match(authority, /toRank = hasRank \? integer\(input\.rank, 'Rank', 0, 9\)/);
@@ -48,4 +53,4 @@ assert.match(doc, /same SQLite statement transaction boundary/);
 assert.match(doc, /Player does not receive a progression mutation endpoint/);
 assert.match(doc, /plan-only/);
 
-console.log('Nine-Attribute Rank / progression authority, atomic audit and UI contract passed.');
+console.log('Nine-Attribute Rank / progression authority, atomic immutable audit and UI contract passed.');
