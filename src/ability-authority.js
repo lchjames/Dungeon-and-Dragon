@@ -1,8 +1,9 @@
 import { ABILITY_SCHEMA } from './ability-schema.js';
 import {
   MAGIC_ABILITY_ATTRIBUTE_TYPES,
-  abilityRuleError,
+  defaultAbilityMpCost,
   normalizeAbilityDefinition,
+  normalizeAbilityMpCost,
   parseObject,
   resolveAbilityUsability
 } from './ability-rules.js';
@@ -28,6 +29,7 @@ function jsonText(value, maxBytes = 32768) {
 }
 function toDefinition(row) {
   if (!row) return null;
+  const mpCost = row.mp_cost === null || row.mp_cost === undefined ? null : Number(row.mp_cost);
   return {
     id: row.id,
     canonicalNameZh: row.canonical_name_zh,
@@ -44,6 +46,13 @@ function toDefinition(row) {
     description: row.description_zh || '',
     mechanicalProfile: parseObject(row.mechanical_profile_json, {}),
     prerequisites: parseObject(row.prerequisites_json, {}),
+    mpCost,
+    referenceMpCost: defaultAbilityMpCost(row.rank_code),
+    resourceProfileStatus: mpCost === null ? 'PENDING' : 'APPROVED',
+    resourceApprovedByUserId: row.resource_approved_by_user_id || null,
+    resourceApprovedAt: row.resource_approved_at === null || row.resource_approved_at === undefined ? null : Number(row.resource_approved_at),
+    resourceUpdatedByUserId: row.resource_updated_by_user_id || null,
+    resourceUpdatedAt: row.resource_updated_at === null || row.resource_updated_at === undefined ? null : Number(row.resource_updated_at),
     libraryVisibility: row.library_visibility,
     status: row.status,
     classificationStatus: row.classification_status,
@@ -64,6 +73,8 @@ function snapshot(definition) {
     descriptionZh: definition.descriptionZh,
     mechanicalProfile: definition.mechanicalProfile,
     prerequisites: definition.prerequisites,
+    mpCost: definition.mpCost ?? null,
+    referenceMpCost: definition.referenceMpCost ?? defaultAbilityMpCost(definition.rankCode),
     libraryVisibility: definition.libraryVisibility,
     status: definition.status,
     classificationStatus: definition.classificationStatus
@@ -88,7 +99,7 @@ async function backfillLegacy(env) {
     const name = text(row.name || 'Legacy Ability', 120, 'Ability name');
     const type = text(row.type || 'ABILITY', 80, 'Ability type', true) || 'ABILITY';
     const description = text(row.description || '', 8000, 'Ability description');
-    const profile = { canonicalNameZh: name, attributeType: null, rankCode: null, abilityType: type, targetPattern: null, physicalSourceCategory: null, descriptionZh: description, mechanicalProfile: {}, prerequisites: {}, libraryVisibility: 'PRIVATE', status: 'active', classificationStatus: 'NEEDS_CLASSIFICATION' };
+    const profile = { canonicalNameZh: name, attributeType: null, rankCode: null, abilityType: type, targetPattern: null, physicalSourceCategory: null, descriptionZh: description, mechanicalProfile: {}, prerequisites: {}, mpCost: null, referenceMpCost: null, libraryVisibility: 'PRIVATE', status: 'active', classificationStatus: 'NEEDS_CLASSIFICATION' };
     await env.DB.batch([
       env.DB.prepare(`INSERT OR IGNORE INTO ability_definitions (
         id, canonical_name_zh, attribute_type, rank_code, ability_type, target_pattern,
@@ -135,29 +146,41 @@ export async function ensureCharacterElementProgression(env, characterId) {
   `).bind(characterId, attributeType, now)));
 }
 
+const RESOURCE_SELECT = `rp.mp_cost,
+  rp.approved_by_user_id resource_approved_by_user_id, rp.approved_at resource_approved_at,
+  rp.updated_by_user_id resource_updated_by_user_id, rp.updated_at resource_updated_at`;
+
 export async function listAbilityDefinitions(env, { includeInactive = true, includePrivate = true } = {}) {
   await ensureAbilityAuthority(env);
   const clauses = [];
-  if (!includeInactive) clauses.push("status='active'");
-  if (!includePrivate) clauses.push("library_visibility='CAMPAIGN'");
-  const result = await env.DB.prepare(`SELECT * FROM ability_definitions ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
-    ORDER BY CASE classification_status WHEN 'NEEDS_CLASSIFICATION' THEN 1 ELSE 0 END,
-             attribute_type, CAST(rank_code AS INTEGER), canonical_name_zh COLLATE NOCASE, id`).all();
+  if (!includeInactive) clauses.push("d.status='active'");
+  if (!includePrivate) clauses.push("d.library_visibility='CAMPAIGN'");
+  const result = await env.DB.prepare(`SELECT d.*, ${RESOURCE_SELECT}
+    FROM ability_definitions d
+    LEFT JOIN ability_resource_profiles rp ON rp.ability_definition_id=d.id
+    ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+    ORDER BY CASE d.classification_status WHEN 'NEEDS_CLASSIFICATION' THEN 1 ELSE 0 END,
+             d.attribute_type, CAST(d.rank_code AS INTEGER), d.canonical_name_zh COLLATE NOCASE, d.id`).all();
   return (result.results || []).map(toDefinition);
 }
 
 export async function loadAbilityDefinition(env, id) {
   await ensureAbilityAuthority(env);
-  return toDefinition(await env.DB.prepare('SELECT * FROM ability_definitions WHERE id=? LIMIT 1').bind(id).first());
+  return toDefinition(await env.DB.prepare(`SELECT d.*, ${RESOURCE_SELECT}
+    FROM ability_definitions d
+    LEFT JOIN ability_resource_profiles rp ON rp.ability_definition_id=d.id
+    WHERE d.id=? LIMIT 1`).bind(id).first());
 }
 
 export async function createAbilityDefinition(env, input, actorUserId) {
   await ensureAbilityAuthority(env);
   const definition = normalizeAbilityDefinition(input);
+  const mpCost = normalizeAbilityMpCost(input?.mpCost ?? input?.mp_cost, { required: true });
   const mechanical = jsonText(definition.mechanicalProfile);
   const prerequisites = jsonText(definition.prerequisites);
   const id = `ability_${crypto.randomUUID()}`;
   const now = nowMs();
+  const resourceDefinition = { ...definition, mpCost, referenceMpCost: defaultAbilityMpCost(definition.rankCode) };
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO ability_definitions (
       id, canonical_name_zh, attribute_type, rank_code, ability_type, target_pattern,
@@ -168,10 +191,14 @@ export async function createAbilityDefinition(env, input, actorUserId) {
       .bind(id, definition.canonicalNameZh, definition.attributeType, definition.rankCode, definition.abilityType,
         definition.targetPattern, definition.physicalSourceCategory, definition.descriptionZh, mechanical.encoded,
         prerequisites.encoded, definition.libraryVisibility, definition.status, actorUserId || null, actorUserId || null, now, now),
+    env.DB.prepare(`INSERT INTO ability_resource_profiles (
+      ability_definition_id, mp_cost, approved_by_user_id, approved_at, updated_by_user_id, updated_at, metadata_json
+    ) VALUES (?, ?, ?, ?, ?, ?, '{}')`)
+      .bind(id, mpCost, actorUserId || null, now, actorUserId || null, now),
     env.DB.prepare(`INSERT INTO ability_definition_revision_history (
       id, ability_definition_id, previous_profile_json, new_profile_json, change_source, changed_by_user_id, reason, created_at
     ) VALUES (?, ?, NULL, ?, 'GM_CREATE', ?, ?, ?)`) 
-      .bind(`ability_rev_${crypto.randomUUID()}`, id, JSON.stringify(snapshot(definition)), actorUserId || null, text(input?.reason || '', 1000, 'Reason'), now)
+      .bind(`ability_rev_${crypto.randomUUID()}`, id, JSON.stringify(snapshot(resourceDefinition)), actorUserId || null, text(input?.reason || '', 1000, 'Reason'), now)
   ]);
   return loadAbilityDefinition(env, id);
 }
@@ -184,7 +211,7 @@ export async function updateAbilityDefinition(env, id, input, actorUserId) {
     canonicalNameZh: ['canonicalNameZh','name'], attributeType: ['attributeType'], rankCode: ['rankCode','rank'],
     abilityType: ['abilityType'], targetPattern: ['targetPattern'], physicalSourceCategory: ['physicalSourceCategory','requiredMasteryType'],
     descriptionZh: ['descriptionZh','description'], mechanicalProfile: ['mechanicalProfile'], prerequisites: ['prerequisites'],
-    libraryVisibility: ['libraryVisibility'], status: ['status']
+    mpCost: ['mpCost','mp_cost'], libraryVisibility: ['libraryVisibility'], status: ['status']
   };
   for (const [field, keys] of Object.entries(map)) {
     const key = keys.find(candidate => Object.prototype.hasOwnProperty.call(input || {}, candidate));
@@ -193,22 +220,35 @@ export async function updateAbilityDefinition(env, id, input, actorUserId) {
   const stillUnclassified = existing.classificationStatus === 'NEEDS_CLASSIFICATION' && !(merged.attributeType && merged.rankCode);
   merged.classificationStatus = stillUnclassified ? 'NEEDS_CLASSIFICATION' : 'CLASSIFIED';
   const definition = normalizeAbilityDefinition(merged, { allowUnclassified: stillUnclassified });
+  const mpCost = normalizeAbilityMpCost(merged.mpCost, { required: !stillUnclassified });
   const mechanical = jsonText(definition.mechanicalProfile);
   const prerequisites = jsonText(definition.prerequisites);
   const now = nowMs();
-  await env.DB.batch([
+  const nextSnapshot = { ...definition, mpCost, referenceMpCost: defaultAbilityMpCost(definition.rankCode) };
+  const statements = [
     env.DB.prepare(`UPDATE ability_definitions SET canonical_name_zh=?, attribute_type=?, rank_code=?, ability_type=?,
       target_pattern=?, physical_source_category=?, description_zh=?, mechanical_profile_json=?, prerequisites_json=?,
       library_visibility=?, status=?, classification_status=?, updated_by_user_id=?, updated_at=? WHERE id=?`)
       .bind(definition.canonicalNameZh, definition.attributeType, definition.rankCode, definition.abilityType,
         definition.targetPattern, definition.physicalSourceCategory, definition.descriptionZh, mechanical.encoded,
         prerequisites.encoded, definition.libraryVisibility, definition.status, definition.classificationStatus,
-        actorUserId || null, now, id),
-    env.DB.prepare(`INSERT INTO ability_definition_revision_history (
+        actorUserId || null, now, id)
+  ];
+  if (mpCost !== null) {
+    statements.push(env.DB.prepare(`INSERT INTO ability_resource_profiles (
+      ability_definition_id, mp_cost, approved_by_user_id, approved_at, updated_by_user_id, updated_at, metadata_json
+    ) VALUES (?, ?, ?, ?, ?, ?, '{}')
+    ON CONFLICT(ability_definition_id) DO UPDATE SET
+      mp_cost=excluded.mp_cost,
+      updated_by_user_id=excluded.updated_by_user_id,
+      updated_at=excluded.updated_at`)
+      .bind(id, mpCost, existing.resourceApprovedByUserId || actorUserId || null, existing.resourceApprovedAt || now, actorUserId || null, now));
+  }
+  statements.push(env.DB.prepare(`INSERT INTO ability_definition_revision_history (
       id, ability_definition_id, previous_profile_json, new_profile_json, change_source, changed_by_user_id, reason, created_at
     ) VALUES (?, ?, ?, ?, 'GM_EDIT', ?, ?, ?)`) 
-      .bind(`ability_rev_${crypto.randomUUID()}`, id, JSON.stringify(snapshot(existing)), JSON.stringify(snapshot(definition)), actorUserId || null, text(input?.reason || '', 1000, 'Reason'), now)
-  ]);
+      .bind(`ability_rev_${crypto.randomUUID()}`, id, JSON.stringify(snapshot(existing)), JSON.stringify(snapshot(nextSnapshot)), actorUserId || null, text(input?.reason || '', 1000, 'Reason'), now));
+  await env.DB.batch(statements);
   return loadAbilityDefinition(env, id);
 }
 
@@ -226,8 +266,9 @@ export async function listCharacterAbilities(env, characterId) {
   if (!character) throw fail('找不到 Character。', 404, 'CHARACTER_NOT_FOUND');
   const result = await env.DB.prepare(`SELECT aa.id acquisition_id, aa.acquisition_mode, aa.grant_source_type,
     aa.grant_source_name, aa.grant_note, aa.granted_by_gm_id, aa.acquired_at, aa.metadata_json acquisition_metadata_json,
-    d.*, p.rank current_attribute_rank, p.progression_exp current_progression_exp
+    d.*, ${RESOURCE_SELECT}, p.rank current_attribute_rank, p.progression_exp current_progression_exp
     FROM character_acquired_abilities aa JOIN ability_definitions d ON d.id=aa.ability_definition_id
+    LEFT JOIN ability_resource_profiles rp ON rp.ability_definition_id=d.id
     LEFT JOIN character_element_progression p ON p.character_id=aa.character_id AND p.attribute_type=d.attribute_type AND d.attribute_type <> 'PHYSICAL'
     WHERE aa.character_id=?
     ORDER BY CASE d.attribute_type WHEN 'PHYSICAL' THEN 0 WHEN 'LIGHT' THEN 1 WHEN 'DARK' THEN 2 WHEN 'FIRE' THEN 3 WHEN 'WATER' THEN 4 WHEN 'WIND' THEN 5 WHEN 'EARTH' THEN 6 WHEN 'LIGHTNING' THEN 7 WHEN 'WOOD' THEN 8 ELSE 99 END,
