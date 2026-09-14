@@ -58,3 +58,15 @@ BEGIN
   WHERE character_id = NEW.character_id
     AND attribute_type = NEW.attribute_type;
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_character_element_progression_log_no_update
+BEFORE UPDATE ON character_element_progression_log
+BEGIN
+  SELECT RAISE(ABORT, 'ELEMENT_PROGRESSION_AUDIT_IMMUTABLE');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_character_element_progression_log_no_delete
+BEFORE DELETE ON character_element_progression_log
+BEGIN
+  SELECT RAISE(ABORT, 'ELEMENT_PROGRESSION_AUDIT_IMMUTABLE');
+END;
