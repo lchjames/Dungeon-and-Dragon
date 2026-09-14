@@ -68,6 +68,7 @@ jobs:
           node tests/inventory-weapon-foundation-contract.test.mjs
           node tests/currency-exchange-authority-contract.test.mjs
           node tests/ability-authority-contract.test.mjs
+          node tests/element-progression-authority-contract.test.mjs
 
       - name: World Map static contracts
         run: |
