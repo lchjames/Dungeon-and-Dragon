@@ -9,6 +9,12 @@ import {
   loadAbilityDefinition,
   updateAbilityDefinition
 } from './ability-authority.js';
+import {
+  ensureElementProgressionAuthority,
+  getCharacterElementProgressionState,
+  listElementProgressionAudit,
+  mutateCharacterElementProgression
+} from './element-progression-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -47,7 +53,7 @@ async function assertCharacterUnlocked(env, characterId) {
   const exists = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='character_life_states' LIMIT 1").first();
   if (!exists) return;
   const row = await env.DB.prepare('SELECT character_locked FROM character_life_states WHERE character_id=? LIMIT 1').bind(characterId).first();
-  if (Number(row?.character_locked || 0) === 1) throw Object.assign(new Error('死亡 Character 已鎖定，不能授予或修改 Ability。'), { status: 423, code: 'CHARACTER_LOCKED_DEAD' });
+  if (Number(row?.character_locked || 0) === 1) throw Object.assign(new Error('死亡 Character 已鎖定，不能授予或修改 Ability / 屬性修習。'), { status: 423, code: 'CHARACTER_LOCKED_DEAD' });
 }
 
 async function handleDefinitions(request, env, abilityId = '') {
@@ -88,6 +94,26 @@ async function handleCharacterAbilities(request, env, characterId, gmMode = fals
   return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
 }
 
+async function handleElementProgression(request, env, characterId, attributeType = '', audit = false) {
+  const gm = await requireGM(request, env);
+  await ensureElementProgressionAuthority(env);
+  await requireCharacter(env, characterId, gm, true);
+
+  if (audit && request.method === 'GET') {
+    const limit = new URL(request.url).searchParams.get('limit') || 50;
+    return json({ ok: true, audit: await listElementProgressionAudit(env, characterId, { limit }) });
+  }
+  if (!attributeType && request.method === 'GET') {
+    return json({ ok: true, ...(await getCharacterElementProgressionState(env, characterId)) });
+  }
+  if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+  if (attributeType && request.method === 'PATCH') {
+    await assertCharacterUnlocked(env, characterId);
+    return json({ ok: true, ...(await mutateCharacterElementProgression(env, characterId, attributeType, await readBody(request), gm.id)) });
+  }
+  return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+}
+
 async function augmentCharacterDetail(request, env, characterId, gmMode) {
   const user = gmMode ? await requireGM(request, env) : await requireUser(request, env);
   await ensureAbilityAuthority(env);
@@ -105,6 +131,14 @@ export default {
     try {
       const definitionMatch = pathname.match(/^\/api\/gm\/abilities(?:\/([^/]+))?$/);
       if (definitionMatch) return await handleDefinitions(request, env, definitionMatch[1] ? decodeURIComponent(definitionMatch[1]) : '');
+
+      const gmProgressionAudit = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/ability-progression\/audit$/);
+      if (gmProgressionAudit) return await handleElementProgression(request, env, decodeURIComponent(gmProgressionAudit[1]), '', true);
+      const gmProgressionAttribute = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/ability-progression\/([^/]+)$/);
+      if (gmProgressionAttribute) return await handleElementProgression(request, env, decodeURIComponent(gmProgressionAttribute[1]), decodeURIComponent(gmProgressionAttribute[2]), false);
+      const gmProgression = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/ability-progression$/);
+      if (gmProgression) return await handleElementProgression(request, env, decodeURIComponent(gmProgression[1]), '', false);
+
       const gmGrant = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/abilities\/grants$/);
       if (gmGrant) return await handleCharacterAbilities(request, env, decodeURIComponent(gmGrant[1]), true, true);
       const gmAbilities = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/abilities$/);
