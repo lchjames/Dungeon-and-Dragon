@@ -1,4 +1,4 @@
-import baseWorker from './currency-exchange-gateway.js';
+import baseWorker from './inventory-weapon-gateway.js';
 import {
   createAbilityDefinition,
   ensureAbilityAuthority,
