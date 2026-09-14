@@ -61,7 +61,7 @@ function ensurePanel() {
     </div>
     <div class="split-grid">
       <section><div class="panel-heading"><h4>Ability Library</h4><span class="muted">舊Definition若未有批准成本會標示 MP pending；唔會自動套用Rank reference。</span></div><div id="gm-ability-library" class="stack-list"></div></section>
-      <section><div class="panel-heading"><h4>Character 已取得 Ability</h4><span id="gm-character-ability-resource" class="muted">Open a Character to load MP.</span></div><div id="gm-character-ability-list" class="stack-list"><p class="muted">Open a Character to load Abilities.</p></div></section>
+      <section><div class="panel-heading"><div><h4>Character 已取得 Ability</h4><span class="muted">只讀取得關係；本slice不提供 ungrant。</span></div><span id="gm-character-ability-resource" class="muted">Open a Character to load MP.</span></div><div id="gm-character-ability-list" class="stack-list"><p class="muted">Open a Character to load Abilities.</p></div></section>
     </div>
     <section id="gm-element-progression-section">
       <div class="panel-heading"><div><h4>八元素 Rank / 修習進度</h4><span class="muted">光、暗、火、水、風、土、雷、木各自 Rank 0–9；PHYSICAL 已由專精取代。沒有自動升階或固定門檻。</span></div></div>
