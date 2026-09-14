@@ -4,6 +4,8 @@ const ATTRIBUTES = ['PHYSICAL','LIGHT','DARK','FIRE','WATER','WIND','EARTH','LIG
 const LABELS = { PHYSICAL:'物理', LIGHT:'光', DARK:'暗', FIRE:'火', WATER:'水', WIND:'風', EARTH:'土', LIGHTNING:'雷', WOOD:'木' };
 let selectedCharacterId = '';
 let definitions = [];
+let progression = [];
+let progressionAudit = [];
 let editingId = '';
 
 async function api(url, options = {}) {
@@ -54,7 +56,18 @@ function ensurePanel() {
     <div class="split-grid">
       <section><div class="panel-heading"><h4>Ability Library</h4><span class="muted">Legacy entries會標示待分類。</span></div><div id="gm-ability-library" class="stack-list"></div></section>
       <section><div class="panel-heading"><h4>Character 已取得 Ability</h4><span class="muted">只讀取得關係；本slice不提供 ungrant。</span></div><div id="gm-character-ability-list" class="stack-list"><p class="muted">Open a Character to load Abilities.</p></div></section>
-    </div>`;
+    </div>
+    <section id="gm-element-progression-section">
+      <div class="panel-heading"><div><h4>九屬性 Rank / 修習進度</h4><span class="muted">Rank 0–9；修習 EXP 與 Character EXP 分離。現階段沒有自動升階或固定門檻。</span></div></div>
+      <div class="form-grid compact-grid">
+        <label class="field"><span>Change Source</span><select id="gm-progression-source-type" class="input"><option>GM_CORRECTION</option><option>GM_REWARD</option><option>TRAINING</option><option>COMBAT</option><option>MENTOR</option><option>RESEARCH</option><option>STORY</option><option>QUEST</option><option>ITEM</option><option>OTHER</option></select></label>
+        <label class="field"><span>Source Name</span><input id="gm-progression-source-name" class="input" maxlength="160" placeholder="optional"></label>
+        <label class="field"><span>Reason</span><input id="gm-progression-reason" class="input" maxlength="2000" placeholder="why this change is being made"></label>
+      </div>
+      <div id="gm-element-progression-list" class="stack-list"><p class="muted">Open a Character to load progression.</p></div>
+      <div class="panel-heading"><h4>Recent Progression Audit</h4><span class="muted">Latest 12 changes</span></div>
+      <div id="gm-element-progression-audit" class="stack-list"><p class="muted">No Character selected.</p></div>
+    </section>`;
   attack.parentNode.insertBefore(panel, attack);
 }
 
@@ -101,15 +114,57 @@ function renderCharacterAbilities(items = []) {
   }).join('');
 }
 
+function renderProgression() {
+  const target = $('#gm-element-progression-list');
+  if (!target) return;
+  if (!selectedCharacterId) { target.innerHTML = '<p class="muted">Open a Character to load progression.</p>'; return; }
+  const map = new Map(progression.map(row => [row.attributeType, row]));
+  target.innerHTML = ATTRIBUTES.map(attributeType => {
+    const row = map.get(attributeType) || { rank: 0, progressionExp: 0 };
+    return `<article class="stack-item">
+      <div style="min-width:8rem"><div class="row-inline"><h4>${LABELS[attributeType]}</h4><span class="tag">${escapeHtml(attributeType)}</span></div><p>目前 ${escapeHtml(row.rank)}階 · 修習 ${escapeHtml(row.progressionExp)} / ?</p></div>
+      <div class="form-grid compact-grid" style="flex:1">
+        <label class="field"><span>Rank 0–9</span><input class="input input-compact" type="number" min="0" max="9" step="1" value="${escapeHtml(row.rank)}" data-progression-rank="${attributeType}"></label>
+        <label class="field"><span>Set 修習 EXP</span><input class="input input-compact" type="number" min="0" step="1" value="${escapeHtml(row.progressionExp)}" data-progression-exp="${attributeType}"></label>
+        <div class="field"><span>&nbsp;</span><button class="button button-small button-ghost" type="button" data-progression-set="${attributeType}">Set Rank + EXP</button></div>
+        <label class="field"><span>Award EXP</span><input class="input input-compact" type="number" min="1" step="1" placeholder="+ EXP" data-progression-award="${attributeType}"></label>
+        <div class="field"><span>&nbsp;</span><button class="button button-small" type="button" data-progression-award-save="${attributeType}">Award EXP</button></div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function renderProgressionAudit() {
+  const target = $('#gm-element-progression-audit');
+  if (!target) return;
+  if (!selectedCharacterId) { target.innerHTML = '<p class="muted">No Character selected.</p>'; return; }
+  if (!progressionAudit.length) { target.innerHTML = '<p class="muted">No progression changes recorded yet.</p>'; return; }
+  target.innerHTML = progressionAudit.map(row => `<article class="stack-item compact-item"><div><div class="row-inline"><h4>${LABELS[row.attributeType] || escapeHtml(row.attributeType)}</h4><span class="tag">${escapeHtml(row.operation)}</span><span class="tag">${escapeHtml(row.sourceType)}</span></div><p>Rank ${escapeHtml(row.fromRank)} → ${escapeHtml(row.toRank)} · 修習 ${escapeHtml(row.fromProgressionExp)} → ${escapeHtml(row.toProgressionExp)}${row.deltaProgressionExp ? ` (+${escapeHtml(row.deltaProgressionExp)})` : ''}</p><small class="muted">${escapeHtml(row.sourceName || '')}${row.reason ? ` · ${escapeHtml(row.reason)}` : ''}</small></div></article>`).join('');
+}
+
 async function loadDefinitions() {
   const payload = await api('/api/gm/abilities');
   definitions = payload.abilities || [];
   renderDefinitions();
 }
-async function loadCharacterAbilities() {
-  if (!selectedCharacterId) return renderCharacterAbilities([]);
-  const payload = await api(`/api/gm/characters/${encodeURIComponent(selectedCharacterId)}/abilities`);
+async function loadCharacterAbilityData() {
+  if (!selectedCharacterId) {
+    progression = [];
+    progressionAudit = [];
+    renderCharacterAbilities([]);
+    renderProgression();
+    renderProgressionAudit();
+    return;
+  }
+  const [payload, auditPayload] = await Promise.all([
+    api(`/api/gm/characters/${encodeURIComponent(selectedCharacterId)}/abilities`),
+    api(`/api/gm/characters/${encodeURIComponent(selectedCharacterId)}/ability-progression/audit?limit=12`)
+  ]);
+  progression = payload.abilityProgression || [];
+  progressionAudit = auditPayload.audit || [];
   renderCharacterAbilities(payload.abilities || []);
+  renderProgression();
+  renderProgressionAudit();
 }
 
 async function saveAbility() {
@@ -134,7 +189,7 @@ async function saveAbility() {
     };
     await api(endpoint, { method, body: JSON.stringify(body) });
     resetEditor();
-    await Promise.all([loadDefinitions(), loadCharacterAbilities()]);
+    await Promise.all([loadDefinitions(), loadCharacterAbilityData()]);
     toast(wasEditing ? 'Ability updated.' : 'Ability created.', 'success');
   } catch (error) { toast(error.message, 'error'); }
   finally { button.disabled = false; }
@@ -171,14 +226,57 @@ async function grantAbility() {
       grantSourceName: $('#gm-grant-ability-source-name').value,
       grantNote: $('#gm-grant-ability-note').value
     }) });
+    progression = payload.abilityProgression || progression;
     renderCharacterAbilities(payload.abilities || []);
+    renderProgression();
     toast(payload.idempotent ? 'Character 已經擁有呢個 Ability。' : 'Ability 已授予 Character。', 'success');
   } catch (error) { toast(error.message, 'error'); }
   finally { button.disabled = !selectedCharacterId || !$('#gm-grant-ability-definition').value; }
 }
 
+function progressionSourceFields() {
+  return {
+    sourceType: $('#gm-progression-source-type')?.value || 'GM_CORRECTION',
+    sourceName: $('#gm-progression-source-name')?.value || '',
+    reason: $('#gm-progression-reason')?.value || ''
+  };
+}
+
+async function mutateProgression(attributeType, mode, button) {
+  if (!selectedCharacterId) return;
+  const body = progressionSourceFields();
+  if (mode === 'set') {
+    const rank = Number(document.querySelector(`[data-progression-rank="${CSS.escape(attributeType)}"]`)?.value);
+    const progressionExp = Number(document.querySelector(`[data-progression-exp="${CSS.escape(attributeType)}"]`)?.value);
+    if (!Number.isInteger(rank) || rank < 0 || rank > 9) return toast('Rank 必須係 0–9 整數。', 'error');
+    if (!Number.isSafeInteger(progressionExp) || progressionExp < 0) return toast('修習 EXP 必須係非負整數。', 'error');
+    Object.assign(body, { rank, progressionExp });
+  } else {
+    const input = document.querySelector(`[data-progression-award="${CSS.escape(attributeType)}"]`);
+    const progressionDelta = Number(input?.value);
+    if (!Number.isSafeInteger(progressionDelta) || progressionDelta < 1) return toast('Award EXP 必須係至少 1 嘅整數。', 'error');
+    body.progressionDelta = progressionDelta;
+  }
+  button.disabled = true;
+  try {
+    const payload = await api(`/api/gm/characters/${encodeURIComponent(selectedCharacterId)}/ability-progression/${encodeURIComponent(attributeType)}`, { method:'PATCH', body:JSON.stringify(body) });
+    progression = payload.progression || progression;
+    renderCharacterAbilities(payload.abilities || []);
+    renderProgression();
+    const auditPayload = await api(`/api/gm/characters/${encodeURIComponent(selectedCharacterId)}/ability-progression/audit?limit=12`);
+    progressionAudit = auditPayload.audit || [];
+    renderProgressionAudit();
+    toast(payload.unchanged ? 'Rank / 修習進度沒有變更。' : (mode === 'set' ? 'Rank / 修習進度已校正。' : '修習 EXP 已獎勵；Rank 不會自動提升。'), 'success');
+  } catch (error) {
+    toast(error.message, 'error');
+    await loadCharacterAbilityData().catch(() => {});
+  } finally {
+    button.disabled = false;
+  }
+}
+
 ensurePanel();
-Promise.all([loadDefinitions(), loadCharacterAbilities()]).catch(error => toast(error.message, 'error'));
+Promise.all([loadDefinitions(), loadCharacterAbilityData()]).catch(error => toast(error.message, 'error'));
 $('#gm-save-ability')?.addEventListener('click', saveAbility);
 $('#gm-cancel-ability-edit')?.addEventListener('click', resetEditor);
 $('#gm-grant-ability-definition')?.addEventListener('change', renderDefinitions);
@@ -189,13 +287,22 @@ document.addEventListener('click', event => {
   const open = event.target.closest?.('[data-open-character]');
   if (open) {
     selectedCharacterId = open.dataset.openCharacter || '';
-    queueMicrotask(() => loadCharacterAbilities().catch(error => toast(error.message, 'error')));
+    queueMicrotask(() => loadCharacterAbilityData().catch(error => toast(error.message, 'error')));
     renderDefinitions();
     return;
   }
   if (event.target.closest?.('#close-gm-character')) {
     selectedCharacterId = '';
+    progression = [];
+    progressionAudit = [];
     renderCharacterAbilities([]);
+    renderProgression();
+    renderProgressionAudit();
     renderDefinitions();
+    return;
   }
+  const set = event.target.closest?.('[data-progression-set]');
+  if (set) { mutateProgression(set.dataset.progressionSet, 'set', set); return; }
+  const award = event.target.closest?.('[data-progression-award-save]');
+  if (award) mutateProgression(award.dataset.progressionAwardSave, 'award', award);
 });
