@@ -5,6 +5,7 @@ const migration = readFileSync('schema/0032_ability_definition_grant_authority.s
 const rules = readFileSync('src/ability-rules.js', 'utf8');
 const authority = readFileSync('src/ability-authority.js', 'utf8');
 const gateway = readFileSync('src/ability-gateway.js', 'utf8');
+const currencyGateway = readFileSync('src/currency-exchange-gateway.js', 'utf8');
 const wrangler = readFileSync('wrangler.jsonc', 'utf8');
 const playerAbilities = readFileSync('public/assets/player-abilities.js', 'utf8');
 const playerInventory = readFileSync('public/assets/player-inventory-weapons.js', 'utf8');
@@ -24,7 +25,7 @@ assert.match(rules, /ABILITY_CLASSIFICATION_REQUIRED/);
 assert.match(rules, /ATTRIBUTE_RANK_INSUFFICIENT/);
 assert.match(rules, /ABILITY_SPECIAL_USAGE_POLICY_PENDING/);
 assert.match(rules, /ABILITY_ADDITIONAL_PREREQUISITES_PENDING/);
-assert.doesNotMatch(rules, /Rank 10/);
+assert.match(rules, /SPECIAL 不是 Rank 10/);
 
 assert.match(authority, /LEFT JOIN character_acquired_abilities aa ON aa\.legacy_character_ability_id = ca\.id/);
 assert.match(authority, /'PRIVATE', 'active', 'NEEDS_CLASSIFICATION'/);
@@ -35,14 +36,16 @@ assert.match(authority, /SELECT id FROM character_acquired_abilities WHERE chara
 assert.doesNotMatch(authority, /DELETE FROM character_acquired_abilities/);
 assert.doesNotMatch(authority, /UPDATE character_abilities SET/);
 
-assert.match(gateway, /import baseWorker from '\.\/inventory-weapon-gateway\.js'/);
-assert.match(gateway, /\/api\\\/gm\\\/abilities/);
-assert.match(gateway, /abilities\\\/grants/);
-assert.match(gateway, /\/api\\\/player\\\/characters/);
+assert.match(gateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
+assert.match(currencyGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
+assert.ok(gateway.includes('/api\\/gm\\/abilities'));
+assert.ok(gateway.includes('abilities\\/grants'));
+assert.ok(gateway.includes('/api\\/player\\/characters'));
 assert.match(gateway, /character_locked/);
 assert.match(gateway, /CHARACTER_LOCKED_DEAD/);
 assert.doesNotMatch(gateway, /request\.method === 'DELETE'/);
 
+assert.match(wrangler, /^\s*"main"\s*:\s*"\.\/src\/inventory-weapon-gateway\.js"\s*,?\s*$/m);
 assert.match(wrangler, /"main": "\.\/src\/ability-gateway\.js"/);
 assert.match(playerInventory, /import '\.\/player-abilities\.js'/);
 assert.match(playerAbilities, /\['ALL', \.\.\.ATTRIBUTE_ORDER\]/);
