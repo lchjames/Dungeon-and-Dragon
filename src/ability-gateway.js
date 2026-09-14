@@ -9,12 +9,19 @@ import {
   loadAbilityDefinition,
   updateAbilityDefinition
 } from './ability-authority.js';
+import { resolveAbilityUsability } from './ability-rules.js';
 import {
   ensureElementProgressionAuthority,
   getCharacterElementProgressionState,
   listElementProgressionAudit,
   mutateCharacterElementProgression
 } from './element-progression-authority.js';
+import {
+  ensurePhysicalMasteryAuthority,
+  listCharacterPhysicalMasteries,
+  listPhysicalMasteryAudit,
+  mutateCharacterPhysicalMastery
+} from './physical-mastery-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -53,7 +60,7 @@ async function assertCharacterUnlocked(env, characterId) {
   const exists = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='character_life_states' LIMIT 1").first();
   if (!exists) return;
   const row = await env.DB.prepare('SELECT character_locked FROM character_life_states WHERE character_id=? LIMIT 1').bind(characterId).first();
-  if (Number(row?.character_locked || 0) === 1) throw Object.assign(new Error('死亡 Character 已鎖定，不能授予或修改 Ability / 屬性修習。'), { status: 423, code: 'CHARACTER_LOCKED_DEAD' });
+  if (Number(row?.character_locked || 0) === 1) throw Object.assign(new Error('死亡 Character 已鎖定，不能授予或修改 Ability / 修習。'), { status: 423, code: 'CHARACTER_LOCKED_DEAD' });
 }
 
 async function handleDefinitions(request, env, abilityId = '') {
@@ -74,8 +81,34 @@ async function handleDefinitions(request, env, abilityId = '') {
 }
 
 async function characterAbilityPayload(env, characterId) {
-  const [abilities, progression] = await Promise.all([listCharacterAbilities(env, characterId), listCharacterElementProgression(env, characterId)]);
-  return { abilities, abilityProgression: progression };
+  await Promise.all([ensureAbilityAuthority(env), ensurePhysicalMasteryAuthority(env)]);
+  const character = await env.DB.prepare('SELECT id, name, level, status FROM characters WHERE id=? LIMIT 1').bind(characterId).first();
+  if (!character) throw Object.assign(new Error('找不到 Character。'), { status: 404, code: 'CHARACTER_NOT_FOUND' });
+  const [abilities, rawProgression, physicalMasteries] = await Promise.all([
+    listCharacterAbilities(env, characterId),
+    listCharacterElementProgression(env, characterId),
+    listCharacterPhysicalMasteries(env, characterId)
+  ]);
+  const masteryMap = new Map(physicalMasteries.map(row => [String(row.masteryType || '').toUpperCase(), row]));
+  const corrected = abilities.map(ability => {
+    if (ability.attributeType !== 'PHYSICAL') return ability;
+    const masteryType = String(ability.physicalSourceCategory || '').toUpperCase();
+    const mastery = masteryType ? masteryMap.get(masteryType) : null;
+    return {
+      ...ability,
+      currentAttributeRank: null,
+      currentProgressionExp: null,
+      currentMasteryRank: mastery ? Number(mastery.rank || 0) : 0,
+      currentMasteryProgressionExp: mastery ? Number(mastery.progressionExp || 0) : 0,
+      requiredMasteryType: masteryType || null,
+      usability: resolveAbilityUsability(ability, character, 0, mastery ? Number(mastery.rank || 0) : 0)
+    };
+  });
+  return {
+    abilities: corrected,
+    abilityProgression: rawProgression.filter(row => row.attributeType !== 'PHYSICAL'),
+    physicalMasteries
+  };
 }
 
 async function handleCharacterAbilities(request, env, characterId, gmMode = false, grant = false) {
@@ -89,7 +122,8 @@ async function handleCharacterAbilities(request, env, characterId, gmMode = fals
     const body = await readBody(request);
     const abilityDefinitionId = String(body?.abilityDefinitionId || '').trim();
     if (!abilityDefinitionId) return apiError('Ability Definition is required.', 400, 'ABILITY_DEFINITION_REQUIRED');
-    return json({ ok: true, ...(await grantAbilityToCharacter(env, characterId, abilityDefinitionId, body, user.id)), abilityProgression: await listCharacterElementProgression(env, characterId) }, 201);
+    const result = await grantAbilityToCharacter(env, characterId, abilityDefinitionId, body, user.id);
+    return json({ ok: true, idempotent: Boolean(result.idempotent), acquisitionId: result.acquisitionId, ...(await characterAbilityPayload(env, characterId)) }, result.idempotent ? 200 : 201);
   }
   return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
 }
@@ -98,18 +132,38 @@ async function handleElementProgression(request, env, characterId, attributeType
   const gm = await requireGM(request, env);
   await ensureElementProgressionAuthority(env);
   await requireCharacter(env, characterId, gm, true);
-
+  const normalized = String(attributeType || '').trim().toUpperCase();
+  if (normalized === 'PHYSICAL') return apiError('PHYSICAL is an Ability classification, not a Character progression axis. Use physical-masteries.', 409, 'PHYSICAL_PROGRESSION_REMOVED');
   if (audit && request.method === 'GET') {
     const limit = new URL(request.url).searchParams.get('limit') || 50;
-    return json({ ok: true, audit: await listElementProgressionAudit(env, characterId, { limit }) });
+    const auditRows = await listElementProgressionAudit(env, characterId, { limit });
+    return json({ ok: true, audit: auditRows.filter(row => row.attributeType !== 'PHYSICAL') });
   }
   if (!attributeType && request.method === 'GET') {
-    return json({ ok: true, ...(await getCharacterElementProgressionState(env, characterId)) });
+    const state = await getCharacterElementProgressionState(env, characterId);
+    return json({ ok: true, progression: (state.progression || []).filter(row => row.attributeType !== 'PHYSICAL') });
   }
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
   if (attributeType && request.method === 'PATCH') {
     await assertCharacterUnlocked(env, characterId);
     return json({ ok: true, ...(await mutateCharacterElementProgression(env, characterId, attributeType, await readBody(request), gm.id)) });
+  }
+  return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+}
+
+async function handlePhysicalMasteries(request, env, characterId, masteryType = '', audit = false) {
+  const gm = await requireGM(request, env);
+  await ensurePhysicalMasteryAuthority(env);
+  await requireCharacter(env, characterId, gm, true);
+  if (audit && request.method === 'GET') {
+    const limit = new URL(request.url).searchParams.get('limit') || 50;
+    return json({ ok: true, audit: await listPhysicalMasteryAudit(env, characterId, { limit }) });
+  }
+  if (!masteryType && request.method === 'GET') return json({ ok: true, physicalMasteries: await listCharacterPhysicalMasteries(env, characterId) });
+  if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+  if (masteryType && request.method === 'PATCH') {
+    await assertCharacterUnlocked(env, characterId);
+    return json({ ok: true, ...(await mutateCharacterPhysicalMastery(env, characterId, masteryType, await readBody(request), gm.id)) });
   }
   return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
 }
@@ -131,6 +185,13 @@ export default {
     try {
       const definitionMatch = pathname.match(/^\/api\/gm\/abilities(?:\/([^/]+))?$/);
       if (definitionMatch) return await handleDefinitions(request, env, definitionMatch[1] ? decodeURIComponent(definitionMatch[1]) : '');
+
+      const gmMasteryAudit = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/physical-masteries\/audit$/);
+      if (gmMasteryAudit) return await handlePhysicalMasteries(request, env, decodeURIComponent(gmMasteryAudit[1]), '', true);
+      const gmMasteryType = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/physical-masteries\/([^/]+)$/);
+      if (gmMasteryType) return await handlePhysicalMasteries(request, env, decodeURIComponent(gmMasteryType[1]), decodeURIComponent(gmMasteryType[2]), false);
+      const gmMasteries = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/physical-masteries$/);
+      if (gmMasteries) return await handlePhysicalMasteries(request, env, decodeURIComponent(gmMasteries[1]), '', false);
 
       const gmProgressionAudit = pathname.match(/^\/api\/gm\/characters\/([^/]+)\/ability-progression\/audit$/);
       if (gmProgressionAudit) return await handleElementProgression(request, env, decodeURIComponent(gmProgressionAudit[1]), '', true);

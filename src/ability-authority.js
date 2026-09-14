@@ -1,6 +1,6 @@
 import { ABILITY_SCHEMA } from './ability-schema.js';
 import {
-  ABILITY_ATTRIBUTE_TYPES,
+  MAGIC_ABILITY_ATTRIBUTE_TYPES,
   abilityRuleError,
   normalizeAbilityDefinition,
   parseObject,
@@ -39,6 +39,7 @@ function toDefinition(row) {
     type: row.ability_type,
     targetPattern: row.target_pattern || null,
     physicalSourceCategory: row.physical_source_category || null,
+    requiredMasteryType: row.attribute_type === 'PHYSICAL' ? (row.physical_source_category || null) : null,
     descriptionZh: row.description_zh || '',
     description: row.description_zh || '',
     mechanicalProfile: parseObject(row.mechanical_profile_json, {}),
@@ -94,21 +95,21 @@ async function backfillLegacy(env) {
         physical_source_category, description_zh, mechanical_profile_json, prerequisites_json,
         library_visibility, status, classification_status, created_by_user_id, updated_by_user_id,
         created_at, updated_at
-      ) VALUES (?, ?, NULL, NULL, ?, NULL, NULL, ?, '{}', '{}', 'PRIVATE', 'active', 'NEEDS_CLASSIFICATION', NULL, NULL, ?, ?)`)
+      ) VALUES (?, ?, NULL, NULL, ?, NULL, NULL, ?, '{}', '{}', 'PRIVATE', 'active', 'NEEDS_CLASSIFICATION', NULL, NULL, ?, ?)`) 
         .bind(defId, name, type, description, now, now),
       env.DB.prepare(`INSERT OR IGNORE INTO character_acquired_abilities (
         id, character_id, ability_definition_id, acquisition_mode, grant_source_type,
         grant_source_name, grant_note, granted_by_gm_id, acquired_at, metadata_json, legacy_character_ability_id
-      ) VALUES (?, ?, ?, 'LEGACY_IMPORT', 'OTHER', 'Legacy Character Ability', 'Imported from character_abilities; classification requires GM review.', NULL, ?, ?, ?)`)
+      ) VALUES (?, ?, ?, 'LEGACY_IMPORT', 'OTHER', 'Legacy Character Ability', 'Imported from character_abilities; classification requires GM review.', NULL, ?, ?, ?)`) 
         .bind(acqId, row.character_id, defId, now, JSON.stringify({ legacyProficient: Boolean(row.proficient) }), row.id),
       env.DB.prepare(`INSERT OR IGNORE INTO ability_definition_revision_history (
         id, ability_definition_id, previous_profile_json, new_profile_json, change_source, changed_by_user_id, reason, created_at
-      ) VALUES (?, ?, NULL, ?, 'LEGACY_IMPORT', NULL, 'Legacy character_abilities compatibility import.', ?)`)
+      ) VALUES (?, ?, NULL, ?, 'LEGACY_IMPORT', NULL, 'Legacy character_abilities compatibility import.', ?)`) 
         .bind(`ability_rev_legacy_${row.id}`, defId, JSON.stringify(profile), now),
       env.DB.prepare(`INSERT OR IGNORE INTO character_ability_grant_log (
         id, character_acquired_ability_id, character_id, ability_definition_id,
         action, acquisition_mode, grant_source_type, grant_source_name, grant_note, actor_user_id, created_at
-      ) VALUES (?, ?, ?, ?, 'LEGACY_IMPORT', 'LEGACY_IMPORT', 'OTHER', 'Legacy Character Ability', 'Original acquisition route is unknown.', NULL, ?)`)
+      ) VALUES (?, ?, ?, ?, 'LEGACY_IMPORT', 'LEGACY_IMPORT', 'OTHER', 'Legacy Character Ability', 'Original acquisition route is unknown.', NULL, ?)`) 
         .bind(`ability_grant_legacy_${row.id}`, acqId, row.character_id, defId, now)
     ]);
   }
@@ -127,7 +128,7 @@ export async function ensureAbilityAuthority(env) {
 export async function ensureCharacterElementProgression(env, characterId) {
   await ensureAbilityAuthority(env);
   const now = nowMs();
-  await env.DB.batch(ABILITY_ATTRIBUTE_TYPES.map(attributeType => env.DB.prepare(`
+  await env.DB.batch(MAGIC_ABILITY_ATTRIBUTE_TYPES.map(attributeType => env.DB.prepare(`
     INSERT OR IGNORE INTO character_element_progression (
       character_id, attribute_type, rank, progression_exp, updated_at, metadata_json
     ) VALUES (?, ?, 0, 0, ?, '{}')
@@ -163,13 +164,13 @@ export async function createAbilityDefinition(env, input, actorUserId) {
       physical_source_category, description_zh, mechanical_profile_json, prerequisites_json,
       library_visibility, status, classification_status, created_by_user_id, updated_by_user_id,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLASSIFIED', ?, ?, ?, ?)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLASSIFIED', ?, ?, ?, ?)`) 
       .bind(id, definition.canonicalNameZh, definition.attributeType, definition.rankCode, definition.abilityType,
         definition.targetPattern, definition.physicalSourceCategory, definition.descriptionZh, mechanical.encoded,
         prerequisites.encoded, definition.libraryVisibility, definition.status, actorUserId || null, actorUserId || null, now, now),
     env.DB.prepare(`INSERT INTO ability_definition_revision_history (
       id, ability_definition_id, previous_profile_json, new_profile_json, change_source, changed_by_user_id, reason, created_at
-    ) VALUES (?, ?, NULL, ?, 'GM_CREATE', ?, ?, ?)`)
+    ) VALUES (?, ?, NULL, ?, 'GM_CREATE', ?, ?, ?)`) 
       .bind(`ability_rev_${crypto.randomUUID()}`, id, JSON.stringify(snapshot(definition)), actorUserId || null, text(input?.reason || '', 1000, 'Reason'), now)
   ]);
   return loadAbilityDefinition(env, id);
@@ -181,7 +182,7 @@ export async function updateAbilityDefinition(env, id, input, actorUserId) {
   const merged = { ...snapshot(existing) };
   const map = {
     canonicalNameZh: ['canonicalNameZh','name'], attributeType: ['attributeType'], rankCode: ['rankCode','rank'],
-    abilityType: ['abilityType'], targetPattern: ['targetPattern'], physicalSourceCategory: ['physicalSourceCategory'],
+    abilityType: ['abilityType'], targetPattern: ['targetPattern'], physicalSourceCategory: ['physicalSourceCategory','requiredMasteryType'],
     descriptionZh: ['descriptionZh','description'], mechanicalProfile: ['mechanicalProfile'], prerequisites: ['prerequisites'],
     libraryVisibility: ['libraryVisibility'], status: ['status']
   };
@@ -205,7 +206,7 @@ export async function updateAbilityDefinition(env, id, input, actorUserId) {
         actorUserId || null, now, id),
     env.DB.prepare(`INSERT INTO ability_definition_revision_history (
       id, ability_definition_id, previous_profile_json, new_profile_json, change_source, changed_by_user_id, reason, created_at
-    ) VALUES (?, ?, ?, ?, 'GM_EDIT', ?, ?, ?)`)
+    ) VALUES (?, ?, ?, ?, 'GM_EDIT', ?, ?, ?)`) 
       .bind(`ability_rev_${crypto.randomUUID()}`, id, JSON.stringify(snapshot(existing)), JSON.stringify(snapshot(definition)), actorUserId || null, text(input?.reason || '', 1000, 'Reason'), now)
   ]);
   return loadAbilityDefinition(env, id);
@@ -214,8 +215,8 @@ export async function updateAbilityDefinition(env, id, input, actorUserId) {
 export async function listCharacterElementProgression(env, characterId) {
   await ensureCharacterElementProgression(env, characterId);
   const result = await env.DB.prepare(`SELECT attribute_type, rank, progression_exp, updated_at
-    FROM character_element_progression WHERE character_id=?
-    ORDER BY CASE attribute_type WHEN 'PHYSICAL' THEN 0 WHEN 'LIGHT' THEN 1 WHEN 'DARK' THEN 2 WHEN 'FIRE' THEN 3 WHEN 'WATER' THEN 4 WHEN 'WIND' THEN 5 WHEN 'EARTH' THEN 6 WHEN 'LIGHTNING' THEN 7 WHEN 'WOOD' THEN 8 ELSE 99 END`).bind(characterId).all();
+    FROM character_element_progression WHERE character_id=? AND attribute_type <> 'PHYSICAL'
+    ORDER BY CASE attribute_type WHEN 'LIGHT' THEN 1 WHEN 'DARK' THEN 2 WHEN 'FIRE' THEN 3 WHEN 'WATER' THEN 4 WHEN 'WIND' THEN 5 WHEN 'EARTH' THEN 6 WHEN 'LIGHTNING' THEN 7 WHEN 'WOOD' THEN 8 ELSE 99 END`).bind(characterId).all();
   return (result.results || []).map(row => ({ attributeType: row.attribute_type, rank: Number(row.rank || 0), progressionExp: Number(row.progression_exp || 0), updatedAt: Number(row.updated_at || 0) }));
 }
 
@@ -227,12 +228,13 @@ export async function listCharacterAbilities(env, characterId) {
     aa.grant_source_name, aa.grant_note, aa.granted_by_gm_id, aa.acquired_at, aa.metadata_json acquisition_metadata_json,
     d.*, p.rank current_attribute_rank, p.progression_exp current_progression_exp
     FROM character_acquired_abilities aa JOIN ability_definitions d ON d.id=aa.ability_definition_id
-    LEFT JOIN character_element_progression p ON p.character_id=aa.character_id AND p.attribute_type=d.attribute_type
+    LEFT JOIN character_element_progression p ON p.character_id=aa.character_id AND p.attribute_type=d.attribute_type AND d.attribute_type <> 'PHYSICAL'
     WHERE aa.character_id=?
     ORDER BY CASE d.attribute_type WHEN 'PHYSICAL' THEN 0 WHEN 'LIGHT' THEN 1 WHEN 'DARK' THEN 2 WHEN 'FIRE' THEN 3 WHEN 'WATER' THEN 4 WHEN 'WIND' THEN 5 WHEN 'EARTH' THEN 6 WHEN 'LIGHTNING' THEN 7 WHEN 'WOOD' THEN 8 ELSE 99 END,
       CAST(d.rank_code AS INTEGER), d.canonical_name_zh COLLATE NOCASE, aa.id`).bind(characterId).all();
   return (result.results || []).map(row => {
     const definition = toDefinition(row);
+    const isPhysical = definition.attributeType === 'PHYSICAL';
     return {
       acquisitionId: row.acquisition_id,
       acquisitionMode: row.acquisition_mode,
@@ -244,9 +246,11 @@ export async function listCharacterAbilities(env, characterId) {
       acquisitionMetadata: parseObject(row.acquisition_metadata_json, {}),
       abilityDefinitionId: definition.id,
       ...definition,
-      usability: resolveAbilityUsability(definition, character, Number(row.current_attribute_rank || 0)),
-      currentAttributeRank: definition.attributeType ? Number(row.current_attribute_rank || 0) : null,
-      currentProgressionExp: definition.attributeType ? Number(row.current_progression_exp || 0) : null,
+      usability: isPhysical
+        ? resolveAbilityUsability(definition, character, 0, 0)
+        : resolveAbilityUsability(definition, character, Number(row.current_attribute_rank || 0)),
+      currentAttributeRank: !isPhysical && definition.attributeType ? Number(row.current_attribute_rank || 0) : null,
+      currentProgressionExp: !isPhysical && definition.attributeType ? Number(row.current_progression_exp || 0) : null,
       proficient: false
     };
   });
@@ -270,12 +274,12 @@ export async function grantAbilityToCharacter(env, characterId, abilityDefinitio
     env.DB.prepare(`INSERT INTO character_acquired_abilities (
       id, character_id, ability_definition_id, acquisition_mode, grant_source_type, grant_source_name,
       grant_note, granted_by_gm_id, acquired_at, metadata_json, legacy_character_ability_id
-    ) VALUES (?, ?, ?, 'GM_GRANT', ?, ?, ?, ?, ?, ?, NULL)`)
+    ) VALUES (?, ?, ?, 'GM_GRANT', ?, ?, ?, ?, ?, ?, NULL)`) 
       .bind(acquisitionId, characterId, abilityDefinitionId, sourceType, sourceName, note, actorUserId || null, now, metadata.encoded),
     env.DB.prepare(`INSERT INTO character_ability_grant_log (
       id, character_acquired_ability_id, character_id, ability_definition_id, action, acquisition_mode,
       grant_source_type, grant_source_name, grant_note, actor_user_id, created_at
-    ) VALUES (?, ?, ?, ?, 'GM_GRANT', 'GM_GRANT', ?, ?, ?, ?, ?)`)
+    ) VALUES (?, ?, ?, ?, 'GM_GRANT', 'GM_GRANT', ?, ?, ?, ?, ?)`) 
       .bind(`ability_grant_${crypto.randomUUID()}`, acquisitionId, characterId, abilityDefinitionId, sourceType, sourceName, note, actorUserId || null, now)
   ]);
   return { idempotent: false, acquisitionId, abilities: await listCharacterAbilities(env, characterId) };
