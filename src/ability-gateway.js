@@ -1,4 +1,4 @@
-import baseWorker from './inventory-weapon-gateway.js';
+import baseWorker from './story-script-gateway.js';
 import {
   createAbilityDefinition,
   ensureAbilityAuthority,
