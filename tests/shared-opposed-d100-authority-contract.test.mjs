@@ -58,8 +58,9 @@ assert.match(gateway, /pathname === '\/api\/gm\/basic-skill-opposed-checks'/);
 assert.match(gateway, /request\.method === 'GET'/);
 assert.match(gateway, /request\.method !== 'POST'/);
 assert.match(gateway, /validOrigin/);
-assert.match(gateway, /Source.*CHARACTER_LOCKED_DEAD/s);
-assert.match(gateway, /Resistance.*CHARACTER_LOCKED_DEAD/s);
+assert.match(gateway, /CHARACTER_LOCKED_DEAD/);
+assert.match(gateway, /assertCharacterUnlocked\(env, sourceCharacter, 'Source'\)/);
+assert.match(gateway, /assertCharacterUnlocked\(env, resistanceCharacter, 'Resistance'\)/);
 assert.doesNotMatch(gateway, /\/api\/player\/.*opposed/i, 'No Player opposed-write or opposed-detail route is introduced.');
 
 // Stable outer routing: Inventory -> Basic Skill -> Opposed -> Currency.
