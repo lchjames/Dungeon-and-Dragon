@@ -63,10 +63,7 @@ async function requireCharacter(env, characterId, user, gmMode = false) {
   }
   return row;
 }
-async function assertCharacterCanCheck(env, character) {
-  if (String(character?.status || '').toLowerCase() !== 'active') {
-    throw Object.assign(new Error('只有 Active Character 可以進行正式 Basic Skill Check。'), { status: 409, code: 'CHARACTER_NOT_ACTIVE' });
-  }
+async function assertCharacterUnlocked(env, character) {
   const table = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='character_life_states' LIMIT 1").first();
   if (!table) return;
   const life = await env.DB.prepare('SELECT character_locked FROM character_life_states WHERE character_id=? LIMIT 1').bind(character.id).first();
@@ -89,7 +86,7 @@ async function handleGmChecks(request, env, characterId) {
   }
   if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
   if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
-  await assertCharacterCanCheck(env, character);
+  await assertCharacterUnlocked(env, character);
   const result = await resolveAndRecordBasicSkillCheck(env, characterId, await readBody(request), gm.id);
   return json({ ok: true, ...result }, 201);
 }
