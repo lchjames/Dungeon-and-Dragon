@@ -71,6 +71,7 @@ jobs:
           node tests/element-progression-authority-contract.test.mjs
           node tests/physical-mastery-correction.test.mjs
           node tests/ability-mp-cost-authority.test.mjs
+          node tests/basic-skill-d100-check-authority.test.mjs
 
       - name: World Map static contracts
         run: |

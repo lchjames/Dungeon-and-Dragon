@@ -1,4 +1,4 @@
-import baseWorker from './currency-exchange-gateway.js';
+import baseWorker from './basic-skill-check-gateway.js';
 import {
   createWeaponDefinition,
   enrichProfilesWithWeaponSource,
