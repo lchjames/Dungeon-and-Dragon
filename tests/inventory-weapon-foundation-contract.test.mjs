@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const authority = await readFile(new URL('../src/inventory-weapon-authority.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/inventory-weapon-gateway.js', import.meta.url), 'utf8');
 const basicSkillGateway = await readFile(new URL('../src/basic-skill-check-gateway.js', import.meta.url), 'utf8');
+const opposedGateway = await readFile(new URL('../src/opposed-d100-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0030_inventory_weapon_foundation.sql', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-inventory-weapons.js', import.meta.url), 'utf8');
 const playerUi = await readFile(new URL('../public/assets/player-inventory-weapons.js', import.meta.url), 'utf8');
@@ -57,9 +58,10 @@ const delegateIndex = gateway.indexOf('const response = await baseWorker.fetch(r
 assert.ok(gateIndex >= 0 && delegateIndex > gateIndex, 'Weapon source gate must happen before the delegated attack can consume Action.');
 assert.match(gateway, /onlyAvailable: true/);
 
-// Stable top-level Inventory gateway remains outermost, then delegates through Basic Skill Check into Currency and the existing chain.
+// Stable top-level Inventory gateway remains outermost, then delegates through Basic Skill -> Opposed D100 -> Currency.
 assert.match(gateway, /import baseWorker from '\.\/basic-skill-check-gateway\.js'/);
-assert.match(basicSkillGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
+assert.match(basicSkillGateway, /import baseWorker from '\.\/opposed-d100-gateway\.js'/);
+assert.match(opposedGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
 assert.match(gateway, /\/api\\\/gm\\\/items/);
 assert.match(gateway, /\/api\\\/gm\\\/characters/);
 assert.match(gateway, /\/api\\\/player\\\/characters/);
