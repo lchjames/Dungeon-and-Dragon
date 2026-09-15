@@ -71,6 +71,25 @@ async function assertCharacterUnlocked(env, character) {
     throw Object.assign(new Error('死亡 Character 已鎖定，不能進行正式 Basic Skill Check。'), { status: 423, code: 'CHARACTER_LOCKED_DEAD' });
   }
 }
+function playerCheckView(check) {
+  return {
+    id: check.id,
+    characterId: check.characterId,
+    skillId: check.skillId,
+    skillKey: check.skillKey,
+    skillLabel: check.skillLabel,
+    naturalSkillValue: check.naturalSkillValue,
+    totalModifier: check.totalModifier,
+    effectiveSkillValue: check.effectiveSkillValue,
+    rawRoll: check.rawRoll,
+    resultValue: check.resultValue,
+    passed: check.passed,
+    extremeResult: check.extremeResult,
+    rollSource: check.rollSource,
+    createdAt: check.createdAt,
+    growthEligibility: check.growthEligibility
+  };
+}
 
 async function handleGmChecks(request, env, characterId) {
   const gm = await requireGM(request, env);
@@ -97,7 +116,8 @@ async function handlePlayerChecks(request, env, characterId) {
   await ensureBasicSkillCheckAuthority(env);
   await requireCharacter(env, characterId, user, false);
   const limit = new URL(request.url).searchParams.get('limit') || 30;
-  return json({ ok: true, checks: await listBasicSkillChecks(env, characterId, { limit }) });
+  const checks = await listBasicSkillChecks(env, characterId, { limit });
+  return json({ ok: true, checks: checks.map(playerCheckView) });
 }
 
 export default {
