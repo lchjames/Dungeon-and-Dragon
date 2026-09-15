@@ -25,6 +25,7 @@ try {
   runComponent('Production Element Progression Authority', './production-alpha-element-progression-e2e.mjs');
   runComponent('Production Ability MP Cost Authority', './production-alpha-ability-mp-cost-e2e.mjs');
   runComponent('Production Basic Skill D100 Check Authority', './production-alpha-basic-skill-d100-check-e2e.mjs');
+  runComponent('Production Shared Opposed D100 Authority', './production-alpha-shared-opposed-d100-e2e.mjs');
   runComponent('Production Scene Run Start Story E2E', './production-alpha-story-scene-run-start-e2e.mjs');
   runComponent('Production Encounter Activated Story E2E', './production-alpha-story-encounter-activated-e2e.mjs');
   runComponent('Production Combat Started Story E2E', './production-alpha-story-combat-started-e2e.mjs');
@@ -55,6 +56,7 @@ try {
       'element-progression-authority',
       'ability-mp-cost-authority',
       'basic-skill-d100-check-authority',
+      'shared-opposed-d100-authority',
       'story-scene-run-start',
       'story-encounter-activated',
       'story-combat-started',

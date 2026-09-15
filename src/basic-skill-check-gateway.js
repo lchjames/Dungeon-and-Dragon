@@ -1,4 +1,4 @@
-import baseWorker from './currency-exchange-gateway.js';
+import baseWorker from './opposed-d100-gateway.js';
 import {
   ensureBasicSkillCheckAuthority,
   listBasicSkillChecks,
