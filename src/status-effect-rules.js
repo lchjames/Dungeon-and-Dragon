@@ -157,8 +157,8 @@ export function planStatusEffectApplication(existing, definition) {
     return { operation: 'CREATE' };
   }
   const rule = enumValue(definition?.stackingRule ?? definition?.stacking_rule, STACK_SET, 'Stacking rule');
-  const existingDuration = String(existing.durationType ?? existing.duration_type || '').toUpperCase();
-  const incomingDuration = String(definition?.durationType ?? definition?.duration_type || '').toUpperCase();
+  const existingDuration = String(existing.durationType ?? existing.duration_type ?? '').toUpperCase();
+  const incomingDuration = String(definition?.durationType ?? definition?.duration_type ?? '').toUpperCase();
 
   if (rule === 'NO_STACK') return { operation: 'BLOCK', reason: 'NO_STACK_ACTIVE' };
   if (rule === 'REFRESH_DURATION') {
@@ -192,7 +192,7 @@ export function planStatusEffectApplication(existing, definition) {
 
 export function planStatusEffectRoundTick(instance) {
   if (!instance || String(instance.status || '').toUpperCase() !== 'ACTIVE') return { operation: 'NONE' };
-  const durationType = String(instance.durationType ?? instance.duration_type || '').toUpperCase();
+  const durationType = String(instance.durationType ?? instance.duration_type ?? '').toUpperCase();
   if (durationType === 'PERMANENT') return { operation: 'NONE' };
   if (durationType !== 'ROUNDS') throw new RangeError('Runtime Status has an invalid duration type.');
   const remaining = Number(instance.remainingRounds ?? instance.remaining_rounds);
