@@ -1,4 +1,4 @@
-import baseWorker from './currency-exchange-gateway.js';
+import baseWorker from './status-effect-gateway.js';
 import {
   ensureOpposedD100Authority,
   listOpposedD100Checks,
