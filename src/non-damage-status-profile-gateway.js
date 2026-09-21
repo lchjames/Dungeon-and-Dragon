@@ -1,9 +1,10 @@
-import baseWorker from './non-damage-status-profile-gateway.js';
+import baseWorker from './ability-gateway.js';
 import {
-  ensureNonDamageEffectSettlementAuthority,
-  listNonDamageEffectSettlements,
-  recordNonDamageEffectSettlement
-} from './non-damage-effect-settlement-authority.js';
+  createNonDamageStatusProfile,
+  ensureNonDamageStatusProfileAuthority,
+  listNonDamageStatusProfiles,
+  updateNonDamageStatusProfile
+} from './non-damage-status-profile-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -48,7 +49,7 @@ async function requireGM(request, env) {
   const user = await currentUser(request, env);
   if (!user) throw Object.assign(new Error('未登入。'), { status: 401, code: 'UNAUTHENTICATED' });
   if (String(user.status || '').toLowerCase() !== 'active') {
-    throw Object.assign(new Error('此 User 目前不可進行非傷害效果結算。'), { status: 403, code: 'USER_NOT_ACTIVE' });
+    throw Object.assign(new Error('此 User 目前不可管理 Non-damage Status Profile。'), { status: 403, code: 'USER_NOT_ACTIVE' });
   }
   if (!GM_ROLES.has(String(user.role || '').toLowerCase())) {
     throw Object.assign(new Error('此 User 沒有 GM 權限。'), { status: 403, code: 'GM_ROLE_REQUIRED' });
@@ -56,36 +57,43 @@ async function requireGM(request, env) {
   return user;
 }
 
-async function handleSettlements(request, env, gm) {
-  await ensureNonDamageEffectSettlementAuthority(env);
-  if (request.method === 'GET') {
-    const url = new URL(request.url);
-    const settlements = await listNonDamageEffectSettlements(env, {
-      characterId: url.searchParams.get('characterId') || '',
-      limit: url.searchParams.get('limit') || 50
-    });
-    return json({ ok: true, settlements });
-  }
-  if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
-  if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
-  const result = await recordNonDamageEffectSettlement(env, await readBody(request), gm.id);
-  return json({ ok: true, ...result }, result.idempotent ? 200 : 201);
-}
-
 export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
     try {
-      if (pathname !== '/api/gm/non-damage-effect-settlements') return baseWorker.fetch(request, env);
+      if (!pathname.startsWith('/api/gm/non-damage-status-profiles')) return baseWorker.fetch(request, env);
       const gm = await requireGM(request, env);
-      return await handleSettlements(request, env, gm);
+      await ensureNonDamageStatusProfileAuthority(env);
+
+      if (pathname === '/api/gm/non-damage-status-profiles') {
+        if (request.method === 'GET') {
+          const status = new URL(request.url).searchParams.get('status') || 'ALL';
+          return json({ ok: true, profiles: await listNonDamageStatusProfiles(env, { status }) });
+        }
+        if (request.method === 'POST') {
+          if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+          return json({ ok: true, profile: await createNonDamageStatusProfile(env, await readBody(request), gm.id) }, 201);
+        }
+        return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+      }
+
+      const match = pathname.match(/^\/api\/gm\/non-damage-status-profiles\/([^/]+)$/);
+      if (match) {
+        if (request.method !== 'PATCH') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+        if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+        return json({
+          ok: true,
+          profile: await updateNonDamageStatusProfile(env, decodeURIComponent(match[1]), await readBody(request), gm.id)
+        });
+      }
+      return apiError('Profile route not found.', 404, 'NON_DAMAGE_STATUS_PROFILE_ROUTE_NOT_FOUND');
     } catch (error) {
-      console.error('Non-damage Effect Settlement gateway error', error);
-      if (error?.status) return apiError(error.message, error.status, error.code || 'NON_DAMAGE_EFFECT_SETTLEMENT_ERROR');
+      console.error('Non-damage Status Profile gateway error', error);
+      if (error?.status) return apiError(error.message, error.status, error.code || 'NON_DAMAGE_STATUS_PROFILE_ERROR');
       if (String(error?.message || error).includes('D1 binding DB is unavailable')) {
         return apiError('資料庫尚未完成配置。', 503, 'DATABASE_UNAVAILABLE');
       }
-      return apiError('非傷害效果結算暫時無法完成要求。', 500, error?.code || 'NON_DAMAGE_EFFECT_SETTLEMENT_SERVICE_ERROR');
+      return apiError('Non-damage Status Profile 暫時無法完成要求。', 500, error?.code || 'NON_DAMAGE_STATUS_PROFILE_SERVICE_ERROR');
     }
   }
 };
