@@ -336,11 +336,7 @@ async function insertRuntimeInstance(env, { definition, characterId, source, rea
   return id;
 }
 
-export async function applyStatusEffectToCharacter(env, characterId, input, actorUserId) {
-  await ensureStatusEffectAuthority(env);
-  const character = await requireCharacter(env, characterId);
-  const definitionRow = await getDefinitionRow(env, input?.definitionId);
-  const definition = definitionFromRow(definitionRow);
+async function applyStatusEffectDefinitionToCharacter(env, character, definition, input, actorUserId) {
   if (definition.status !== 'ACTIVE') throw fail('Inactive Status Effect Definition cannot be applied.', 409, 'STATUS_EFFECT_DEFINITION_INACTIVE');
   const reason = text(input?.meaningfulReason ?? input?.reason, 1000, 'Meaningful application reason', true);
   const source = normalizeSource(input, actorUserId);
@@ -360,6 +356,18 @@ export async function applyStatusEffectToCharacter(env, characterId, input, acto
   let plan;
   try { plan = planStatusEffectApplication(existing, definition); }
   catch (error) { throw fail(error.message, 409, 'STATUS_EFFECT_STACK_CONFLICT'); }
+
+  const approvedOverride = definition.__approvedPrimaryOverride || null;
+  if (approvedOverride && Number(approvedOverride.multiplier) > 1 && ['REFRESH', 'EXTEND', 'STACK'].includes(plan.operation)) {
+    const durationMerge = approvedOverride.field === 'DURATION_ROUNDS' && ['REFRESH', 'EXTEND'].includes(plan.operation);
+    if (!durationMerge) {
+      throw fail(
+        'Approved primary-effect multiplier cannot be represented by this stacking operation.',
+        409,
+        'STATUS_EFFECT_PRIMARY_OVERRIDE_STACKING_UNSUPPORTED'
+      );
+    }
+  }
   const now = Date.now();
 
   if (plan.operation === 'BLOCK') {
@@ -423,6 +431,64 @@ export async function applyStatusEffectToCharacter(env, characterId, input, acto
     throw fail(`Runtime Status replacement conflicted with another write: ${error?.message || error}`, 409, 'RUNTIME_STATUS_EFFECT_VERSION_CONFLICT');
   }
   return { operation: action, instance: instanceFromRow(await getInstanceRow(env, replacementId)), replacedInstanceId: existing.id };
+}
+
+export async function applyStatusEffectToCharacter(env, characterId, input, actorUserId) {
+  await ensureStatusEffectAuthority(env);
+  const character = await requireCharacter(env, characterId);
+  const definitionRow = await getDefinitionRow(env, input?.definitionId);
+  const definition = definitionFromRow(definitionRow);
+  return applyStatusEffectDefinitionToCharacter(env, character, definition, input, actorUserId);
+}
+
+export async function applyPinnedStatusEffectToCharacter(env, characterId, input, actorUserId) {
+  await ensureStatusEffectAuthority(env);
+  const character = await requireCharacter(env, characterId);
+  const definitionRow = await getDefinitionRow(env, input?.definitionId);
+  const definition = definitionFromRow(definitionRow);
+
+  const expectedVersion = Number(input?.expectedDefinitionVersion);
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1 || expectedVersion !== definition.version) {
+    throw fail('Approved Status Definition version is stale.', 409, 'STATUS_EFFECT_DEFINITION_VERSION_STALE');
+  }
+
+  const multiplier = Number(input?.primaryEffectMultiplier ?? 1);
+  if (![1, 2].includes(multiplier)) {
+    throw fail('Primary effect multiplier must be 1 or 2.', 400, 'STATUS_EFFECT_PRIMARY_OVERRIDE_INVALID');
+  }
+
+  const field = String(input?.primaryEffectField || '').trim().toUpperCase();
+  const baseValue = Number(input?.primaryEffectValue);
+  if (!Number.isFinite(baseValue)) {
+    throw fail('Approved primary effect value is invalid.', 400, 'STATUS_EFFECT_PRIMARY_OVERRIDE_INVALID');
+  }
+
+  const overridden = { ...definition, effectProfile: { ...(definition.effectProfile || {}) } };
+  if (field === 'DURATION_ROUNDS') {
+    if (definition.durationType !== 'ROUNDS' || Number(definition.defaultDurationRounds) !== baseValue) {
+      throw fail('Approved duration snapshot no longer matches the Status Definition.', 409, 'STATUS_EFFECT_PRIMARY_OVERRIDE_STALE');
+    }
+    const next = baseValue * multiplier;
+    if (!Number.isSafeInteger(next) || next < 1) throw fail('Approved duration multiplier is invalid.', 400, 'STATUS_EFFECT_PRIMARY_OVERRIDE_INVALID');
+    overridden.defaultDurationRounds = next;
+  } else if (field === 'STRENGTH_VALUE') {
+    if (Number(definition.strengthValue) !== baseValue) {
+      throw fail('Approved strength snapshot no longer matches the Status Definition.', 409, 'STATUS_EFFECT_PRIMARY_OVERRIDE_STALE');
+    }
+    overridden.strengthValue = baseValue * multiplier;
+  } else if (field === 'EFFECT_PROFILE_NUMERIC') {
+    const key = String(input?.primaryEffectKey || '').trim();
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(key)) throw fail('Approved Effect Profile key is invalid.', 400, 'STATUS_EFFECT_PRIMARY_OVERRIDE_INVALID');
+    if (Number(definition.effectProfile?.[key]) !== baseValue) {
+      throw fail('Approved Effect Profile snapshot no longer matches the Status Definition.', 409, 'STATUS_EFFECT_PRIMARY_OVERRIDE_STALE');
+    }
+    overridden.effectProfile[key] = baseValue * multiplier;
+  } else {
+    throw fail('Approved primary effect field is invalid.', 400, 'STATUS_EFFECT_PRIMARY_OVERRIDE_INVALID');
+  }
+
+  overridden.__approvedPrimaryOverride = { field, multiplier };
+  return applyStatusEffectDefinitionToCharacter(env, character, overridden, input, actorUserId);
 }
 
 export async function removeRuntimeStatusEffect(env, instanceId, input, actorUserId) {
