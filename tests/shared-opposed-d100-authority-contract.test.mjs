@@ -66,7 +66,8 @@ assert.doesNotMatch(gateway, /\/api\/player\/.*opposed/i, 'No Player opposed-wri
 
 // Stable outer routing: Inventory -> Basic Skill -> Opposed -> Status Effect -> Currency.
 assert.match(basicGateway, /^import baseWorker from '\.\/opposed-d100-gateway\.js';/);
-assert.match(gateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
+assert.match(gateway, /^import baseWorker from '\.\/status-effect-gateway\.js';/);
+assert.match(statusEffectGateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
 assert.match(currencyGateway, /export default/);
 
 // GM UI resolves both sides in one request and warns that no effects are applied.
