@@ -74,7 +74,8 @@ assert.doesNotMatch(gateway, /CHARACTER_NOT_ACTIVE/);
 // Keep the mature top-level Inventory gateway; compose Opposed D100 downstream without replacing Basic Skill authority.
 assert.match(inventoryGateway, /^import baseWorker from '\.\/basic-skill-check-gateway\.js';/);
 assert.match(gateway, /^import baseWorker from '\.\/opposed-d100-gateway\.js';/);
-assert.match(opposedGateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
+assert.match(opposedGateway, /^import baseWorker from '\.\/status-effect-gateway\.js';/);
+assert.match(statusEffectGateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
 
 // GM surface requires meaningful reason and makes pending growth semantics explicit.
 assert.match(gmHtml, /gm-basic-skill-checks\.js/);
