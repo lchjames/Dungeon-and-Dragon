@@ -1,4 +1,4 @@
-import baseWorker from './ability-gateway.js';
+import baseWorker from './non-damage-status-profile-gateway.js';
 import {
   ensureNonDamageEffectSettlementAuthority,
   listNonDamageEffectSettlements,
