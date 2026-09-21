@@ -6,6 +6,7 @@ const schema = await readFile(new URL('../src/non-damage-effect-settlement-schem
 const authority = await readFile(new URL('../src/non-damage-effect-settlement-authority.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/non-damage-effect-settlement-gateway.js', import.meta.url), 'utf8');
 const currencyGateway = await readFile(new URL('../src/currency-exchange-gateway.js', import.meta.url), 'utf8');
+const statusProfileGateway = await readFile(new URL('../src/non-damage-status-profile-gateway.js', import.meta.url), 'utf8');
 const abilityGateway = await readFile(new URL('../src/ability-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0039_non_damage_effect_settlement_authority.sql', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-non-damage-effect-settlements.js', import.meta.url), 'utf8');
@@ -64,7 +65,7 @@ for (const forbidden of [
   /UPDATE\s+character_skills/i
 ]) assert.doesNotMatch(authority, forbidden);
 
-assert.match(gateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
+assert.match(gateway, /^import baseWorker from '\.\/non-damage-status-profile-gateway\.js';/);
 assert.match(gateway, /GM_ROLES/);
 assert.match(gateway, /validOrigin/);
 assert.match(gateway, /pathname !== '\/api\/gm\/non-damage-effect-settlements'/);
@@ -73,7 +74,8 @@ assert.match(gateway, /request\.method !== 'POST'/);
 assert.doesNotMatch(gateway, /\/api\/player\//);
 
 assert.match(currencyGateway, /^import baseWorker from '\.\/non-damage-effect-settlement-gateway\.js';/);
-assert.match(gateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
+assert.match(gateway, /^import baseWorker from '\.\/non-damage-status-profile-gateway\.js';/);
+assert.match(statusProfileGateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
 assert.match(abilityGateway, /export default/);
 
 assert.match(gmHtml, /gm-non-damage-effect-settlements\.js/);
