@@ -63,7 +63,8 @@ assert.match(gateway, /^import baseWorker from '\.\/currency-exchange-gateway\.j
 assert.match(gateway, /GM_ROLES/);
 assert.match(gateway, /validOrigin/);
 assert.match(gateway, /\/api\/gm\/status-effects\/definitions/);
-assert.match(gateway, /status-effects\/tick-round/);
+assert.match(gateway, /tick-round/);
+assert.match(gateway, /handleTickRound/);
 assert.match(gateway, /status-effects\/instances/);
 assert.doesNotMatch(gateway, /\/api\/player\//, 'No Player Status write surface is introduced.');
 
