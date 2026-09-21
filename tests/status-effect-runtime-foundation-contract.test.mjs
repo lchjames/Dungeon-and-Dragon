@@ -7,6 +7,7 @@ const authority = await readFile(new URL('../src/status-effect-authority.js', im
 const gateway = await readFile(new URL('../src/status-effect-gateway.js', import.meta.url), 'utf8');
 const opposedGateway = await readFile(new URL('../src/opposed-d100-gateway.js', import.meta.url), 'utf8');
 const currencyGateway = await readFile(new URL('../src/currency-exchange-gateway.js', import.meta.url), 'utf8');
+const settlementGateway = await readFile(new URL('../src/non-damage-effect-settlement-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0038_status_effect_runtime_foundation.sql', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-status-effects.js', import.meta.url), 'utf8');
 const gmHtml = await readFile(new URL('../public/gm/index.html', import.meta.url), 'utf8');
@@ -69,10 +70,11 @@ assert.match(gateway, /instances/);
 assert.match(gateway, /handleRemove/);
 assert.doesNotMatch(gateway, /\/api\/player\//, 'No Player Status write surface is introduced.');
 
-// Stable gateway composition: Basic Skill -> Opposed -> Status Effect -> Currency -> Ability.
+// Stable gateway composition: Basic Skill -> Opposed -> Status Effect -> Currency -> Settlement -> Ability.
 assert.match(opposedGateway, /^import baseWorker from '\.\/status-effect-gateway\.js';/);
 assert.match(gateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
-assert.match(currencyGateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
+assert.match(currencyGateway, /^import baseWorker from '\.\/non-damage-effect-settlement-gateway\.js';/);
+assert.match(settlementGateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
 
 assert.match(gmHtml, /gm-status-effects\.js/);
 assert.match(gmUi, /Status Effect Runtime Foundation/);

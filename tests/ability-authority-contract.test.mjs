@@ -6,6 +6,7 @@ const rules = readFileSync('src/ability-rules.js', 'utf8');
 const authority = readFileSync('src/ability-authority.js', 'utf8');
 const gateway = readFileSync('src/ability-gateway.js', 'utf8');
 const currencyGateway = readFileSync('src/currency-exchange-gateway.js', 'utf8');
+const settlementGateway = readFileSync('src/non-damage-effect-settlement-gateway.js', 'utf8');
 const wrangler = readFileSync('wrangler.jsonc', 'utf8');
 const playerAbilities = readFileSync('public/assets/player-abilities.js', 'utf8');
 const playerInventory = readFileSync('public/assets/player-inventory-weapons.js', 'utf8');
@@ -37,7 +38,8 @@ assert.doesNotMatch(authority, /DELETE FROM character_acquired_abilities/);
 assert.doesNotMatch(authority, /UPDATE character_abilities SET/);
 
 assert.match(gateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
-assert.match(currencyGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
+assert.match(currencyGateway, /import baseWorker from '\.\/non-damage-effect-settlement-gateway\.js'/);
+assert.match(settlementGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
 assert.ok(gateway.includes('/api\\/gm\\/abilities'));
 assert.ok(gateway.includes('abilities\\/grants'));
 assert.ok(gateway.includes('/api\\/player\\/characters'));
