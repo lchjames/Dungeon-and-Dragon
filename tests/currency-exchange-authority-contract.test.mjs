@@ -7,6 +7,7 @@ const basicSkillGateway = await readFile(new URL('../src/basic-skill-check-gatew
 const opposedGateway = await readFile(new URL('../src/opposed-d100-gateway.js', import.meta.url), 'utf8');
 const statusEffectGateway = await readFile(new URL('../src/status-effect-gateway.js', import.meta.url), 'utf8');
 const settlementGateway = await readFile(new URL('../src/non-damage-effect-settlement-gateway.js', import.meta.url), 'utf8');
+const statusProfileGateway = await readFile(new URL('../src/non-damage-status-profile-gateway.js', import.meta.url), 'utf8');
 const abilityGateway = await readFile(new URL('../src/ability-gateway.js', import.meta.url), 'utf8');
 const inventoryGateway = await readFile(new URL('../src/inventory-weapon-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0031_currency_exchange_authority.sql', import.meta.url), 'utf8');
@@ -66,7 +67,8 @@ assert.match(basicSkillGateway, /import baseWorker from '\.\/opposed-d100-gatewa
 assert.match(opposedGateway, /import baseWorker from '\.\/status-effect-gateway\.js'/);
 assert.match(statusEffectGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
 assert.match(currencyGateway, /import baseWorker from '\.\/non-damage-effect-settlement-gateway\.js'/);
-assert.match(settlementGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
+assert.match(settlementGateway, /import baseWorker from '\.\/non-damage-status-profile-gateway\.js'/);
+assert.match(statusProfileGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
 assert.match(abilityGateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
 assert.match(inventoryGateway, /CURRENCY_GENERIC_INVENTORY_WRITE_BLOCKED/);
 assert.match(inventoryGateway, /itemSubtype/);
