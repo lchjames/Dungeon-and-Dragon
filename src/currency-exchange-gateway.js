@@ -1,4 +1,4 @@
-import baseWorker from './ability-gateway.js';
+import baseWorker from './non-damage-effect-settlement-gateway.js';
 import {
   activateDraft,
   ensureCurrencyExchangeAuthority,
