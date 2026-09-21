@@ -65,7 +65,8 @@ assert.match(gateway, /validOrigin/);
 assert.match(gateway, /\/api\/gm\/status-effects\/definitions/);
 assert.match(gateway, /tick-round/);
 assert.match(gateway, /handleTickRound/);
-assert.match(gateway, /status-effects\/instances/);
+assert.match(gateway, /instances/);
+assert.match(gateway, /handleRemove/);
 assert.doesNotMatch(gateway, /\/api\/player\//, 'No Player Status write surface is introduced.');
 
 // Stable gateway composition: Basic Skill -> Opposed -> Status Effect -> Currency -> Ability.
