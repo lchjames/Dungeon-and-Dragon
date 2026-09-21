@@ -42,6 +42,7 @@ jobs:
           node tests/currency-exchange-authority.test.mjs
           node tests/ability-rules.test.mjs
           node tests/opposed-d100-rules.test.mjs
+          node tests/status-effect-rules.test.mjs
           node tests/combat-rules.test.mjs
           node tests/monster-rules.test.mjs
           node tests/monster-life.test.mjs
@@ -74,6 +75,7 @@ jobs:
           node tests/ability-mp-cost-authority.test.mjs
           node tests/basic-skill-d100-check-authority.test.mjs
           node tests/shared-opposed-d100-authority-contract.test.mjs
+          node tests/status-effect-runtime-foundation-contract.test.mjs
 
       - name: World Map static contracts
         run: |
