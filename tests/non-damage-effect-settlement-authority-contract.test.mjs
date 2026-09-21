@@ -84,7 +84,7 @@ assert.match(gmUi, /gmResolutionRequired/);
 assert.match(gmUi, /no Status\/effect has been applied/i);
 
 assert.match(doc, /100 vs 100/i);
-assert.match(doc, /1 vs 1/i);
+assert.match(doc, /1[- ]vs[- ]1/i);
 assert.match(doc, /primary_effect_multiplier = 2/);
 assert.match(doc, /GM_DECISION_REQUIRED/);
 assert.match(doc, /MUST NOT.*runtime_status_effects/is);
