@@ -62,7 +62,8 @@ assert.match(gateway, /onlyAvailable: true/);
 // Stable top-level Inventory gateway remains outermost, then delegates through Basic Skill -> Opposed D100 -> Status Effect -> Currency.
 assert.match(gateway, /import baseWorker from '\.\/basic-skill-check-gateway\.js'/);
 assert.match(basicSkillGateway, /import baseWorker from '\.\/opposed-d100-gateway\.js'/);
-assert.match(opposedGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
+assert.match(opposedGateway, /import baseWorker from '\.\/status-effect-gateway\.js'/);
+assert.match(statusEffectGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
 assert.match(gateway, /\/api\\\/gm\\\/items/);
 assert.match(gateway, /\/api\\\/gm\\\/characters/);
 assert.match(gateway, /\/api\\\/player\\\/characters/);
