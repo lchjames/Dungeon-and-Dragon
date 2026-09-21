@@ -5,6 +5,7 @@ const rules = await readFile(new URL('../src/opposed-d100-rules.js', import.meta
 const authority = await readFile(new URL('../src/opposed-d100-authority.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/opposed-d100-gateway.js', import.meta.url), 'utf8');
 const basicGateway = await readFile(new URL('../src/basic-skill-check-gateway.js', import.meta.url), 'utf8');
+const statusEffectGateway = await readFile(new URL('../src/status-effect-gateway.js', import.meta.url), 'utf8');
 const currencyGateway = await readFile(new URL('../src/currency-exchange-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0037_shared_opposed_d100_authority.sql', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-opposed-d100-checks.js', import.meta.url), 'utf8');
@@ -63,9 +64,10 @@ assert.match(gateway, /assertCharacterUnlocked\(env, sourceCharacter, 'Source'\)
 assert.match(gateway, /assertCharacterUnlocked\(env, resistanceCharacter, 'Resistance'\)/);
 assert.doesNotMatch(gateway, /\/api\/player\/.*opposed/i, 'No Player opposed-write or opposed-detail route is introduced.');
 
-// Stable outer routing: Inventory -> Basic Skill -> Opposed -> Currency.
+// Stable outer routing: Inventory -> Basic Skill -> Opposed -> Status Effect -> Currency.
 assert.match(basicGateway, /^import baseWorker from '\.\/opposed-d100-gateway\.js';/);
-assert.match(gateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
+assert.match(gateway, /^import baseWorker from '\.\/status-effect-gateway\.js';/);
+assert.match(statusEffectGateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
 assert.match(currencyGateway, /export default/);
 
 // GM UI resolves both sides in one request and warns that no effects are applied.

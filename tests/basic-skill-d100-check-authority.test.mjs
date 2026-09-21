@@ -5,6 +5,7 @@ import { BASIC_SKILL_EXTREMES, resolveBasicSkillD100 } from '../src/basic-skill-
 const authority = await readFile(new URL('../src/basic-skill-check-authority.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/basic-skill-check-gateway.js', import.meta.url), 'utf8');
 const opposedGateway = await readFile(new URL('../src/opposed-d100-gateway.js', import.meta.url), 'utf8');
+const statusEffectGateway = await readFile(new URL('../src/status-effect-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0036_basic_skill_d100_check_authority.sql', import.meta.url), 'utf8');
 const inventoryGateway = await readFile(new URL('../src/inventory-weapon-gateway.js', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-basic-skill-checks.js', import.meta.url), 'utf8');
@@ -73,7 +74,8 @@ assert.doesNotMatch(gateway, /CHARACTER_NOT_ACTIVE/);
 // Keep the mature top-level Inventory gateway; compose Opposed D100 downstream without replacing Basic Skill authority.
 assert.match(inventoryGateway, /^import baseWorker from '\.\/basic-skill-check-gateway\.js';/);
 assert.match(gateway, /^import baseWorker from '\.\/opposed-d100-gateway\.js';/);
-assert.match(opposedGateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
+assert.match(opposedGateway, /^import baseWorker from '\.\/status-effect-gateway\.js';/);
+assert.match(statusEffectGateway, /^import baseWorker from '\.\/currency-exchange-gateway\.js';/);
 
 // GM surface requires meaningful reason and makes pending growth semantics explicit.
 assert.match(gmHtml, /gm-basic-skill-checks\.js/);
