@@ -62,7 +62,8 @@ assert.match(doc, /If any step aborts, SQLite rolls back the statement/);
 // Inventory stays the Wrangler entrypoint. Basic Skill, Opposed D100 and Status Effect are inserted upstream without changing Currency's downstream Ability chain.
 assert.match(inventoryGateway, /import baseWorker from '\.\/basic-skill-check-gateway\.js'/);
 assert.match(basicSkillGateway, /import baseWorker from '\.\/opposed-d100-gateway\.js'/);
-assert.match(opposedGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
+assert.match(opposedGateway, /import baseWorker from '\.\/status-effect-gateway\.js'/);
+assert.match(statusEffectGateway, /import baseWorker from '\.\/currency-exchange-gateway\.js'/);
 assert.match(currencyGateway, /import baseWorker from '\.\/ability-gateway\.js'/);
 assert.match(abilityGateway, /import baseWorker from '\.\/story-script-gateway\.js'/);
 assert.match(inventoryGateway, /CURRENCY_GENERIC_INVENTORY_WRITE_BLOCKED/);
