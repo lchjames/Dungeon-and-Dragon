@@ -73,7 +73,7 @@ async function loadApplication(env, settlementId, profileId) {
 async function reconcileFromStatusAudit(env, applicationRow, actorUserId) {
   const token = `[ND_STATUS_APP:${applicationRow.id}]`;
   const audit = await env.DB.prepare(`SELECT instance_id, action FROM runtime_status_effect_audit
-    WHERE reason LIKE ? ORDER BY created_at DESC, id DESC LIMIT 1`).bind(`%${token}%`).first();
+    WHERE instr(reason, ?) > 0 ORDER BY created_at DESC, id DESC LIMIT 1`).bind(token).first();
   if (!audit) return null;
   const finalStatus = audit.action === 'APPLY_BLOCKED' ? 'BLOCKED' : 'APPLIED';
   const now = Date.now();
@@ -127,6 +127,15 @@ export async function applySettlementStatusProfile(env, input, actorUserId) {
   }
 
   const profile = await loadProfile(env, profileId);
+  if (existing && (
+    existing.status_definition_id !== profile.status_definition_id ||
+    Number(existing.status_definition_version) !== Number(profile.status_definition_version) ||
+    existing.primary_effect_field !== profile.primary_effect_field ||
+    String(existing.primary_effect_key || '') !== String(profile.primary_effect_key || '') ||
+    Number(existing.primary_effect_base_value) !== Number(profile.primary_effect_value)
+  )) {
+    throw fail('Pending application is pinned to an older Profile snapshot; use a new approved Profile identity.', 409, 'NON_DAMAGE_STATUS_APPLICATION_PROFILE_CHANGED');
+  }
   const multiplier = Number(settlement.primary_effect_multiplier);
   if (![1, 2].includes(multiplier)) throw fail('Settlement primary multiplier is invalid.', 409, 'NON_DAMAGE_STATUS_APPLICATION_SETTLEMENT_INVALID');
   const baseValue = Number(profile.primary_effect_value);
