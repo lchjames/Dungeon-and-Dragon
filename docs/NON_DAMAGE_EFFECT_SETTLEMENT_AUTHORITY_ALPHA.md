@@ -71,7 +71,7 @@ Source Result = Resistance Result
 → original negative effect is blocked
 ```
 
-Raw 100 does not bypass this comparison.
+Raw 100 does not bypass this comparison. In particular, **100 vs 100** still compares final Result normally; an exact Result tie is blocked by resistance priority.
 
 ## 4. Narrative Result gap
 
