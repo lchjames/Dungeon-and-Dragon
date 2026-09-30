@@ -29,6 +29,7 @@ try {
   runComponent('Production Status Effect Runtime Foundation', './production-alpha-status-effect-runtime-e2e.mjs');
   runComponent('Production Non-damage Effect Settlement Authority', './production-alpha-non-damage-effect-settlement-e2e.mjs');
   runComponent('Production Non-damage Status Application Profile Authority', './production-alpha-non-damage-status-profile-e2e.mjs');
+  runComponent('Production Non-damage Status Application Adapter', './production-alpha-non-damage-status-application-e2e.mjs');
   runComponent('Production Scene Run Start Story E2E', './production-alpha-story-scene-run-start-e2e.mjs');
   runComponent('Production Encounter Activated Story E2E', './production-alpha-story-encounter-activated-e2e.mjs');
   runComponent('Production Combat Started Story E2E', './production-alpha-story-combat-started-e2e.mjs');
@@ -63,6 +64,7 @@ try {
       'status-effect-runtime-foundation',
       'non-damage-effect-settlement-authority',
       'non-damage-status-application-profile',
+      'non-damage-status-application-adapter',
       'story-scene-run-start',
       'story-encounter-activated',
       'story-combat-started',
