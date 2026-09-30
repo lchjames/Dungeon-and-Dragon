@@ -124,6 +124,12 @@ export async function applySettlementStatusProfile(env, input, actorUserId) {
   if (settlement.original_target_resolution === 'GM_DECISION_REQUIRED' || Number(settlement.gm_resolution_required) === 1) {
     throw fail('Settlement still requires GM deviation adjudication.', 409, 'NON_DAMAGE_STATUS_APPLICATION_GM_DECISION_REQUIRED');
   }
+  if (settlement.original_target_resolution === 'BLOCKED') {
+    throw fail('Settlement blocks the original target; no Runtime Status may be applied.', 409, 'NON_DAMAGE_STATUS_APPLICATION_SETTLEMENT_BLOCKED');
+  }
+  if (settlement.original_target_resolution !== 'APPLIES') {
+    throw fail('Settlement original-target resolution is not applicable.', 409, 'NON_DAMAGE_STATUS_APPLICATION_SETTLEMENT_INVALID');
+  }
 
   const existing = await loadApplication(env, settlementId, profileId);
   if (existing) {
@@ -147,32 +153,6 @@ export async function applySettlementStatusProfile(env, input, actorUserId) {
   const baseValue = Number(profile.primary_effect_value);
   if (!Number.isFinite(baseValue)) throw fail('Profile primary value is invalid.', 409, 'NON_DAMAGE_STATUS_APPLICATION_PROFILE_INVALID');
   const appliedValue = baseValue * multiplier;
-
-  if (settlement.original_target_resolution === 'BLOCKED') {
-    const id = `nd_status_app_${crypto.randomUUID()}`;
-    const now = Date.now();
-    try {
-      await env.DB.prepare(`INSERT INTO non_damage_status_application_log (
-        id, settlement_id, profile_id, application_key, target_character_id, source_character_id,
-        status_definition_id, status_definition_version, primary_effect_field, primary_effect_key,
-        primary_effect_base_value, primary_effect_multiplier, primary_effect_applied_value,
-        settlement_outcome, application_status, runtime_status_effect_id, runtime_operation,
-        meaningful_reason, actor_user_id, lease_token, lease_expires_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'BLOCKED', NULL, NULL, ?, ?, NULL, NULL, ?, ?)`)
-        .bind(id, settlement.id, profile.id, id, settlement.resistance_character_id, settlement.source_character_id,
-          profile.status_definition_id, profile.status_definition_version, profile.primary_effect_field, profile.primary_effect_key,
-          baseValue, multiplier, appliedValue, settlement.outcome, meaningfulReason, actorUserId || null, now, now).run();
-    } catch (error) {
-      const raced = await loadApplication(env, settlementId, profileId);
-      if (raced) return { idempotent: true, application: rowView(raced) };
-      throw error;
-    }
-    return { idempotent: false, application: rowView(await loadApplication(env, settlementId, profileId)) };
-  }
-
-  if (settlement.original_target_resolution !== 'APPLIES') {
-    throw fail('Settlement original-target resolution is not applicable.', 409, 'NON_DAMAGE_STATUS_APPLICATION_SETTLEMENT_INVALID');
-  }
 
   let application = existing;
   if (!application) {
