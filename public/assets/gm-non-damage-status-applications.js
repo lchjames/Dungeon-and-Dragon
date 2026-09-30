@@ -63,9 +63,10 @@ function renderInputs() {
   const settlementSelect = $('#gm-nd-status-application-settlement');
   const profileSelect = $('#gm-nd-status-application-profile');
   if (settlementSelect) {
-    settlementSelect.innerHTML = settlements.length
-      ? settlements.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.sourceCharacterName || s.sourceCharacterId)} → ${escapeHtml(s.resistanceCharacterName || s.resistanceCharacterId)} · ${escapeHtml(s.outcome)} · ×${s.primaryEffectMultiplier}</option>`).join('')
-      : '<option value="">No Settlement records</option>';
+    const applicable = settlements.filter(s => s.originalTargetResolution === 'APPLIES' && !s.gmResolutionRequired);
+    settlementSelect.innerHTML = applicable.length
+      ? applicable.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.sourceCharacterName || s.sourceCharacterId)} → ${escapeHtml(s.resistanceCharacterName || s.resistanceCharacterId)} · ${escapeHtml(s.outcome)} · ×${s.primaryEffectMultiplier}</option>`).join('')
+      : '<option value="">No applicable Settlement records</option>';
   }
   if (profileSelect) {
     const ready = profiles.filter(p => p.readiness?.ready);
