@@ -55,6 +55,8 @@ function renderNoCombat() {
   panel.classList.add('hidden');
   $('#player-combat-initiative').innerHTML = '';
   $('#player-combat-current').textContent = 'No active Combat.';
+  const statusList = $('#player-combat-status-list');
+  if (statusList) statusList.innerHTML = '<p class="muted">No active Status conditions.</p>';
   $('#player-attack-controls')?.classList.add('hidden');
 }
 
@@ -107,6 +109,43 @@ function bossTargetMeta(target) {
   if (Number.isFinite(Number(armor))) bits.push(`Armor ${armor}`);
   if (boss.currentPhaseNumber) bits.push(`Phase ${boss.currentPhaseNumber}`);
   return bits.length ? ` · ${bits.join(' · ')}` : '';
+}
+
+async function loadCombatStatuses(combat) {
+  const target = $('#player-combat-status-list');
+  if (!target) return;
+  const characters = (combat?.combatants || []).filter(item =>
+    item?.entityType === 'character' && item?.controlledByCurrentUser && item?.id
+  );
+  if (!characters.length) {
+    target.innerHTML = '<p class="muted">No Player-owned Character is participating in this Combat.</p>';
+    return;
+  }
+  try {
+    const rows = await Promise.all(characters.map(async character => {
+      const payload = await api(`/api/player/characters/${encodeURIComponent(character.id)}/status-effects`);
+      return { character, statuses: payload.statusEffects || [] };
+    }));
+    const visible = rows.flatMap(({ character, statuses }) => statuses.map(status => ({ character, status })));
+    if (!visible.length) {
+      target.innerHTML = '<p class="muted">No active Status conditions.</p>';
+      return;
+    }
+    target.innerHTML = visible.map(({ character, status }) => {
+      const duration = status.durationType === 'PERMANENT'
+        ? 'Permanent'
+        : `${status.remainingRounds ?? '—'} round${Number(status.remainingRounds) === 1 ? '' : 's'} remaining`;
+      const stack = Number(status.stackCount || 1) > 1 ? ` · Stack ${status.stackCount}` : '';
+      return `<article class="stack-item compact-item">
+        <div>
+          <div class="row-inline"><h4>${escapeHtml(status.name)}</h4><span class="status-pill">${escapeHtml(character.displayName || character.id)}</span></div>
+          <p>${escapeHtml(duration)}${escapeHtml(stack)}</p>
+        </div>
+      </article>`;
+    }).join('');
+  } catch (error) {
+    target.innerHTML = `<p class="muted">${escapeHtml(error.message || 'Status conditions unavailable.')}</p>`;
+  }
 }
 
 function renderAttackControls(combat) {
@@ -227,6 +266,7 @@ function renderAttackResult(attack) {
 function renderState(payload) {
   combatState = payload || { combat: null, attackProfiles: [] };
   renderCombat(combatState.combat || null);
+  loadCombatStatuses(combatState.combat || null).catch(() => {});
   if (payload?.attack) renderAttackResult(payload.attack);
 }
 

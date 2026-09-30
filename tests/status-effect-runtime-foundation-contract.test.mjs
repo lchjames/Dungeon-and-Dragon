@@ -70,7 +70,9 @@ assert.match(gateway, /tick-round/);
 assert.match(gateway, /handleTickRound/);
 assert.match(gateway, /instances/);
 assert.match(gateway, /handleRemove/);
-assert.doesNotMatch(gateway, /\/api\/player\//, 'No Player Status write surface is introduced.');
+assert.match(gateway, /Player Status Effect route is read-only/);
+assert.match(gateway, /request\.method !== 'GET'/);
+assert.match(gateway, /requireOwnedCharacter/);
 
 // Stable gateway composition: Basic Skill -> Opposed -> Status Effect -> Currency -> Settlement -> Status Profile -> Application Adapter -> Ability.
 assert.match(opposedGateway, /^import baseWorker from '\.\/status-effect-gateway\.js';/);
