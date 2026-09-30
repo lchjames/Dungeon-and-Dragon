@@ -112,18 +112,18 @@ export async function applySettlementStatusProfile(env, input, actorUserId) {
   await ensureNonDamageStatusApplicationAuthority(env);
   const settlementId = text(input?.settlementId, 200, 'Settlement ID', true);
   const profileId = text(input?.profileId, 200, 'Profile ID', true);
-  const meaningfulReason = text(input?.meaningfulReason ?? input?.reason, 1000, 'Meaningful application reason', true);
+  const meaningfulReason = text(input?.meaningfulReason ?? input?.reason, 900, 'Meaningful application reason', true);
+
+  const settlement = await loadSettlement(env, settlementId);
+  if (settlement.original_target_resolution === 'GM_DECISION_REQUIRED' || Number(settlement.gm_resolution_required) === 1) {
+    throw fail('Settlement still requires GM deviation adjudication.', 409, 'NON_DAMAGE_STATUS_APPLICATION_GM_DECISION_REQUIRED');
+  }
 
   const existing = await loadApplication(env, settlementId, profileId);
   if (existing) {
     if (existing.application_status !== 'PENDING') return { idempotent: true, application: rowView(existing) };
     const reconciled = await reconcileFromStatusAudit(env, existing, actorUserId);
     if (reconciled) return { idempotent: true, application: reconciled };
-  }
-
-  const settlement = await loadSettlement(env, settlementId);
-  if (settlement.original_target_resolution === 'GM_DECISION_REQUIRED' || Number(settlement.gm_resolution_required) === 1) {
-    throw fail('Settlement still requires GM deviation adjudication.', 409, 'NON_DAMAGE_STATUS_APPLICATION_GM_DECISION_REQUIRED');
   }
 
   const profile = await loadProfile(env, profileId);
