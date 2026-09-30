@@ -154,6 +154,8 @@ to the Status Runtime meaningful reason.
 
 If Runtime Status application commits but application-ledger finalisation is interrupted, a retry searches immutable `runtime_status_effect_audit` for that marker and reconciles the application row instead of applying the Status twice.
 
+For replacement operations, both the replaced instance and the new instance can carry the same marker. Reconciliation therefore prefers an `APPLY_BLOCKED` audit when the Status authority blocked the application, otherwise it prefers an audit whose `after_snapshot_json.status` is `ACTIVE`. It never chooses the replacement instance by random audit-ID ordering.
+
 GM meaningful reason input is capped below the Status Runtime reason limit so the audit marker always fits.
 
 ## 8. Runtime application result
