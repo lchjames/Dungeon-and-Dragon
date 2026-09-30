@@ -1,10 +1,9 @@
-import baseWorker from './non-damage-status-application-gateway.js';
+import baseWorker from './ability-gateway.js';
 import {
-  createNonDamageStatusProfile,
-  ensureNonDamageStatusProfileAuthority,
-  listNonDamageStatusProfiles,
-  updateNonDamageStatusProfile
-} from './non-damage-status-profile-authority.js';
+  applySettlementStatusProfile,
+  ensureNonDamageStatusApplicationAuthority,
+  listNonDamageStatusApplications
+} from './non-damage-status-application-authority.js';
 
 const GM_ROLES = new Set(['gm', 'admin']);
 
@@ -49,7 +48,7 @@ async function requireGM(request, env) {
   const user = await currentUser(request, env);
   if (!user) throw Object.assign(new Error('未登入。'), { status: 401, code: 'UNAUTHENTICATED' });
   if (String(user.status || '').toLowerCase() !== 'active') {
-    throw Object.assign(new Error('此 User 目前不可管理 Non-damage Status Profile。'), { status: 403, code: 'USER_NOT_ACTIVE' });
+    throw Object.assign(new Error('此 User 目前不可套用 Settlement Status。'), { status: 403, code: 'USER_NOT_ACTIVE' });
   }
   if (!GM_ROLES.has(String(user.role || '').toLowerCase())) {
     throw Object.assign(new Error('此 User 沒有 GM 權限。'), { status: 403, code: 'GM_ROLE_REQUIRED' });
@@ -61,39 +60,24 @@ export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
     try {
-      if (!pathname.startsWith('/api/gm/non-damage-status-profiles')) return baseWorker.fetch(request, env);
+      if (pathname !== '/api/gm/non-damage-status-applications') return baseWorker.fetch(request, env);
       const gm = await requireGM(request, env);
-      await ensureNonDamageStatusProfileAuthority(env);
-
-      if (pathname === '/api/gm/non-damage-status-profiles') {
-        if (request.method === 'GET') {
-          const status = new URL(request.url).searchParams.get('status') || 'ALL';
-          return json({ ok: true, profiles: await listNonDamageStatusProfiles(env, { status }) });
-        }
-        if (request.method === 'POST') {
-          if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
-          return json({ ok: true, profile: await createNonDamageStatusProfile(env, await readBody(request), gm.id) }, 201);
-        }
-        return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+      await ensureNonDamageStatusApplicationAuthority(env);
+      if (request.method === 'GET') {
+        const limit = new URL(request.url).searchParams.get('limit') || 50;
+        return json({ ok: true, applications: await listNonDamageStatusApplications(env, { limit }) });
       }
-
-      const match = pathname.match(/^\/api\/gm\/non-damage-status-profiles\/([^/]+)$/);
-      if (match) {
-        if (request.method !== 'PATCH') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
-        if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
-        return json({
-          ok: true,
-          profile: await updateNonDamageStatusProfile(env, decodeURIComponent(match[1]), await readBody(request), gm.id)
-        });
-      }
-      return apiError('Profile route not found.', 404, 'NON_DAMAGE_STATUS_PROFILE_ROUTE_NOT_FOUND');
+      if (request.method !== 'POST') return apiError('Method not allowed.', 405, 'METHOD_NOT_ALLOWED');
+      if (!validOrigin(request)) return apiError('來源驗證失敗。', 403, 'ORIGIN_REJECTED');
+      const result = await applySettlementStatusProfile(env, await readBody(request), gm.id);
+      return json({ ok: true, ...result }, result.idempotent ? 200 : 201);
     } catch (error) {
-      console.error('Non-damage Status Profile gateway error', error);
-      if (error?.status) return apiError(error.message, error.status, error.code || 'NON_DAMAGE_STATUS_PROFILE_ERROR');
+      console.error('Non-damage Status Application gateway error', error);
+      if (error?.status) return apiError(error.message, error.status, error.code || 'NON_DAMAGE_STATUS_APPLICATION_ERROR');
       if (String(error?.message || error).includes('D1 binding DB is unavailable')) {
         return apiError('資料庫尚未完成配置。', 503, 'DATABASE_UNAVAILABLE');
       }
-      return apiError('Non-damage Status Profile 暫時無法完成要求。', 500, error?.code || 'NON_DAMAGE_STATUS_PROFILE_SERVICE_ERROR');
+      return apiError('Non-damage Status Application 暫時無法完成要求。', 500, error?.code || 'NON_DAMAGE_STATUS_APPLICATION_SERVICE_ERROR');
     }
   }
 };
