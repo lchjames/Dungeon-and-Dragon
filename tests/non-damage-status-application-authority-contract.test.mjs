@@ -39,6 +39,8 @@ assert.match(authority, /applyPinnedStatusEffectToCharacter/);
 assert.match(authority, /\[ND_STATUS_APP:\$\{application\.id\}\]/);
 assert.match(authority, /lease_expires_at/);
 assert.match(authority, /reconcileFromStatusAudit/);
+assert.match(authority, /json_extract\(after_snapshot_json, '\$\.status'\)='ACTIVE'/);
+assert.match(authority, /Meaningful application reason', true/);
 assert.match(authority, /idempotent: true/);
 assert.match(authority, /idempotent: false/);
 
