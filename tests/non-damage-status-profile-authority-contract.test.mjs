@@ -6,6 +6,7 @@ const schema = await readFile(new URL('../src/non-damage-status-profile-schema.j
 const authority = await readFile(new URL('../src/non-damage-status-profile-authority.js', import.meta.url), 'utf8');
 const gateway = await readFile(new URL('../src/non-damage-status-profile-gateway.js', import.meta.url), 'utf8');
 const settlementGateway = await readFile(new URL('../src/non-damage-effect-settlement-gateway.js', import.meta.url), 'utf8');
+const applicationGateway = await readFile(new URL('../src/non-damage-status-application-gateway.js', import.meta.url), 'utf8');
 const abilityGateway = await readFile(new URL('../src/ability-gateway.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../schema/0040_non_damage_status_application_profile.sql', import.meta.url), 'utf8');
 const gmUi = await readFile(new URL('../public/assets/gm-non-damage-status-profiles.js', import.meta.url), 'utf8');
@@ -46,7 +47,8 @@ assert.match(gateway, /GM_ROLES/);
 assert.match(gateway, /validOrigin/);
 assert.doesNotMatch(gateway, /\/api\/player\//);
 assert.match(settlementGateway, /^import baseWorker from '\.\/non-damage-status-profile-gateway\.js';/);
-assert.match(gateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
+assert.match(gateway, /^import baseWorker from '\.\/non-damage-status-application-gateway\.js';/);
+assert.match(applicationGateway, /^import baseWorker from '\.\/ability-gateway\.js';/);
 assert.match(abilityGateway, /export default/);
 
 assert.match(gmHtml, /gm-non-damage-status-profiles\.js/);
