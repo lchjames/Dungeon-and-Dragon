@@ -156,6 +156,18 @@ If Runtime Status application commits but application-ledger finalisation is int
 
 For replacement operations, both the replaced instance and the new instance can carry the same marker. Reconciliation therefore prefers an `APPLY_BLOCKED` audit when the Status authority blocked the application, otherwise it prefers an audit whose `after_snapshot_json.status` is `ACTIVE`. It never chooses the replacement instance by random audit-ID ordering.
 
+Recovery also requires the application's pinned Character target and Status Definition identity. Only application lifecycle actions are eligible; removal, expiry and round ticks cannot finalise an application merely because a reason mentions its marker. A replaced-instance snapshot is not eligible as a successful application result.
+
+Recovered results use the same operation vocabulary as uninterrupted application:
+
+| Status audit action | Application runtime operation |
+| --- | --- |
+| `APPLY_CREATE` | `CREATE` |
+| `APPLY_BLOCKED` | `BLOCK` |
+| `REFRESH`, `EXTEND`, `STACK`, `REPLACE_STRONGER`, `REPLACE_LATEST` | unchanged |
+
+Recovery consumes the committed audit rather than re-applying the Status or re-evaluating a later Definition revision.
+
 GM meaningful reason input is capped below the Status Runtime reason limit so the audit marker always fits.
 
 ## 8. Runtime application result
@@ -228,3 +240,5 @@ The server remains authoritative even if a client submits another Settlement ID 
 Automated CI verification is plan-only.
 
 It validates source contracts and normal production deployment/smoke behavior, but does not claim credentialed live D1-writing coverage for Settlement → Runtime Status application.
+
+`tests/non-damage-status-application-recovery.test.mjs` additionally exercises the production authorities against local SQLite with the actual schemas and immutable audit triggers. It injects interruption after Runtime Status commit and before application-ledger finalisation, then verifies every application operation, doubled duration, later Definition revisions, repeated retries, replacement selection and Character/Definition audit scoping. This is local database integration coverage, not credentialed live Production D1-writing coverage.

@@ -82,6 +82,7 @@ jobs:
           node tests/non-damage-effect-settlement-authority-contract.test.mjs
           node tests/non-damage-status-profile-authority-contract.test.mjs
           node tests/non-damage-status-application-authority-contract.test.mjs
+          node tests/non-damage-status-application-recovery.test.mjs
 
       - name: World Map static contracts
         run: |

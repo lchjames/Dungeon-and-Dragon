@@ -73,21 +73,26 @@ async function loadApplication(env, settlementId, profileId) {
 async function reconcileFromStatusAudit(env, applicationRow, actorUserId) {
   const token = `[ND_STATUS_APP:${applicationRow.id}]`;
   const audit = await env.DB.prepare(`SELECT instance_id, action, after_snapshot_json FROM runtime_status_effect_audit
-    WHERE instr(reason, ?) > 0
+    WHERE target_type='CHARACTER' AND target_id=? AND definition_id=? AND instr(reason, ?) > 0
+      AND action IN ('APPLY_CREATE','APPLY_BLOCKED','REFRESH','EXTEND','STACK','REPLACE_STRONGER','REPLACE_LATEST')
+      AND (action='APPLY_BLOCKED' OR json_extract(after_snapshot_json, '$.status')='ACTIVE')
     ORDER BY CASE
       WHEN action='APPLY_BLOCKED' THEN 0
       WHEN json_extract(after_snapshot_json, '$.status')='ACTIVE' THEN 0
       ELSE 1
     END, created_at DESC, id DESC
-    LIMIT 1`).bind(token).first();
+    LIMIT 1`).bind(applicationRow.target_character_id, applicationRow.status_definition_id, token).first();
   if (!audit) return null;
-  const finalStatus = audit.action === 'APPLY_BLOCKED' ? 'BLOCKED' : 'APPLIED';
+  const runtimeOperation = audit.action === 'APPLY_CREATE' ? 'CREATE'
+    : audit.action === 'APPLY_BLOCKED' ? 'BLOCK'
+    : audit.action;
+  const finalStatus = runtimeOperation === 'BLOCK' ? 'BLOCKED' : 'APPLIED';
   const now = Date.now();
   const result = await env.DB.prepare(`UPDATE non_damage_status_application_log SET
       application_status=?, runtime_status_effect_id=?, runtime_operation=?,
       actor_user_id=?, lease_token=NULL, lease_expires_at=NULL, updated_at=?
     WHERE id=? AND application_status='PENDING'`)
-    .bind(finalStatus, audit.instance_id || null, audit.action || null, actorUserId || null, now, applicationRow.id).run();
+    .bind(finalStatus, audit.instance_id || null, runtimeOperation, actorUserId || null, now, applicationRow.id).run();
   if (changes(result) === 1) {
     return rowView(await env.DB.prepare('SELECT * FROM non_damage_status_application_log WHERE id=?').bind(applicationRow.id).first());
   }

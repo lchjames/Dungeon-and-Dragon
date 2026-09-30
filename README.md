@@ -498,6 +498,7 @@ Key permanent gates include:
 - `tests/admin-auth-contract.test.mjs` — Player/Admin identity split and public provisioning lockdown
 - `tests/deployment-contract.test.mjs` — production deployment boundaries, Admin seed removal and additive D1 compatibility
 - `tests/mvp-scenario-e2e.test.mjs` — Scenario → Encounter → Character/Monster/Boss → Combat lifecycle
+- `tests/non-damage-status-application-recovery.test.mjs` — local SQLite integration coverage for interrupted Status application and idempotent recovery
 - `scripts/production-alpha-e2e.mjs` — plan-only in normal CI; production writes only through explicit operator execution
 
 ## Deployment
