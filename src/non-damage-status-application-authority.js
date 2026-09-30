@@ -72,8 +72,14 @@ async function loadApplication(env, settlementId, profileId) {
 
 async function reconcileFromStatusAudit(env, applicationRow, actorUserId) {
   const token = `[ND_STATUS_APP:${applicationRow.id}]`;
-  const audit = await env.DB.prepare(`SELECT instance_id, action FROM runtime_status_effect_audit
-    WHERE instr(reason, ?) > 0 ORDER BY created_at DESC, id DESC LIMIT 1`).bind(token).first();
+  const audit = await env.DB.prepare(`SELECT instance_id, action, after_snapshot_json FROM runtime_status_effect_audit
+    WHERE instr(reason, ?) > 0
+    ORDER BY CASE
+      WHEN action='APPLY_BLOCKED' THEN 0
+      WHEN json_extract(after_snapshot_json, '$.status')='ACTIVE' THEN 0
+      ELSE 1
+    END, created_at DESC, id DESC
+    LIMIT 1`).bind(token).first();
   if (!audit) return null;
   const finalStatus = audit.action === 'APPLY_BLOCKED' ? 'BLOCKED' : 'APPLIED';
   const now = Date.now();
