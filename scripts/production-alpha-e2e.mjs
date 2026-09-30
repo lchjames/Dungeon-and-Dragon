@@ -27,6 +27,7 @@ try {
   runComponent('Production Basic Skill D100 Check Authority', './production-alpha-basic-skill-d100-check-e2e.mjs');
   runComponent('Production Shared Opposed D100 Authority', './production-alpha-shared-opposed-d100-e2e.mjs');
   runComponent('Production Status Effect Runtime Foundation', './production-alpha-status-effect-runtime-e2e.mjs');
+  runComponent('Production Player Status Visibility', './production-alpha-player-status-visibility-e2e.mjs');
   runComponent('Production Non-damage Effect Settlement Authority', './production-alpha-non-damage-effect-settlement-e2e.mjs');
   runComponent('Production Non-damage Status Application Profile Authority', './production-alpha-non-damage-status-profile-e2e.mjs');
   runComponent('Production Non-damage Status Application Adapter', './production-alpha-non-damage-status-application-e2e.mjs');
@@ -62,6 +63,7 @@ try {
       'basic-skill-d100-check-authority',
       'shared-opposed-d100-authority',
       'status-effect-runtime-foundation',
+      'player-status-visibility',
       'non-damage-effect-settlement-authority',
       'non-damage-status-application-profile',
       'non-damage-status-application-adapter',
