@@ -50,16 +50,54 @@ async function currentUser(request, env) {
   return (await response.json())?.user || null;
 }
 
-async function requireGM(request, env) {
+async function requireUser(request, env) {
   const user = await currentUser(request, env);
   if (!user) throw Object.assign(new Error('未登入。'), { status: 401, code: 'UNAUTHENTICATED' });
   if (String(user.status || '').toLowerCase() !== 'active') {
-    throw Object.assign(new Error('此 User 目前不可管理 Status Effect。'), { status: 403, code: 'USER_NOT_ACTIVE' });
+    throw Object.assign(new Error('此 User 目前不可查看 Status Effect。'), { status: 403, code: 'USER_NOT_ACTIVE' });
   }
+  return user;
+}
+
+async function requireGM(request, env) {
+  const user = await requireUser(request, env);
   if (!GM_ROLES.has(String(user.role || '').toLowerCase())) {
     throw Object.assign(new Error('此 User 沒有 GM 權限。'), { status: 403, code: 'GM_ROLE_REQUIRED' });
   }
   return user;
+}
+
+async function requireOwnedCharacter(env, characterId, user) {
+  const id = String(characterId || '').trim();
+  if (!id) throw Object.assign(new Error('Character ID is required.'), { status: 400, code: 'CHARACTER_ID_REQUIRED' });
+  const row = await env.DB.prepare('SELECT id, owner_user_id, name, status FROM characters WHERE id=? LIMIT 1').bind(id).first();
+  if (!row) throw Object.assign(new Error('找不到 Character。'), { status: 404, code: 'CHARACTER_NOT_FOUND' });
+  if (row.owner_user_id !== user.id) {
+    throw Object.assign(new Error('你只可以查看自己角色嘅 Status Effect。'), { status: 403, code: 'CHARACTER_NOT_OWNED' });
+  }
+  return row;
+}
+
+function playerStatusView(effect) {
+  return {
+    name: effect.definitionNameZh || 'Status',
+    status: effect.status,
+    durationType: effect.durationType,
+    remainingRounds: effect.remainingRounds,
+    stackCount: effect.stackCount
+  };
+}
+
+async function handlePlayerCharacterEffects(request, env, user, characterId) {
+  if (request.method !== 'GET') return apiError('Player Status Effect route is read-only.', 405, 'METHOD_NOT_ALLOWED');
+  const character = await requireOwnedCharacter(env, characterId, user);
+  await ensureStatusEffectAuthority(env);
+  const state = await listCharacterStatusEffects(env, character.id, { includeHistory: false });
+  return json({
+    ok: true,
+    character: { id: character.id, name: character.name, status: character.status },
+    statusEffects: (state.effects || []).map(playerStatusView)
+  });
 }
 
 function requireWriteOrigin(request) {
@@ -125,6 +163,11 @@ export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
     try {
+      const playerMatch = pathname.match(/^\/api\/player\/characters\/([^/]+)\/status-effects$/);
+      if (playerMatch) {
+        const user = await requireUser(request, env);
+        return await handlePlayerCharacterEffects(request, env, user, decodeURIComponent(playerMatch[1]));
+      }
       if (!pathname.startsWith('/api/gm/status-effects') && !/^\/api\/gm\/characters\/[^/]+\/status-effects(?:\/|$)/.test(pathname)) {
         return baseWorker.fetch(request, env);
       }
