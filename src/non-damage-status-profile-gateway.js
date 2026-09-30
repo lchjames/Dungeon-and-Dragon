@@ -1,4 +1,4 @@
-import baseWorker from './ability-gateway.js';
+import baseWorker from './non-damage-status-application-gateway.js';
 import {
   createNonDamageStatusProfile,
   ensureNonDamageStatusProfileAuthority,
