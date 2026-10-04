@@ -1,0 +1,44 @@
+name: Production Alpha Status Application Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_writes:
+        description: Explicitly create and retire namespaced test Status fixtures in production D1
+        required: true
+        default: false
+        type: boolean
+      run_label:
+        description: Optional 1–10 character run label (letters, digits, underscore or hyphen)
+        required: false
+        default: status
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  status-live:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_production_writes == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: dnd-production-alpha-live
+      cancel-in-progress: false
+    steps:
+      - name: Checkout requested main revision
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Show tested revision
+        run: git log -1 --format='Status verification revision: %H %s'
+      - name: Verify Status application and Player visibility
+        env:
+          DND_ALPHA_STATUS_EXECUTE: '1'
+          DND_ALPHA_BASE_URL: https://dnd.apswsttss.workers.dev
+          DND_ALPHA_GM_USERNAME: gm
+          DND_ALPHA_GM_PASSWORD: ${{ secrets.DND_ALPHA_GM_PASSWORD }}
+          DND_ALPHA_STATUS_RUN_LABEL: ${{ inputs.run_label }}
+        run: node scripts/production-alpha-status-application-live.mjs

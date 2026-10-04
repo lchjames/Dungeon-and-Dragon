@@ -189,3 +189,17 @@ It becomes complete only after an authorised execution returns:
 ```
 
 The 2026-08-26 verified run above satisfies this completion rule. Future production failures remain Alpha blockers and must be diagnosed before the affected gameplay subsystem is treated as production-valid.
+
+## Separate Status application live verification
+
+The previous recorded live runs do not establish Status application or authenticated Player Status projection coverage. `scripts/production-alpha-status-application-live.mjs` now provides an executable, independent gate for that slice. No authorised production execution of this gate is recorded here yet.
+
+Normal CI runs it in plan-only mode with no network requests and separately exercises the actual Worker API chain through local HTTP and in-memory SQLite. Local coverage checks normal/doubled application, exact idempotent retry, NO_STACK blocking, blocked/unresolved rejection, stale Definition/Profile rejection, Player ownership/GET-only projection, unchanged resources/Skills, session logout and refusal during active Combat. It is not Cloudflare D1 production evidence.
+
+To run against production, an authorised operator selects `main` in the **Production Alpha Status Application Verification** workflow and sets `confirm_production_writes` to true. The workflow uses the existing `DND_ALPHA_GM_PASSWORD` repository secret, the direct production Worker origin and `DND_ALPHA_STATUS_EXECUTE=1`. Optional `run_label` accepts 1–10 letters, digits, underscores or hyphens. The generic `DND_ALPHA_EXECUTE` switch does not activate this runner or change the existing plan-only Status descriptors.
+
+Each run adds an unpredictable namespace, creates two separate test Players and active Characters through normal APIs, and creates its own Status Definitions, Profiles, opposed checks, Settlements and application ledger entries. It refuses fixture creation when Combat is already active. The manual workflow shares the broader Alpha live workflow's concurrency group; this does not lock out interactive GM activity, so run it during a quiet maintenance window.
+
+On success or an ordinary failure, scoped best-effort cleanup removes only the run's active Status instances, marks only its own Definitions/Profiles INACTIVE and logs out only its own sessions. Test accounts, Characters and immutable audit/ledger records are deliberately retained. This is retirement, not a database rollback. An abrupt process/job termination or lost write response may leave fixtures behind; record the reported run namespace and inspect it rather than deleting unrelated data. Cleanup errors fail the gate. API POST requests are never automatically retried.
+
+Treat the slice as live-verified only after the authorised production workflow returns `ok: true`, `mode: "production-live"`, `productionWrites: true`, all eight checks and no cleanup errors. Preserve its tested revision and workflow/run ID as evidence; deployment/smoke success alone does not meet this rule.

@@ -489,6 +489,8 @@ After that success, the temporary deterministic Alpha GM runtime seed and embedd
 
 See `docs/PRODUCTION_ALPHA_LIVE_PLAYTEST.md` for the detailed gate and recorded run evidence.
 
+Status application has a separate opt-in runner, `scripts/production-alpha-status-application-live.mjs`, and manual workflow `.github/workflows/production-alpha-status-live.yml`. Select `main` and explicitly confirm `confirm_production_writes` to use the existing `DND_ALPHA_GM_PASSWORD` secret. Its independent activation switch is `DND_ALPHA_STATUS_EXECUTE=1`; the generic Alpha switch does not enable it. It refuses to create fixtures during active Combat, uses fresh namespaced Players/Characters and Status definitions, then removes its own active Status instances, retires its own Profiles/Definitions and logs out its sessions. Test accounts, Characters and immutable audits remain. This runner's local integration result is not evidence of an authenticated production D1 run.
+
 ## Automated checks
 
 GitHub Actions runs `.github/workflows/mvp-checks.yml` on branch pushes and pull requests. The suite includes JavaScript syntax checks, the plan-only production runner safety gate, rules/combat/Monster/Boss regressions, static/deployment contracts and source-level Scenario E2E coverage.
@@ -499,6 +501,7 @@ Key permanent gates include:
 - `tests/deployment-contract.test.mjs` — production deployment boundaries, Admin seed removal and additive D1 compatibility
 - `tests/mvp-scenario-e2e.test.mjs` — Scenario → Encounter → Character/Monster/Boss → Combat lifecycle
 - `tests/non-damage-status-application-recovery.test.mjs` — local SQLite integration coverage for interrupted Status application and idempotent recovery
+- `tests/production-alpha-status-live.test.mjs` — actual Worker HTTP/SQLite flow for Status application, retries, rejection, Player access, scoped retirement and live-runner safety
 - `scripts/production-alpha-e2e.mjs` — plan-only in normal CI; production writes only through explicit operator execution
 
 ## Deployment

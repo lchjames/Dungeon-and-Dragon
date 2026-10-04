@@ -28,7 +28,9 @@ jobs:
           done
 
       - name: Validate production Alpha runner safety gate
-        run: node scripts/production-alpha-e2e.mjs
+        run: |
+          node scripts/production-alpha-e2e.mjs
+          node scripts/production-alpha-status-application-live.mjs
 
       - name: Rules regression tests
         run: |
@@ -83,6 +85,7 @@ jobs:
           node tests/non-damage-status-profile-authority-contract.test.mjs
           node tests/non-damage-status-application-authority-contract.test.mjs
           node tests/non-damage-status-application-recovery.test.mjs
+          node tests/production-alpha-status-live.test.mjs
 
       - name: World Map static contracts
         run: |

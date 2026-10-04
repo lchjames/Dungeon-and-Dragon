@@ -100,3 +100,5 @@ The current canonical backlog still leaves the exact owner turn/start/end countd
 Automated production verification remains plan-only for authenticated Player projection.
 
 Normal production deployment and unauthenticated route smoke are still required before release is considered Production complete.
+
+Authenticated projection can also be checked by the separate, explicitly authorised Status application live workflow documented in `PRODUCTION_ALPHA_LIVE_PLAYTEST.md`. Its assertions cover the owner's exact projection allowlist, rejection of another Player and anonymous requests, and rejection of write methods. The existing projection descriptor remains plan-only. The new runner has real Worker HTTP/SQLite coverage locally; an authorised production execution is still required before claiming authenticated live D1 coverage.
