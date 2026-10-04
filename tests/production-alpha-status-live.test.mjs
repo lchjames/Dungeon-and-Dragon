@@ -174,6 +174,8 @@ try {
   assert.match(workflow, /DND_ALPHA_STATUS_EXECUTE: '1'/);
   assert.match(workflow, /secrets\.DND_ALPHA_GM_PASSWORD/);
   assert.match(workflow, /group: dnd-production-alpha-live/);
+  assert.match(workflow, /name: Show tested revision\n\s+run: \|\n\s+git log/);
+  assert.doesNotMatch(workflow, /^\s+run: [^\n]*: /m, 'Commands containing colon-space need a YAML block scalar.');
   console.log('Status live-runner safety and real Worker HTTP/SQLite integration passed.');
 } finally {
   globalThis.fetch = realFetch;

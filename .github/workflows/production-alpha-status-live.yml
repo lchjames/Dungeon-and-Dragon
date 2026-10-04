@@ -33,7 +33,8 @@ jobs:
         with:
           node-version: '22'
       - name: Show tested revision
-        run: git log -1 --format='Status verification revision: %H %s'
+        run: |
+          git log -1 --format='Status verification revision: %H %s'
       - name: Verify Status application and Player visibility
         env:
           DND_ALPHA_STATUS_EXECUTE: '1'
