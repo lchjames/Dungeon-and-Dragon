@@ -2,6 +2,8 @@ import { $, escapeHtml, toast, emptyState } from './common.js';
 
 let combatState = null;
 let refreshTimer = null;
+let combatLoadVersion = 0;
+let statusLoadVersion = 0;
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -112,39 +114,51 @@ function bossTargetMeta(target) {
 }
 
 async function loadCombatStatuses(combat) {
+  const version = ++statusLoadVersion;
   const target = $('#player-combat-status-list');
   if (!target) return;
+  if (!combat || combat.status !== 'active') {
+    target.innerHTML = '<p class="muted">目前沒有進行中的戰鬥。</p>';
+    return;
+  }
   const characters = (combat?.combatants || []).filter(item =>
     item?.entityType === 'character' && item?.controlledByCurrentUser && item?.id
   );
   if (!characters.length) {
-    target.innerHTML = '<p class="muted">No Player-owned Character is participating in this Combat.</p>';
+    target.innerHTML = '<p class="muted">你沒有角色參與這場戰鬥。</p>';
     return;
   }
+  target.innerHTML = '<p class="muted">正在更新角色狀態…</p>';
   try {
-    const rows = await Promise.all(characters.map(async character => {
+    const results = await Promise.allSettled(characters.map(async character => {
       const payload = await api(`/api/player/characters/${encodeURIComponent(character.id)}/status-effects`);
       return { character, statuses: payload.statusEffects || [] };
     }));
+    if (version !== statusLoadVersion) return;
+    const rows = results.filter(result => result.status === 'fulfilled').map(result => result.value);
+    const failures = results.flatMap((result, index) => result.status === 'rejected'
+      ? [`<p class="muted">${escapeHtml(characters[index].displayName || characters[index].id)}：狀態暫時無法載入，請重新整理。</p>`]
+      : []).join('');
     const visible = rows.flatMap(({ character, statuses }) => statuses.map(status => ({ character, status })));
     if (!visible.length) {
-      target.innerHTML = '<p class="muted">No active Status conditions.</p>';
+      target.innerHTML = `${rows.length ? '<p class="muted">已載入的角色目前沒有生效中的狀態。</p>' : ''}${failures}`;
       return;
     }
     target.innerHTML = visible.map(({ character, status }) => {
       const duration = status.durationType === 'PERMANENT'
-        ? 'Permanent'
-        : `${status.remainingRounds ?? '—'} round${Number(status.remainingRounds) === 1 ? '' : 's'} remaining`;
-      const stack = Number(status.stackCount || 1) > 1 ? ` · Stack ${status.stackCount}` : '';
+        ? '永久'
+        : `剩餘 ${status.remainingRounds ?? '—'} 回合`;
+      const stack = Number(status.stackCount || 1) > 1 ? ` · ${status.stackCount} 層` : '';
       return `<article class="stack-item compact-item">
         <div>
           <div class="row-inline"><h4>${escapeHtml(status.name)}</h4><span class="status-pill">${escapeHtml(character.displayName || character.id)}</span></div>
           <p>${escapeHtml(duration)}${escapeHtml(stack)}</p>
         </div>
       </article>`;
-    }).join('');
+    }).join('') + failures;
   } catch (error) {
-    target.innerHTML = `<p class="muted">${escapeHtml(error.message || 'Status conditions unavailable.')}</p>`;
+    if (version !== statusLoadVersion) return;
+    target.innerHTML = '<p class="muted">狀態暫時無法載入，請重新整理。</p>';
   }
 }
 
@@ -264,6 +278,8 @@ function renderAttackResult(attack) {
 }
 
 function renderState(payload) {
+  // A mutation response also invalidates older in-flight polling reads.
+  combatLoadVersion++;
   combatState = payload || { combat: null, attackProfiles: [] };
   renderCombat(combatState.combat || null);
   loadCombatStatuses(combatState.combat || null).catch(() => {});
@@ -271,11 +287,14 @@ function renderState(payload) {
 }
 
 async function loadCombat({ quiet = false } = {}) {
+  const version = ++combatLoadVersion;
   try {
     const payload = await api('/api/player/combat');
+    if (version !== combatLoadVersion) return;
     renderState(payload);
     if (!quiet) setStatus('');
   } catch (error) {
+    if (version !== combatLoadVersion) return;
     if (!quiet) setStatus(error.message, 'error');
   }
 }

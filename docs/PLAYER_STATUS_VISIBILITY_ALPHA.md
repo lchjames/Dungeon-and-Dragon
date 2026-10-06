@@ -72,6 +72,12 @@ The UI displays:
 
 The panel does not expose GM audit/provenance.
 
+### Refresh consistency
+
+Overlapping Combat reads use latest-request-wins ordering. A rendered mutation response invalidates older pending polling reads. Status reads likewise ignore superseded success/error responses, including after Combat ends or no owned Character remains. One Character's failed Status read does not hide other Characters' successfully loaded statuses; failures are shown separately in Traditional Chinese without exposing raw server diagnostics. Loading and failure are never presented as an authoritative empty Status list. This is UI consistency only and adds no Status mutation or countdown timing.
+
+`tests/player-combat-refresh.test.mjs` executes the production page functions with a minimal DOM fixture and controlled asynchronous responses to verify ordering, partial failure, ownership filtering and HTML escaping. It makes no live network requests.
+
 ## 5. No lifecycle changes
 
 This slice MUST NOT:
