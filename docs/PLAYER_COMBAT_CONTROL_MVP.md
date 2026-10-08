@@ -210,3 +210,12 @@ D100 Combat Resolver
 ```
 
 After that, the roadmap inserts the Scenario / Scene / Encounter Foundation before Monster Runtime is connected into the first complete scenario flow.
+
+
+## Player UI request coordination (2026-10-08)
+
+Attack, Focus, Consume Action, Consume Move and End Own Turn share a single in-flight mutation guard in the Player Combat page. While a POST is pending, all those controls and the attack selectors are disabled; refresh requests are deferred and earlier pending reads are invalidated. A render cannot unlock controls during the mutation.
+
+If a response fails, the page does not retry the POST: the server may already have committed it. Controls stay locked until a successful GET of authoritative Combat state, including when the first recovery GET fails. Manual refresh or the normal polling cycle can complete recovery. Once synchronised, the normal ownership, life-state and allowance checks determine which controls are available.
+
+This is per-page UI coordination, not cross-tab idempotency or a replacement for the server's concurrency checks. No gameplay rule, D1 schema or production live-test activation changes. The executable regression test is `tests/player-combat-mutation.test.mjs`.

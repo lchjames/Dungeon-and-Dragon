@@ -82,6 +82,7 @@ jobs:
           node tests/status-effect-runtime-foundation-contract.test.mjs
           node tests/player-status-visibility-contract.test.mjs
           node tests/player-combat-refresh.test.mjs
+          node tests/player-combat-mutation.test.mjs
           node tests/non-damage-effect-settlement-authority-contract.test.mjs
           node tests/non-damage-status-profile-authority-contract.test.mjs
           node tests/non-damage-status-application-authority-contract.test.mjs

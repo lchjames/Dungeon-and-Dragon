@@ -4,6 +4,8 @@ let combatState = null;
 let refreshTimer = null;
 let combatLoadVersion = 0;
 let statusLoadVersion = 0;
+let combatMutationPending = false;
+let combatNeedsSync = false;
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -194,9 +196,9 @@ function renderAttackControls(combat) {
   if (profiles.some(profile => profile.id === previousProfile)) profileSelect.value = previousProfile;
   if (targets.some(target => target.id === previousTarget)) targetSelect.value = previousTarget;
 
-  profileSelect.disabled = !ownTurn || !alive || !current?.actionAvailable || !profiles.length;
-  targetSelect.disabled = !ownTurn || !alive || !current?.actionAvailable || !targets.length;
-  attackButton.disabled = !ownTurn || !alive || !current?.actionAvailable || !profileSelect.value || !targetSelect.value;
+  profileSelect.disabled = combatMutationPending || combatNeedsSync || !ownTurn || !alive || !current?.actionAvailable || !profiles.length;
+  targetSelect.disabled = combatMutationPending || combatNeedsSync || !ownTurn || !alive || !current?.actionAvailable || !targets.length;
+  attackButton.disabled = combatMutationPending || combatNeedsSync || !ownTurn || !alive || !current?.actionAvailable || !profileSelect.value || !targetSelect.value;
 }
 
 function renderCombat(combat) {
@@ -227,10 +229,10 @@ function renderCombat(combat) {
   const hasMissingMp = !current?.mp || !Number.isFinite(Number(current.mp.current)) || !Number.isFinite(Number(current.mp.max));
   const mpFull = !hasMissingMp && Number(current.mp.current) >= Number(current.mp.max);
 
-  if (focus) focus.disabled = !ownTurn || !alive || !current.actionAvailable || hasMissingMp || mpFull;
-  if (action) action.disabled = !ownTurn || !alive || !current.actionAvailable;
-  if (move) move.disabled = !ownTurn || !alive || !current.moveAvailable;
-  if (endTurn) endTurn.disabled = !ownTurn;
+  if (focus) focus.disabled = combatMutationPending || combatNeedsSync || !ownTurn || !alive || !current.actionAvailable || hasMissingMp || mpFull;
+  if (action) action.disabled = combatMutationPending || combatNeedsSync || !ownTurn || !alive || !current.actionAvailable;
+  if (move) move.disabled = combatMutationPending || combatNeedsSync || !ownTurn || !alive || !current.moveAvailable;
+  if (endTurn) endTurn.disabled = combatMutationPending || combatNeedsSync || !ownTurn;
 
   const initiative = $('#player-combat-initiative');
   initiative.innerHTML = (combat.combatants || []).map(combatant => {
@@ -287,10 +289,13 @@ function renderState(payload) {
 }
 
 async function loadCombat({ quiet = false } = {}) {
+  if (combatMutationPending) return;
   const version = ++combatLoadVersion;
   try {
     const payload = await api('/api/player/combat');
     if (version !== combatLoadVersion) return;
+    if (combatNeedsSync) setStatus('');
+    combatNeedsSync = false;
     renderState(payload);
     if (!quiet) setStatus('');
   } catch (error) {
@@ -299,25 +304,60 @@ async function loadCombat({ quiet = false } = {}) {
   }
 }
 
+
+function beginCombatMutation() {
+  if (combatMutationPending || combatNeedsSync) return false;
+  combatMutationPending = true;
+  // Reads started before this write must not restore stale controls.
+  combatLoadVersion++;
+  statusLoadVersion++;
+  for (const id of ['player-focus', 'player-consume-action', 'player-consume-move',
+    'player-attack', 'player-end-turn', 'player-attack-profile', 'player-attack-target']) {
+    const control = $('#' + id);
+    if (control) control.disabled = true;
+  }
+  setStatus('正在處理戰鬥操作，請稍候…');
+  return true;
+}
+
+async function recoverCombatMutation(error) {
+  // A failed response does not prove the server rejected the write. Do not
+  // retry POST; require a successful authoritative read before another action.
+  combatNeedsSync = true;
+  combatMutationPending = false;
+  toast(error.message, 'error');
+  setStatus('操作結果尚未確認，正在同步戰鬥狀態；若未恢復，請按重新整理。', 'error');
+  await loadCombat({ quiet: true });
+}
+
+function finishCombatMutation() {
+  combatMutationPending = false;
+  renderCombat(combatState?.combat || null);
+  if (!combatNeedsSync) setStatus('');
+}
+
 async function consumeAllowance(kind) {
   const combat = combatState?.combat;
-  if (!combat?.isOwnTurn) return;
+  if (!combat?.isOwnTurn || combatMutationPending || combatNeedsSync) return;
   const button = kind === 'action' ? $('#player-consume-action') : $('#player-consume-move');
+  if (!beginCombatMutation()) return;
   if (button) button.disabled = true;
   try {
     const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/consume-${kind}`, { method: 'POST', body: JSON.stringify({}) });
     renderState(payload);
     toast(`${kind === 'action' ? 'Action' : 'Move'} marked as spent.`, 'success');
   } catch (error) {
-    toast(error.message, 'error');
-    await loadCombat({ quiet: true });
+    await recoverCombatMutation(error);
+  } finally {
+    finishCombatMutation();
   }
 }
 
 async function focus() {
   const combat = combatState?.combat;
-  if (!combat?.isOwnTurn) return;
+  if (!combat?.isOwnTurn || combatMutationPending || combatNeedsSync) return;
   const button = $('#player-focus');
+  if (!beginCombatMutation()) return;
   if (button) button.disabled = true;
   try {
     const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/focus`, {
@@ -328,18 +368,20 @@ async function focus() {
     const result = payload.focus;
     toast(`集中完成：MP ${result?.mpBefore ?? '—'} → ${result?.mpAfter ?? '—'}（+${result?.recoveryApplied ?? 0}）`, 'success');
   } catch (error) {
-    toast(error.message, 'error');
-    await loadCombat({ quiet: true });
+    await recoverCombatMutation(error);
+  } finally {
+    finishCombatMutation();
   }
 }
 
 async function attack() {
   const combat = combatState?.combat;
-  if (!combat?.isOwnTurn) return;
+  if (!combat?.isOwnTurn || combatMutationPending || combatNeedsSync) return;
   const profileId = $('#player-attack-profile')?.value || '';
   const targetCombatantId = $('#player-attack-target')?.value || '';
   if (!profileId || !targetCombatantId) return toast('Select an Attack Profile and Target.', 'error');
   const button = $('#player-attack');
+  if (!beginCombatMutation()) return;
   if (button) button.disabled = true;
   try {
     const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/attack`, {
@@ -349,23 +391,26 @@ async function attack() {
     renderState(payload);
     toast(payload.attack?.hit ? 'Attack resolved: hit.' : 'Attack resolved: defended.', payload.attack?.hit ? 'success' : 'info');
   } catch (error) {
-    toast(error.message, 'error');
-    await loadCombat({ quiet: true });
+    await recoverCombatMutation(error);
+  } finally {
+    finishCombatMutation();
   }
 }
 
 async function endOwnTurn() {
   const combat = combatState?.combat;
-  if (!combat?.isOwnTurn) return;
+  if (!combat?.isOwnTurn || combatMutationPending || combatNeedsSync) return;
   const button = $('#player-end-turn');
+  if (!beginCombatMutation()) return;
   if (button) button.disabled = true;
   try {
     const payload = await api(`/api/player/combat/${encodeURIComponent(combat.id)}/end-turn`, { method: 'POST', body: JSON.stringify({}) });
     renderState(payload);
     toast(payload.roundAdvanced ? `Round ${payload.combat?.roundNumber || ''} started.` : 'Turn ended.', 'success');
   } catch (error) {
-    toast(error.message, 'error');
-    await loadCombat({ quiet: true });
+    await recoverCombatMutation(error);
+  } finally {
+    finishCombatMutation();
   }
 }
 
