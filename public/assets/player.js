@@ -3,6 +3,9 @@ import { $, $$, escapeHtml, downloadText, toast, bindThemeToggle, emptyState } f
 let bootstrap = null;
 let selectedCharacterId = '';
 let selectedCharacter = null;
+let characterRequestVersion = 0;
+let requestedCharacterId = '';
+const notesSavesPending = new Set();
 let creationDraftId = '';
 let creationAttributes = null;
 
@@ -69,8 +72,9 @@ function renderCharacterCards() {
 
   $$('[data-character-id]', list).forEach(button => button.addEventListener('click', async () => {
     try {
-      await openCharacter(button.dataset.characterId);
-      $('#character-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (await openCharacter(button.dataset.characterId)) {
+        $('#character-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } catch (error) {
       toast(error.message, 'error');
     }
@@ -116,13 +120,14 @@ function renderResources(character) {
     const current = Number(input.value);
     if (!Number.isFinite(current)) return toast('Enter a valid number.', 'error');
 
+    const selectionVersion = characterRequestVersion;
     button.disabled = true;
     try {
       await api(`/api/player/characters/${encodeURIComponent(character.id)}/resources/${encodeURIComponent(resourceId)}`, {
         method: 'PATCH',
         body: JSON.stringify({ current })
       });
-      await openCharacter(character.id, false);
+      await refreshCharacterAfterMutation(character.id, selectionVersion);
       toast('Resource updated.', 'success');
     } catch (error) {
       toast(error.message, 'error');
@@ -154,13 +159,14 @@ function renderInventory(character) {
     const qty = Number(input.value);
     if (!Number.isFinite(qty) || qty < 0) return toast('Quantity must be 0 or above.', 'error');
 
+    const selectionVersion = characterRequestVersion;
     button.disabled = true;
     try {
       await api(`/api/player/characters/${encodeURIComponent(character.id)}/inventory/${encodeURIComponent(itemId)}`, {
         method: 'PATCH',
         body: JSON.stringify({ qty })
       });
-      await openCharacter(character.id, false);
+      await refreshCharacterAfterMutation(character.id, selectionVersion);
       toast('Inventory updated.', 'success');
     } catch (error) {
       toast(error.message, 'error');
@@ -190,6 +196,7 @@ function renderAbilities(character) {
 }
 
 function renderCharacterDetail(character) {
+  updateNotesSaveButton();
   const detail = $('#character-detail');
   if (!character) {
     detail.classList.add('hidden');
@@ -227,11 +234,61 @@ async function refreshBootstrap() {
 }
 
 async function openCharacter(id, refreshCards = true) {
-  const payload = await api(`/api/player/characters/${encodeURIComponent(id)}`);
+  const version = ++characterRequestVersion;
+  requestedCharacterId = id;
+  let payload;
+  try {
+    payload = await api(`/api/player/characters/${encodeURIComponent(id)}`);
+  } catch (error) {
+    if (version !== characterRequestVersion) return false;
+    throw error;
+  }
+  if (version !== characterRequestVersion) return false;
   selectedCharacterId = id;
   selectedCharacter = payload.character;
   if (refreshCards) renderCharacterCards();
   renderCharacterDetail(selectedCharacter);
+  return true;
+}
+
+async function refreshCharacterAfterMutation(id, version) {
+  if (version === characterRequestVersion && selectedCharacterId === id && requestedCharacterId === id) {
+    await openCharacter(id, false);
+  }
+}
+
+function closeCharacter() {
+  ++characterRequestVersion;
+  requestedCharacterId = '';
+  selectedCharacterId = '';
+  selectedCharacter = null;
+  renderCharacterCards();
+  renderCharacterDetail(null);
+}
+
+function updateNotesSaveButton() {
+  $('#save-notes').disabled = !selectedCharacter || notesSavesPending.has(selectedCharacter.id);
+}
+
+async function saveNotes() {
+  const character = selectedCharacter;
+  if (!character || notesSavesPending.has(character.id)) return;
+  const notes = $('#character-notes').value;
+  notesSavesPending.add(character.id);
+  updateNotesSaveButton();
+  try {
+    await api(`/api/player/characters/${encodeURIComponent(character.id)}/notes`, {
+      method: 'PATCH', body: JSON.stringify({ notes })
+    });
+    character.notes = notes;
+    if (selectedCharacter?.id === character.id) selectedCharacter.notes = notes;
+    toast(`${character.name}：筆記已儲存。`, 'success');
+  } catch (error) {
+    toast(`${character.name}：${error.message}`, 'error');
+  } finally {
+    notesSavesPending.delete(character.id);
+    updateNotesSaveButton();
+  }
 }
 
 function switchTab(name) {
@@ -354,12 +411,7 @@ $('#character-create-form')?.addEventListener('submit', async event => {
   }
 });
 
-$('#close-character')?.addEventListener('click', () => {
-  selectedCharacterId = '';
-  selectedCharacter = null;
-  renderCharacterCards();
-  renderCharacterDetail(null);
-});
+$('#close-character')?.addEventListener('click', closeCharacter);
 
 $('#export-character')?.addEventListener('click', () => {
   if (!selectedCharacter) return;
@@ -367,24 +419,7 @@ $('#export-character')?.addEventListener('click', () => {
   downloadText(`${safeName || 'character'}.json`, JSON.stringify(selectedCharacter, null, 2));
 });
 
-$('#save-notes')?.addEventListener('click', async () => {
-  if (!selectedCharacter) return;
-  const button = $('#save-notes');
-  button.disabled = true;
-  try {
-    const notes = $('#character-notes').value;
-    await api(`/api/player/characters/${encodeURIComponent(selectedCharacter.id)}/notes`, {
-      method: 'PATCH',
-      body: JSON.stringify({ notes })
-    });
-    selectedCharacter.notes = notes;
-    toast('Notes saved.', 'success');
-  } catch (error) {
-    toast(error.message, 'error');
-  } finally {
-    button.disabled = false;
-  }
-});
+$('#save-notes')?.addEventListener('click', saveNotes);
 
 $('#logout-button')?.addEventListener('click', async () => {
   try {

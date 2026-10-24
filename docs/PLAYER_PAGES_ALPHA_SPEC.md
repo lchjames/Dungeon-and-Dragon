@@ -512,3 +512,10 @@ Recommended implementation sequence:
 6. Skill Tree graph
 
 The Skill Tree is strategically important but technically heavier, so the underlying Skill/Ability data should exist first. This allows the graph to visualize real D1 content rather than forcing the data model to follow a decorative graph prototype.
+# Character selection and note-save consistency
+
+- Only the latest requested Character detail may render. Closing the sheet invalidates pending reads; obsolete successes and errors cannot reopen or replace it.
+- Notes PATCH captures the Character ID and submitted text. Each Character has its own pending-save guard, so switching Characters cannot redirect a save or unlock another pending save.
+- Save completion updates only the matching Character cache and preserves text edited while saving. Failures release the guard without automatically retrying writes.
+- Resource and inventory mutation refreshes apply only if the selection has not changed or begun changing since the mutation started.
+- Regression coverage: `tests/player-character-selection.test.mjs` executes the production controller with deferred network responses.
