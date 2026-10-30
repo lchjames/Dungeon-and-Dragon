@@ -527,3 +527,10 @@ The Skill Tree is strategically important but technically heavier, so the underl
 - Changing selection hides the previous draft controls while the next Character loads. Closing invalidates pending reads and errors.
 - Completion cannot refresh another Character, force a tab change, or reload a different selected Character. Errors remain visible for the relevant view; failures never automatically retry writes.
 - Regression coverage: `tests/player-creation-mutation.test.mjs` executes the production controller with delayed responses and selection changes.
+
+# Ability read and filter consistency
+
+- Ability reads follow the completed Character selection. A newer request supersedes pending responses and errors; switching or closing cannot render an older Character's abilities.
+- Scheduling refreshes coalesces same-turn events without dropping a new selection during a pending read. Current failures and expired sessions replace stale cards with a recovery message.
+- Local ability filter rendering does not trigger the content observer. External Character detail renders still request authoritative Ability, progression and MP data; filters reset when the selected Character changes.
+- Regression coverage: `tests/player-abilities-refresh.test.mjs` runs the production controller with deferred requests and simulated MutationObserver notifications, including filtering without additional requests.
