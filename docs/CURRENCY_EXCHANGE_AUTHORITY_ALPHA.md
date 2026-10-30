@@ -226,3 +226,11 @@ Normal CI verifies:
 - the normal Cloudflare deployment smoke after merge to `main`.
 
 Any live D1-writing Currency verification must be an explicit operator-controlled authenticated API/browser flow. A green CI or deployment smoke must never be reported as proof that a live Currency balance exchange was executed against production D1.
+
+# Player exchange request consistency
+
+- Currency reads use the current selected Character and a latest-request guard. Stale successes and failures cannot replace another Character's balances; closing the sheet clears the quote and invalidates reads.
+- An exchange quote is bound to its Character and rate set. Confirmation validates the amount again and permits only one exchange request at a time in the page. Input changes cannot unlock a pending submission.
+- Reads cannot race a pending exchange. After completion, the current Character is reloaded from the server; another Character never receives the completed transaction's balances.
+- Failed or uncertain writes are never automatically replayed. The quote closes and the Player must inspect freshly loaded balances, open a new quote and explicitly confirm again. If recovery fails, exchange remains unavailable until a successful refresh.
+- `tests/player-currency-mutation.test.mjs` executes the production UI controller with deferred responses, selection changes, duplicate clicks, stale quotes and failed recovery.

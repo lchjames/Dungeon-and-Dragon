@@ -8,6 +8,10 @@ const LABEL = {
 let activeCharacterId = '';
 let state = null;
 let selectedRate = null;
+let loadSequence = 0;
+let exchangePending = false;
+let quoteCharacterId = '';
+let quoteRateSetId = '';
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -35,7 +39,29 @@ async function api(url, options = {}) {
 }
 
 function selectedCharacterId() {
-  return document.querySelector('.character-card.selected')?.dataset.characterId || activeCharacterId || '';
+  return document.querySelector('.character-card.selected')?.dataset.characterId || '';
+}
+
+function clearQuote() {
+  selectedRate = null;
+  quoteCharacterId = '';
+  quoteRateSetId = '';
+  $('#player-currency-dialog')?.close();
+  const button = $('#player-confirm-exchange');
+  if (button) button.disabled = true;
+}
+
+function syncCharacterSelection() {
+  const id = selectedCharacterId();
+  if (id !== activeCharacterId) {
+    ++loadSequence;
+    activeCharacterId = id;
+    state = null;
+    clearQuote();
+    renderState();
+    setStatus('');
+  }
+  return id;
 }
 
 function inventoryVisible() {
@@ -92,9 +118,9 @@ function balance(id) {
 function renderState() {
   ensurePanel();
   const balances = $('#player-coin-balances');
-  if (balances) balances.innerHTML = Object.entries(LABEL).map(([id, label]) => `<article class="metric-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(balance(id))}</strong><small>Coin</small></article>`).join('');
+  if (balances) balances.innerHTML = Object.entries(LABEL).map(([id, label]) => `<article class="metric-card"><span>${escapeHtml(label)}</span><strong>${state ? escapeHtml(balance(id)) : '—'}</strong><small>Coin</small></article>`).join('');
   const rateSet = state?.activeRateSet;
-  $('#player-rate-updated').textContent = rateSet ? `${rateSet.label} · updated ${new Date(rateSet.updatedAt).toLocaleString()}` : 'No ACTIVE rate set.';
+  $('#player-rate-updated').textContent = !state ? '餘額與匯率尚未載入。' : rateSet ? `${rateSet.label} · updated ${new Date(rateSet.updatedAt).toLocaleString()}` : 'No ACTIVE rate set.';
   const rates = (rateSet?.rates || []).filter(rate => rate.enabled);
   $('#player-exchange-rates').innerHTML = rates.length ? rates.map(rate => `<article class="stack-item">
     <div><h4>${escapeHtml(rate.fromQuantity)} ${escapeHtml(LABEL[rate.fromItemDefinitionId] || rate.fromItemDefinitionId)} → ${escapeHtml(rate.toQuantity)} ${escapeHtml(LABEL[rate.toItemDefinitionId] || rate.toItemDefinitionId)}</h4><p>You have ${escapeHtml(balance(rate.fromItemDefinitionId))} ${escapeHtml(LABEL[rate.fromItemDefinitionId] || '')}.</p></div>
@@ -103,16 +129,23 @@ function renderState() {
 }
 
 async function loadCurrency({ force = false } = {}) {
-  const id = selectedCharacterId();
-  if (!id || (!force && !inventoryVisible())) return;
-  activeCharacterId = id;
+  const id = syncCharacterSelection();
+  if (!id || exchangePending || (!force && !inventoryVisible())) return;
+  const sequence = ++loadSequence;
+  state = null;
+  clearQuote();
+  renderState();
   setStatus('Loading Currency…');
   try {
-    state = await api(`/api/player/characters/${encodeURIComponent(id)}/currency`);
-    if (id !== selectedCharacterId()) return;
+    const payload = await api(`/api/player/characters/${encodeURIComponent(id)}/currency`);
+    if (sequence !== loadSequence || id !== selectedCharacterId()) return;
+    state = payload;
     renderState();
     setStatus('');
-  } catch (error) { setStatus(error.message, 'error'); }
+  } catch (error) {
+    if (sequence !== loadSequence || id !== selectedCharacterId()) return;
+    setStatus(error.message, 'error');
+  }
 }
 
 function findRate(rateId) {
@@ -120,9 +153,13 @@ function findRate(rateId) {
 }
 
 function openExchange(rateId) {
+  syncCharacterSelection();
+  if (exchangePending || !activeCharacterId || !state) return;
   ensureDialog();
   selectedRate = findRate(rateId);
   if (!selectedRate) return toast('This exchange rate is no longer available. Refresh first.', 'error');
+  quoteCharacterId = activeCharacterId;
+  quoteRateSetId = state.activeRateSet.id;
   const fromLabel = LABEL[selectedRate.fromItemDefinitionId] || selectedRate.fromItemDefinitionId;
   const toLabel = LABEL[selectedRate.toItemDefinitionId] || selectedRate.toItemDefinitionId;
   $('#player-exchange-title').textContent = `Exchange ${fromLabel} → ${toLabel}`;
@@ -141,10 +178,13 @@ function exchangeAmount() {
 }
 
 function updatePreview() {
-  if (!selectedRate) return;
+  if (!selectedRate) {
+    $('#player-confirm-exchange').disabled = true;
+    return;
+  }
   const amount = exchangeAmount();
   const sourceBalance = balance(selectedRate.fromItemDefinitionId);
-  const valid = Number.isInteger(amount) && amount > 0 && amount % selectedRate.fromQuantity === 0 && amount <= sourceBalance;
+  const valid = Number.isSafeInteger(amount) && amount > 0 && amount % selectedRate.fromQuantity === 0 && amount <= sourceBalance;
   const units = valid ? amount / selectedRate.fromQuantity : 0;
   const receive = units * selectedRate.toQuantity;
   const fromLabel = LABEL[selectedRate.fromItemDefinitionId] || selectedRate.fromItemDefinitionId;
@@ -152,7 +192,7 @@ function updatePreview() {
   $('#player-exchange-preview').textContent = valid
     ? `You Pay ${amount} ${fromLabel} · You Receive ${receive} ${toLabel} · After: ${sourceBalance - amount} ${fromLabel}, ${balance(selectedRate.toItemDefinitionId) + receive} ${toLabel}.`
     : `Amount must be a whole multiple of ${selectedRate.fromQuantity} and cannot exceed your ${sourceBalance} ${fromLabel}.`;
-  $('#player-confirm-exchange').disabled = !valid;
+  $('#player-confirm-exchange').disabled = exchangePending || quoteCharacterId !== selectedCharacterId() || !valid;
 }
 
 function shiftBundles(delta) {
@@ -173,7 +213,14 @@ function maxBundles() {
 
 async function confirmExchange() {
   const id = selectedCharacterId();
-  if (!id || !selectedRate || !state?.activeRateSet?.id) return;
+  if (exchangePending || !id || id !== quoteCharacterId || id !== activeCharacterId
+      || !selectedRate || !state?.activeRateSet?.id || quoteRateSetId !== state.activeRateSet.id) return;
+  const sourceQuantity = exchangeAmount();
+  if (!Number.isSafeInteger(sourceQuantity) || sourceQuantity <= 0
+      || sourceQuantity % selectedRate.fromQuantity !== 0
+      || sourceQuantity > balance(selectedRate.fromItemDefinitionId)) return;
+  exchangePending = true;
+  ++loadSequence;
   const button = $('#player-confirm-exchange');
   button.disabled = true;
   try {
@@ -184,22 +231,24 @@ async function confirmExchange() {
         expectedRateSetId: state.activeRateSet.id,
         quotedFromQuantity: selectedRate.fromQuantity,
         quotedToQuantity: selectedRate.toQuantity,
-        sourceQuantity: exchangeAmount()
+        sourceQuantity
       })
     });
-    state = payload;
-    $('#player-currency-dialog').close();
-    selectedRate = null;
-    renderState();
+    if (id === selectedCharacterId() && id === activeCharacterId) {
+      state = payload;
+      clearQuote();
+      renderState();
+    }
     document.dispatchEvent(new CustomEvent('dnd:currency-changed', { detail: { characterId: id } }));
     toast(`Exchange complete: ${payload.transaction.fromQuantityTotal} → ${payload.transaction.toQuantityTotal}.`, 'success');
   } catch (error) {
-    const box = $('#player-exchange-error');
-    box.textContent = error.message;
-    box.hidden = false;
-    if (error.code === 'CURRENCY_RATE_STALE') await loadCurrency({ force: true }).catch(() => {});
-    updatePreview();
-  } finally { button.disabled = false; }
+    toast(`兌換未能確認：${error.message}。請先檢查重新載入後的餘額。`, 'error');
+  } finally {
+    exchangePending = false;
+    state = null;
+    clearQuote();
+    await loadCurrency({ force: true });
+  }
 }
 
 ensurePanel();
@@ -216,17 +265,16 @@ document.addEventListener('click', event => {
   if (event.target.closest?.('#player-confirm-exchange')) return void confirmExchange();
   const tab = event.target.closest?.('[data-tab="inventory"]');
   if (tab) return void queueMicrotask(() => loadCurrency({ force: true }));
-  const character = event.target.closest?.('[data-character-id]');
-  if (character) {
-    activeCharacterId = character.dataset.characterId || '';
-    if (inventoryVisible()) setTimeout(() => loadCurrency({ force: true }), 0);
-    return;
-  }
   if (event.target.closest?.('#close-character')) {
-    activeCharacterId = '';
-    state = null;
+    syncCharacterSelection();
   }
 });
 
 $('#player-exchange-amount')?.addEventListener('input', updatePreview);
-document.addEventListener('dnd:currency-changed', () => loadCurrency({ force: true }).catch(() => {}));
+document.addEventListener('dnd:currency-changed', event => {
+  if (event.detail?.characterId === selectedCharacterId()) void loadCurrency({ force: true });
+});
+const characterList = $('#character-list');
+if (characterList) {
+  new MutationObserver(() => { void loadCurrency(); }).observe(characterList, { childList: true, subtree: true });
+}
