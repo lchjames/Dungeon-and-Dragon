@@ -534,3 +534,10 @@ The Skill Tree is strategically important but technically heavier, so the underl
 - Scheduling refreshes coalesces same-turn events without dropping a new selection during a pending read. Current failures and expired sessions replace stale cards with a recovery message.
 - Local ability filter rendering does not trigger the content observer. External Character detail renders still request authoritative Ability, progression and MP data; filters reset when the selected Character changes.
 - Regression coverage: `tests/player-abilities-refresh.test.mjs` runs the production controller with deferred requests and simulated MutationObserver notifications, including filtering without additional requests.
+
+# Story narrative refresh consistency
+
+- Story polling applies only the latest response for the selected Map Character. Changing or clearing selection removes the previous narrative immediately; hidden-tab responses cannot update the panel.
+- Current read failures replace old narrative with a quiet retry message. Polling continues without replaying writes or creating error toasts.
+- Narrative signatures are cached only after successful rendering and reset when the Story panel is mounted again, so unchanged content reappears after a panel rebuild.
+- Regression coverage: `tests/player-story-narratives-refresh.test.mjs` covers selection races, read failures, hidden tabs and missing or rebuilt panels.

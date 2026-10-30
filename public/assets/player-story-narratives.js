@@ -2,6 +2,8 @@ import { escapeHtml } from './common.js';
 
 let lastNarrativeSignature = '';
 let refreshTimer = null;
+let narrativeCharacterId = '';
+let refreshSequence = 0;
 
 function mountPanel() {
   const side = document.querySelector('#player-map-detail .player-map-side');
@@ -15,6 +17,7 @@ function mountPanel() {
     </div>
     <div id="player-story-narrative-list" class="stack-list"><p class="muted">No revealed narrative yet.</p></div>`;
   side.append(panel);
+  lastNarrativeSignature = '';
 }
 
 function selectedCharacterId() {
@@ -24,10 +27,10 @@ function selectedCharacterId() {
 function renderNarratives(items = []) {
   mountPanel();
   const target = document.querySelector('#player-story-narrative-list');
-  if (!target) return;
+  if (!target) return false;
   if (!items.length) {
     target.innerHTML = '<p class="muted">No revealed narrative yet.</p>';
-    return;
+    return true;
   }
   target.innerHTML = items.map(item => `
     <article class="stack-item">
@@ -36,24 +39,40 @@ function renderNarratives(items = []) {
         <small class="muted">${item.createdAt ? new Date(Number(item.createdAt)).toLocaleString() : ''}</small>
       </div>
     </article>`).join('');
+  return true;
+}
+
+function clearNarratives(message) {
+  lastNarrativeSignature = '';
+  mountPanel();
+  const target = document.querySelector('#player-story-narrative-list');
+  if (target) target.innerHTML = `<p class="muted">${escapeHtml(message)}</p>`;
 }
 
 async function refreshNarratives() {
   const characterId = selectedCharacterId();
+  const sequence = ++refreshSequence;
+  if (characterId !== narrativeCharacterId) {
+    narrativeCharacterId = characterId;
+    clearNarratives(characterId ? '正在載入故事…' : '請先選擇角色。');
+  }
   if (!characterId || document.visibilityState !== 'visible') return;
   try {
     const response = await fetch(`/api/player/world/characters/${encodeURIComponent(characterId)}`, {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' }
     });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error('Narrative unavailable');
     const payload = await response.json();
+    if (sequence !== refreshSequence || characterId !== selectedCharacterId() || document.visibilityState !== 'visible') return;
     const narratives = Array.isArray(payload?.storyNarratives) ? payload.storyNarratives : [];
     const signature = JSON.stringify(narratives.map(item => [item.id, item.createdAt, item.text]));
+    mountPanel();
     if (signature === lastNarrativeSignature) return;
-    lastNarrativeSignature = signature;
-    renderNarratives(narratives);
+    if (renderNarratives(narratives)) lastNarrativeSignature = signature;
   } catch {
+    if (sequence !== refreshSequence || characterId !== selectedCharacterId() || document.visibilityState !== 'visible') return;
+    clearNarratives('故事暫時無法載入，系統會自動重試。');
     // The main Map UI owns connectivity/error presentation. Story polling stays quiet.
   }
 }
@@ -66,14 +85,13 @@ function scheduleRefresh() {
 const observer = new MutationObserver(() => mountPanel());
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
-document.querySelector('#player-map-character')?.addEventListener('change', () => {
-  lastNarrativeSignature = '';
-  refreshNarratives();
+document.addEventListener('change', event => {
+  if (event.target?.id === 'player-map-character') refreshNarratives();
 });
 window.addEventListener('dnd:map-state-changed', refreshNarratives);
 window.addEventListener('dnd:combat-state-changed', refreshNarratives);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refreshNarratives();
+  refreshNarratives();
 });
 
 mountPanel();
