@@ -519,3 +519,11 @@ The Skill Tree is strategically important but technically heavier, so the underl
 - Save completion updates only the matching Character cache and preserves text edited while saving. Failures release the guard without automatically retrying writes.
 - Resource and inventory mutation refreshes apply only if the selection has not changed or begun changing since the mutation started.
 - Regression coverage: `tests/player-character-selection.test.mjs` executes the production controller with deferred network responses.
+
+# Creation Skill save and finalise consistency
+
+- Save and Finalize capture the selected draft Character and allocation before starting. The allocation PATCH and finalisation POST always use that same Character ID, even if the Player switches or closes the sheet.
+- Only one creation mutation may run at a time in the page. Both buttons and allocation inputs remain disabled until it finishes, including on another selected draft.
+- Changing selection hides the previous draft controls while the next Character loads. Closing invalidates pending reads and errors.
+- Completion cannot refresh another Character, force a tab change, or reload a different selected Character. Errors remain visible for the relevant view; failures never automatically retry writes.
+- Regression coverage: `tests/player-creation-mutation.test.mjs` executes the production controller with delayed responses and selection changes.

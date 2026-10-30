@@ -5,6 +5,7 @@ const CREATION_SKILL_CAP = 30;
 let currentCharacterId = '';
 let currentCharacter = null;
 let loadSequence = 0;
+let creationMutationPending = false;
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -128,13 +129,10 @@ function allocationState() {
 function refreshAllocationSummary() {
   const state = allocationState();
   const summary = $('#creation-skill-summary');
-  const save = $('#save-creation-skills');
-  const finalize = $('#finalize-character');
   if (summary) {
     summary.textContent = `Spent ${state.spent} / ${state.pool} · Remaining ${state.remaining}`;
   }
-  if (save) save.disabled = !state.valid;
-  if (finalize) finalize.disabled = !state.valid || state.spent !== state.pool;
+  updateCreationControls(state);
 
   if (state.spent > state.pool) {
     setStatus(`超出 Creation Skill Point 上限 ${state.pool} 點。`, 'error');
@@ -145,6 +143,18 @@ function refreshAllocationSummary() {
   } else {
     setStatus('已分配完整 200 點，可以 Save 或 Finalize。', 'success');
   }
+}
+
+function updateCreationControls(state = allocationState()) {
+  const editable = currentCharacter?.id === currentCharacterId
+    && selectedCharacterId() === currentCharacterId
+    && currentCharacter?.status === 'draft' && !currentCharacter?.progression?.creationComplete;
+  const locked = creationMutationPending || !editable;
+  const save = $('#save-creation-skills');
+  const finalize = $('#finalize-character');
+  if (save) save.disabled = locked || !state.valid;
+  if (finalize) finalize.disabled = locked || !state.valid || state.spent !== state.pool;
+  $$('[data-creation-skill]').forEach(input => { input.disabled = locked; });
 }
 
 function renderCreationSkills(character) {
@@ -198,67 +208,80 @@ async function loadSelectedCharacter(force = false) {
   if (!ensureCreationUI()) return;
   const id = selectedCharacterId();
   if (!id) {
+    ++loadSequence;
     currentCharacterId = '';
     hideCreationUI();
-    return;
+    updateCreationControls();
+    return false;
   }
   if (!force && id === currentCharacterId && currentCharacter) return;
 
+  if (id !== currentCharacterId) hideCreationUI();
   currentCharacterId = id;
+  updateCreationControls();
   const sequence = ++loadSequence;
   try {
     const payload = await api(`/api/player/characters/${encodeURIComponent(id)}`);
-    if (sequence !== loadSequence || currentCharacterId !== id) return;
+    if (sequence !== loadSequence || currentCharacterId !== id || selectedCharacterId() !== id) return false;
     renderCreationSkills(payload.character);
+    return true;
   } catch (error) {
-    if (sequence !== loadSequence) return;
+    if (sequence !== loadSequence || selectedCharacterId() !== id) return false;
     hideCreationUI();
+    updateCreationControls();
     toast(error.message, 'error');
+    return false;
   }
 }
 
-async function persistAllocation() {
-  if (!currentCharacterId || !currentCharacter) throw new Error('No Draft Character selected.');
-  const state = allocationState();
-  if (!state.valid) throw new Error('Creation Skill allocation is invalid.');
-
-  return api(`/api/player/characters/${encodeURIComponent(currentCharacterId)}/creation-skills`, {
+async function persistAllocation(id, state) {
+  return api(`/api/player/characters/${encodeURIComponent(id)}/creation-skills`, {
     method: 'PATCH',
     body: JSON.stringify({ allocations: state.allocations })
   });
 }
 
+function mutationCharacter() {
+  if (creationMutationPending || !currentCharacterId || currentCharacter?.id !== currentCharacterId
+      || selectedCharacterId() !== currentCharacterId || currentCharacter.status !== 'draft'
+      || currentCharacter.progression?.creationComplete) return null;
+  return currentCharacter;
+}
+
+function isCurrentView(id, sequence) {
+  return id === currentCharacterId && id === selectedCharacterId() && sequence === loadSequence;
+}
+
 async function saveAllocation() {
+  const character = mutationCharacter();
+  if (!character) return;
+  const sequence = loadSequence;
   const state = allocationState();
   if (!state.valid) {
     refreshAllocationSummary();
     return;
   }
 
-  const button = $('#save-creation-skills');
-  const finalize = $('#finalize-character');
-  button.disabled = true;
-  if (finalize) finalize.disabled = true;
+  creationMutationPending = true;
+  updateCreationControls(state);
   setStatus('正在保存 Creation Skill Points…');
   try {
-    const payload = await persistAllocation();
-    setStatus(
-      `已保存：Spent ${payload.progression.creationSkillPointsSpent} · Remaining ${payload.progression.creationSkillPointsRemaining}`,
-      'success'
-    );
-    await loadSelectedCharacter(true);
-    showCreationTab();
-    toast('Creation Skill allocation saved.', 'success');
+    await persistAllocation(character.id, state);
+    if (isCurrentView(character.id, sequence)) await loadSelectedCharacter(true);
+    toast(`${character.name}：Creation Skill 配置已保存。`, 'success');
   } catch (error) {
-    setStatus(error.message, 'error');
+    if (isCurrentView(character.id, sequence)) setStatus(error.message, 'error');
+    else toast(`${character.name}：${error.message}`, 'error');
   } finally {
-    button.disabled = false;
-    refreshAllocationSummary();
+    creationMutationPending = false;
+    updateCreationControls();
   }
 }
 
 async function finalizeCharacter() {
-  if (!currentCharacterId || !currentCharacter) return;
+  const character = mutationCharacter();
+  if (!character) return;
+  const sequence = loadSequence;
   const state = allocationState();
   if (!state.valid || state.spent !== state.pool) {
     refreshAllocationSummary();
@@ -268,28 +291,32 @@ async function finalizeCharacter() {
 
   if (!globalThis.confirm('Finalize 後 Creation Skill Points 將鎖定，不能再用建角介面修改。確定完成角色建立？')) return;
 
-  const save = $('#save-creation-skills');
-  const finalize = $('#finalize-character');
-  save.disabled = true;
-  finalize.disabled = true;
+  creationMutationPending = true;
+  updateCreationControls(state);
   setStatus('正在保存並完成角色建立…');
 
   try {
-    const saved = await persistAllocation();
+    const saved = await persistAllocation(character.id, state);
     if (Number(saved?.progression?.creationSkillPointsRemaining) !== 0) {
       throw new Error('Server 顯示仍有 Creation Skill Points 未分配。');
     }
 
-    await api(`/api/player/characters/${encodeURIComponent(currentCharacterId)}/finalize-creation`, {
+    await api(`/api/player/characters/${encodeURIComponent(character.id)}/finalize-creation`, {
       method: 'POST',
       body: JSON.stringify({})
     });
 
-    toast('Character creation finalized.', 'success');
-    location.reload();
+    character.status = 'active';
+    character.progression.creationComplete = true;
+    toast(`${character.name}：角色建立已完成。`, 'success');
+    if (isCurrentView(character.id, sequence)) location.reload();
+    else if (selectedCharacterId() === character.id) await loadSelectedCharacter(true);
   } catch (error) {
-    setStatus(error.message, 'error');
-    refreshAllocationSummary();
+    if (isCurrentView(character.id, sequence)) setStatus(error.message, 'error');
+    else toast(`${character.name}：${error.message}`, 'error');
+  } finally {
+    creationMutationPending = false;
+    updateCreationControls();
   }
 }
 
