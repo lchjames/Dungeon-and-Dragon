@@ -2,6 +2,8 @@
 
 Production source repository for `https://dungeon-and-dragon.lchjames.com`.
 
+Start a hands-on Alpha session: [Player playtest guide](https://dungeon-and-dragon.lchjames.com/playtest/). Players can register and create a Character now; a full Map / Encounter / Combat session requires GM-authored content and setup. The historical live gate below does not certify every subsequent feature or the latest release's complete manual browser flow.
+
 The project is currently in **Alpha Integration / Usability Tuning**. The minimum Character → Scenario → Encounter → Monster/Boss → Combat vertical slice has been exercised successfully against the deployed Cloudflare Worker and production D1 with separate Admin and Player sessions. The production Alpha live gate is therefore **verified**, not pending.
 
 ## Current architecture

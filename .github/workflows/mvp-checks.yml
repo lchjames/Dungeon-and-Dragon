@@ -223,6 +223,8 @@ jobs:
 
           expect_2xx "/"
           expect_2xx "/player/login/"
+          expect_2xx "/player/register/"
+          expect_2xx "/playtest/"
           expect_2xx "/gm/login/"
           expect_redirect "/player/" "/player/login/"
           expect_redirect "/gm/" "/gm/login/"
