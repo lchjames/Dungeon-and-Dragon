@@ -86,6 +86,7 @@ jobs:
           node tests/player-character-selection.test.mjs
           node tests/player-creation-mutation.test.mjs
           node tests/player-currency-mutation.test.mjs
+          node tests/player-inventory-mutation.test.mjs
           node tests/non-damage-effect-settlement-authority-contract.test.mjs
           node tests/non-damage-status-profile-authority-contract.test.mjs
           node tests/non-damage-status-application-authority-contract.test.mjs

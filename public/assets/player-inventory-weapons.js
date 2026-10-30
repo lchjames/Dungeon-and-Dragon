@@ -3,6 +3,8 @@ import { $, escapeHtml, toast, emptyState } from './common.js';
 
 let activeCharacterId = '';
 let renderToken = 0;
+let inventoryPending = false;
+let loadedCharacterId = '';
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -26,7 +28,13 @@ async function api(url, options = {}) {
 }
 
 function selectedCharacterId() {
-  return document.querySelector('.character-card.selected')?.dataset.characterId || activeCharacterId || '';
+  return document.querySelector('.character-card.selected')?.dataset.characterId || '';
+}
+
+function clearInventory(message) {
+  loadedCharacterId = '';
+  const target = $('#inventory-list');
+  if (target) target.innerHTML = `<p class="muted">${escapeHtml(message)}</p>`;
 }
 
 function isInventoryTabVisible() {
@@ -41,7 +49,7 @@ function renderInventory(items = []) {
     target.innerHTML = emptyState('Inventory is empty', 'No non-Currency canonical Items have been added yet. Coins are managed in the Currency panel above.');
     return;
   }
-  target.innerHTML = visibleItems.map(item => `<article class="stack-item" data-canonical-inventory-row="${escapeHtml(item.id)}">
+  target.innerHTML = visibleItems.map(item => `<article class="stack-item" data-canonical-inventory-row="${escapeHtml(item.id)}" data-inventory-character="${escapeHtml(loadedCharacterId)}">
     <div style="flex:1;min-width:0">
       <div class="row-inline">
         <h4>${escapeHtml(item.name)}</h4>
@@ -63,29 +71,47 @@ function renderInventory(items = []) {
 
 async function loadInventory({ force = false } = {}) {
   const id = selectedCharacterId();
-  if (!id || (!force && !isInventoryTabVisible())) return;
-  activeCharacterId = id;
+  if (id !== activeCharacterId) {
+    activeCharacterId = id;
+    ++renderToken;
+    clearInventory(id ? '正在載入背包…' : '請先選擇角色。');
+  }
+  if (!id || inventoryPending || (!force && !isInventoryTabVisible())) return;
   const token = ++renderToken;
-  const payload = await api(`/api/player/characters/${encodeURIComponent(id)}/inventory`);
-  if (token !== renderToken || id !== selectedCharacterId()) return;
-  renderInventory(payload.inventory || []);
+  clearInventory('正在載入背包…');
+  try {
+    const payload = await api(`/api/player/characters/${encodeURIComponent(id)}/inventory`);
+    if (token !== renderToken || id !== selectedCharacterId()) return;
+    loadedCharacterId = id;
+    renderInventory(payload.inventory || []);
+  } catch (error) {
+    if (token !== renderToken || id !== selectedCharacterId()) return;
+    clearInventory('背包載入失敗，請重新點選 Inventory 頁籤再試。');
+    toast(error.message, 'error');
+  }
 }
 
 async function patchItem(button, body) {
   const id = selectedCharacterId();
-  if (!id) return;
+  const ownerId = button.closest('[data-inventory-character]')?.dataset.inventoryCharacter;
+  if (inventoryPending || !id || id !== loadedCharacterId || id !== ownerId || button.disabled) return;
+  const itemId = button.dataset.playerToggleEquip || button.dataset.playerItemSave;
+  const revision = Number(button.dataset.revision);
+  inventoryPending = true;
+  ++renderToken;
   button.disabled = true;
+  clearInventory('正在更新背包…');
   try {
-    const itemId = button.dataset.playerToggleEquip || button.dataset.playerItemSave;
     await api(`/api/player/characters/${encodeURIComponent(id)}/inventory/${encodeURIComponent(itemId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ ...body, revision: Number(button.dataset.revision) })
+      body: JSON.stringify({ ...body, revision })
     });
-    await loadInventory({ force: true });
     toast('Inventory updated.', 'success');
   } catch (error) {
     toast(error.message, 'error');
-    await loadInventory({ force: true }).catch(() => {});
+  } finally {
+    inventoryPending = false;
+    await loadInventory({ force: true });
   }
 }
 
@@ -96,18 +122,10 @@ document.addEventListener('click', event => {
     return;
   }
 
-  const character = event.target.closest?.('[data-character-id]');
-  if (character) {
-    activeCharacterId = character.dataset.characterId || '';
-    setTimeout(() => {
-      if (isInventoryTabVisible()) loadInventory({ force: true }).catch(error => toast(error.message, 'error'));
-    }, 0);
-    return;
-  }
-
   if (event.target.closest?.('#close-character')) {
     activeCharacterId = '';
     renderToken += 1;
+    clearInventory('請先選擇角色。');
     return;
   }
 
@@ -125,3 +143,8 @@ document.addEventListener('click', event => {
     patchItem(save, { quantity });
   }
 });
+
+const characterList = $('#character-list');
+if (characterList) {
+  new MutationObserver(() => { void loadInventory(); }).observe(characterList, { childList: true, subtree: true });
+}

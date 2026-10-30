@@ -246,3 +246,11 @@ After this foundation is production stable, useful follow-up work includes:
 2. replace explicit GM-authored Attack Profile numbers with generated source profiles;
 3. implement Armour equipment authority and Character defence contribution;
 4. only then add Store / Currency / Exchange transaction flows on top of the same Inventory authority.
+
+## 16. Player Inventory request consistency
+
+- Observe completed Character card selection changes rather than starting a read from the initial click. Only the latest successful read for the selected Character may render canonical Inventory controls.
+- Rendered rows carry their Character ID. Equip, Unequip and quantity writes require matching selected, loaded and row Character IDs, and capture the item revision before sending.
+- Only one Inventory mutation runs at a time in the page. Starting a write invalidates earlier reads and removes stale controls; refreshes wait until the write completes.
+- Success and failure both reload the currently selected Character. Failed writes are never automatically replayed; failed recovery leaves an error and no editable rows until a successful reload. Closing clears the selection without falling back to the previous Character.
+- `tests/player-inventory-mutation.test.mjs` executes the production controller with delayed responses, selection changes, duplicate writes and failed recovery. This does not claim authenticated production D1 write coverage.
