@@ -59,6 +59,7 @@ function ensureCreationUI() {
             <span id="creation-skill-summary" class="muted">Spent 0 / 200 · Remaining 200</span>
           </div>
           <div class="row-inline">
+            <button id="sample-allocation" class="button button-ghost" type="button" disabled>填入試玩配點</button>
             <button id="save-creation-skills" class="button button-ghost" type="button">Save Allocation</button>
             <button id="finalize-character" class="button" type="button" disabled>Finalize Character</button>
           </div>
@@ -68,6 +69,7 @@ function ensureCreationUI() {
         <div id="creation-skill-list" class="stack-list"></div>
       </section>`;
     overviewPanel.insertAdjacentElement('afterend', panel);
+    $('#sample-allocation')?.addEventListener('click', fillSampleAllocation);
     $('#save-creation-skills')?.addEventListener('click', saveAllocation);
     $('#finalize-character')?.addEventListener('click', finalizeCharacter);
   }
@@ -126,6 +128,20 @@ function allocationState() {
   return { allocations, spent, remaining, pool, valid };
 }
 
+function fillSampleAllocation() {
+  if (!mutationCharacter()) return;
+  const state = allocationState();
+  if (!state.valid || state.spent !== 0 || state.pool !== DEFAULT_POOL) return;
+  let remaining = state.pool;
+  for (const input of $$('[data-creation-skill]')) {
+    const points = Math.min(remaining, CREATION_SKILL_CAP);
+    input.value = String(points);
+    remaining -= points;
+  }
+  refreshAllocationSummary();
+  setStatus('已填入試玩配點，尚未儲存。你可以先調整，再儲存或完成建角。');
+}
+
 function refreshAllocationSummary() {
   const state = allocationState();
   const summary = $('#creation-skill-summary');
@@ -152,6 +168,8 @@ function updateCreationControls(state = allocationState()) {
   const locked = creationMutationPending || !editable;
   const save = $('#save-creation-skills');
   const finalize = $('#finalize-character');
+  const sample = $('#sample-allocation');
+  if (sample) sample.disabled = locked || !state.valid || state.spent !== 0 || state.pool !== DEFAULT_POOL;
   if (save) save.disabled = locked || !state.valid;
   if (finalize) finalize.disabled = locked || !state.valid || state.spent !== state.pool;
   $$('[data-creation-skill]').forEach(input => { input.disabled = locked; });
@@ -175,6 +193,7 @@ function renderCreationSkills(character) {
   const skills = Array.isArray(character.skills) ? character.skills : [];
   if (skills.length !== 23) {
     list.innerHTML = '<p class="muted">23 個基礎技能未完整初始化，暫時無法分配 Creation Skill Points。</p>';
+    $('#sample-allocation').disabled = true;
     $('#save-creation-skills').disabled = true;
     $('#finalize-character').disabled = true;
     setStatus('Character Skill initialization is incomplete.', 'error');
